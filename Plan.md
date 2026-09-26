@@ -11,7 +11,7 @@
 
 ## Phase 2: バックエンド (Rust) - ファイルシステム API 実装
 - [x] 4. Rust: 指定パスのテキストを読み込む `open_file` コマンドの実装と単体テスト（`cargo test`）
-- [ ] 5. Rust: 指定パスにテキストを書き込む `save_file` コマンドの実装と単体テスト（`cargo test`）
+- [x] 5. Rust: 指定パスにテキストを書き込む `save_file` コマンドの実装と単体テスト（`cargo test`）
 - [ ] 6. Rust: 指定ディレクトリ直下のファイル/ディレクトリ一覧を返す `read_dir` コマンドの実装と単体テスト（`cargo test`）
 
 ## Phase 3: フロントエンド (React) - エディタコア実装

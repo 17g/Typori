@@ -84,3 +84,26 @@ Tauriバックエンド（Rust）において、指定されたパスのファ�
 - `src-tauri/src/fs.rs` (新規作成)
 - `src-tauri/src/lib.rs`
 
+## 2026-09-26: Rust: 指定パスにテキストを書き込む save_file コマンドの実装と単体テスト
+
+### 概要
+Tauriバックエンド（Rust）において、指定されたパスにテキスト（UTF-8）を書き込む `save_file` コマンドを実装し、自動親ディレクトリ生成処理、ハンドラ登録、および単体テスト（新規保存・上書き保存・ネストディレクトリ生成保存）を追加した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - ファイル保存用Tauriコマンドが存在しなかった。
+  - `fs.rs` には `open_file` のみ実装されていた。
+- **After**:
+  - `src-tauri/src/fs.rs` に `save_file(path: String, content: String) -> Result<(), String>` を実装。親ディレクトリが存在しない場合の自動作成処理 (`fs::create_dir_all`) も備える。
+  - `save_file` に対する新規保存テスト (`test_save_file_success`)、上書き保存テスト (`test_save_file_overwrite`)、ネストした未作成ディレクトリを含むパスへの保存テスト (`test_save_file_creates_nested_directories`) を追加。
+  - `src-tauri/src/lib.rs` の `tauri::generate_handler!` に `fs::save_file` を登録。
+  - `cargo test` による全単体テスト通過（5 passed, Exit Code 0）および `pnpm run build` の正常終了を確認。
+
+### 変更理由
+`Plan.md` の Phase 2 タスク5に基づき、フロントエンドからエディタの内容をローカルファイルに書き込み・保存するためのバックエンドAPIを提供するため。
+
+### 影響範囲
+- `src-tauri/src/fs.rs`
+- `src-tauri/src/lib.rs`
+
+
