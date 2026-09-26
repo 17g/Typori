@@ -62,3 +62,25 @@ Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`) をインストール・設
 - `package.json`, `pnpm-lock.yaml`, `vite.config.ts`
 - `src/index.css` (新規作成), `src/main.tsx`, `src/App.tsx`, `src/App.css` (削除)
 
+## 2026-09-26: Rust: 指定パスのテキストを読み込む open_file コマンドの実装と単体テスト
+
+### 概要
+Tauriバックエンド（Rust）において、指定されたパスのファイルをUTF-8文字列として読み込む `open_file` コマンドを実装し、ハンドラ登録および単体テスト（正常系・異常系）を追加した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - ファイル読み込み用Tauriコマンドが存在しなかった。
+  - ファイルシステム操作用のモジュール `fs` が未作成。
+- **After**:
+  - `src-tauri/src/fs.rs` を新規作成し、`open_file(path: String) -> Result<String, String>` を実装。
+  - `open_file` に対する正常系テスト（一時ファイル作成・読み込み検証・クリーンアップ）および異常系テスト（存在しないファイルパス指定時のエラー検証）を実装。
+  - `src-tauri/src/lib.rs` に `pub mod fs;` を追加し、`tauri::generate_handler![greet, fs::open_file]` としてコマンドを登録。
+  - `cargo test` による単体テスト通過（Exit Code 0）および `pnpm run build` の正常終了を確認。
+
+### 変更理由
+`Plan.md` の Phase 2 タスク4に基づき、フロントエンドからローカルファイルを読み込むための基盤APIを提供するため。
+
+### 影響範囲
+- `src-tauri/src/fs.rs` (新規作成)
+- `src-tauri/src/lib.rs`
+
