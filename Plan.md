@@ -15,7 +15,7 @@
 - [x] 6. Rust: 指定ディレクトリ直下のファイル/ディレクトリ一覧を返す `read_dir` コマンドの実装と単体テスト（`cargo test`）
 
 ## Phase 3: フロントエンド (React) - エディタコア実装
-- [ ] 7. React: Milkdownコアパッケージのインストールと、プレーンなWYSIWYGエディタコンポーネントの実装・ビルド確認
+- [x] 7. React: Milkdownコアパッケージのインストールと、プレーンなWYSIWYGエディタコンポーネントの実装・ビルド確認
 - [ ] 8. React: GFM（GitHub Flavored Markdown）プラグインの追加と、Milkdownエディタへの適用確認
 
 ## Phase 4: フロントエンド (React) - UIと状態管理

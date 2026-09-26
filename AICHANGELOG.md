@@ -129,5 +129,32 @@ Tauriバックエンド（Rust）において、指定されたディレクト�
 - `src-tauri/src/fs.rs`
 - `src-tauri/src/lib.rs`
 
+## 2026-09-26: React: Milkdownコアパッケージのインストールと、プレーンなWYSIWYGエディタコンポーネントの実装・ビルド確認
+
+### 概要
+Milkdown コアパッケージ (`@milkdown/kit`, `@milkdown/react`) をインストールし、ProseMirror ベースのプレーンな WYSIWYG エディタコンポーネント (`TyporiEditor`) の実装とタイポグラフィスタイルの整備、および `App.tsx` への組み込みを行い、フロントエンドビルド (`pnpm run build`) およびバックエンドテスト (`cargo test`) の正常終了を確認した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - Milkdown 関連ライブラリ未導入。
+  - エディタコンポーネントが存在せず、`App.tsx` は greet テンプレートUIを表示していた。
+- **After**:
+  - `@milkdown/kit` (v7.22.2) および `@milkdown/react` (v7.22.2) を dependencies に追加。
+  - `src/components/Editor/Editor.tsx` および `src/components/Editor/index.ts` を新規作成。`MilkdownProvider`, `useEditor`, `Editor.make()`, `defaultValueCtx`, `commonmark` を用いた `TyporiEditor` コンポーネントを実装。
+  - `src/index.css` に `.ProseMirror` およびタイポグラフィ（見出し・段落・リスト・引用・インラインコード・コードブロック等）のスタイルを追加し、Typoraライクなドキュメント体験を実現。
+  - `src/App.tsx` を更新し、ヘッダーとエディタエリアからなるミニマルなレイアウトにリファクタリング。
+  - `pnpm run build` (tsc & vite build) および `cargo test` の正常終了（Exit Code 0）を確認。
+
+### 変更理由
+`Plan.md` の Phase 3 タスク7に基づき、TyporaライクなWYSIWYG Markdown編集体験のコアとなるエディタコンポーネントを導入するため。
+
+### 影響範囲
+- `package.json`, `pnpm-lock.yaml`
+- `src/components/Editor/Editor.tsx` (新規作成)
+- `src/components/Editor/index.ts` (新規作成)
+- `src/index.css`
+- `src/App.tsx`
+
+
 
 
