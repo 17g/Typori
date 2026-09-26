@@ -233,6 +233,36 @@ Tauri の `read_dir` コマンドを呼び出す API モジュール (`src/api/f
 - `src/components/Sidebar/Sidebar.tsx`
 - `src/App.tsx`
 
+## 2026-09-26: 結合: サイドバーのファイルクリック時に open_file を呼び出し、Milkdownエディタに内容を表示する機能の実装
+
+### 概要
+サイドバーでファイルをクリックした際に、Tauri の `open_file` コマンドを通じてファイル内容（Markdownテキスト）を非同期取得し、Milkdown エディタに動的ロードして表示する機能を実装した。併せて読み込み中インジケータ、エラー表示・再試行機能、ヘッダーへのファイル名表示、エディタ変更検知リスナーを追加した。
+
+### 変更内容 (Before / After)
+- **Before**:
+  - サイドバーでファイルをクリックしても、選択パス状態（`selectedPath`）が更新されるのみでファイル内容は読み込まれず、Milkdown エディタには固定の初期サンプルテキスト（「ようこそ Typori へ」）が表示され続けていた。
+  - `TyporiEditor` は動的なコンテンツ更新や外部からのファイル読み込み、内容変更リスナーに対応していなかった。
+- **After**:
+  - `src/components/Editor/Editor.tsx` を改訂：
+    - `content`, `filePath`, `onChange` props を追加。
+    - `useInstance` および `replaceAll` マクロにより、外部からのコンテンツ更新（動的ロード）に対応。
+    - `@milkdown/kit/plugin/listener` を導入し、`markdownUpdated` による編集検知コールバック（`onChange`）を連携。
+  - `src/App.tsx` を改訂：
+    - `openFile` API をインポートし、`handleSelectFile` 内で非同期に `open_file` を呼び出してファイル内容を取得。
+    - ファイル読み込み状態（`fileContent`, `isFileLoading`, `fileError`）を管理。
+    - 読み込み中のスピナー表示および読み込み失敗時のエラーカード・再試行ボタンを実装。
+    - ヘッダー部分に現在開いているファイル名を表示するバッジを追加。
+    - ファイル切り替え時に `key={selectedPath ?? "__welcome__"}` を付与することで、エディタインスタンスおよび履歴のクリーンな再生成を実現。
+  - `cargo test` (11 passed)、`cargo check`、`pnpm run build` がすべてエラーなく（Exit Code 0）成功することを確認。
+
+### 変更理由
+`Plan.md` の Phase 4 タスク11「結合: サイドバーのファイルクリック時に open_file を呼び出し、Milkdownエディタに内容を表示する機能の実装」に基づき、ユーザーがサイドバーからMarkdownファイルを選択してエディタ上で閲覧・編集できるようにするため。
+
+### 影響範囲
+- `src/components/Editor/Editor.tsx`
+- `src/App.tsx`
+
+
 
 
 
