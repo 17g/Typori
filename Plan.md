@@ -6,7 +6,7 @@
 
 ## Phase 1: プロジェクトの初期化と基盤構築
 - [x] 1. Gitリポジトリ初期化とベースとなる `.gitignore` の設定
-- [ ] 2. Tauri v2 (React + TypeScript) プロジェクトの生成（`pnpm create tauri-app`）とビルド確認 (`pnpm run build` / `cargo check`)
+- [x] 2. Tauri v2 (React + TypeScript) プロジェクトの生成（`pnpm create tauri-app`）とビルド確認 (`pnpm run build` / `cargo check`)
 - [ ] 3. Tailwind CSS のインストールと設定、および React コンポーネントでのスタイル適用とビルド確認
 
 ## Phase 2: バックエンド (Rust) - ファイルシステム API 実装
