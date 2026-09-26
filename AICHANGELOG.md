@@ -155,6 +155,29 @@ Milkdown コアパッケージ (`@milkdown/kit`, `@milkdown/react`) をインス
 - `src/index.css`
 - `src/App.tsx`
 
+## 2026-09-26: React: GFM（GitHub Flavored Markdown）プラグインの追加とMilkdownエディタへの適用
+
+### 概要
+Milkdown エディタに GFM プリセット (`@milkdown/kit/preset/gfm`) を追加し、テーブル、タスクリスト、打ち消し線、脚注等のレンダリングおよび ProseMirror スタイルを適用した。フロントエンドビルド (`pnpm run build`) およびバックエンドテスト (`cargo test`) の正常終了を確認した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - CommonMark 規格のみ対応（表やタスクリスト、打ち消し線等の GFM 拡張記法が未対応）。
+  - `src/index.css` にテーブルやタスクリスト、打ち消し線等のスタイルが未定義。
+- **After**:
+  - `src/components/Editor/Editor.tsx` にて `gfm` プリセットを Milkdown インスタンスに登録（`.use(gfm)`）。
+  - デフォルトサンプルテキストにタスクリスト、テーブル、打ち消し線の記法を追加。
+  - `src/index.css` に GFM 要素（テーブルのボーダー/セル選択/リサイズハンドル、チェックボックス付きタスクリスト、取り消し線、脚注など）のタイポグラフィスタイルを追加。
+  - `pnpm run build` (tsc & vite build) および `cargo test` の正常終了（Exit Code 0）を確認。
+
+### 変更理由
+`Plan.md` の Phase 3 タスク8に基づき、Typora のような実用的な Markdown 編集において不可欠な GFM 拡張機能（テーブル、タスクリスト等）をエディタでシームレスに利用可能にするため。
+
+### 影響範囲
+- `src/components/Editor/Editor.tsx`
+- `src/index.css`
+
+
 
 
 

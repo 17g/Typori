@@ -16,7 +16,7 @@
 
 ## Phase 3: フロントエンド (React) - エディタコア実装
 - [x] 7. React: Milkdownコアパッケージのインストールと、プレーンなWYSIWYGエディタコンポーネントの実装・ビルド確認
-- [ ] 8. React: GFM（GitHub Flavored Markdown）プラグインの追加と、Milkdownエディタへの適用確認
+- [x] 8. React: GFM（GitHub Flavored Markdown）プラグインの追加と、Milkdownエディタへの適用確認
 
 ## Phase 4: フロントエンド (React) - UIと状態管理
 - [ ] 9. React: サイドバーの基本UIコンポーネント実装（Tailwind CSS利用）とビルド確認
