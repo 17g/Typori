@@ -50,6 +50,7 @@ const MilkdownEditorContent: React.FC<EditorProps> = ({
           ctx.set(rootCtx, root);
           ctx.set(defaultValueCtx, initialValue);
           ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
+            prevContentRef.current = markdown;
             onChangeRef.current?.(markdown);
           });
         })

@@ -1,12 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import TyporiEditor from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
-import { getCurrentDir, getParentDir, openFile, readDir } from "./api/fs";
+import { getCurrentDir, getParentDir, openFile, readDir, saveFile } from "./api/fs";
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
+  const [savedContent, setSavedContent] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "error" | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isFileLoading, setIsFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [currentDirectory, setCurrentDirectory] = useState<string | null>(null);
@@ -78,17 +82,89 @@ function App() {
     };
   }, [loadDirectory]);
 
+  const isDirty = Boolean(
+    selectedPath !== null &&
+    fileContent !== null &&
+    savedContent !== null &&
+    fileContent !== savedContent
+  );
+
+  // ファイル保存
+  const handleSave = useCallback(async () => {
+    if (!selectedPath || fileContent === null || isSaving) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      await saveFile(selectedPath, fileContent);
+      setSavedContent(fileContent);
+      setSaveStatus("saved");
+      setTimeout(() => {
+        setSaveStatus(null);
+      }, 2500);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`Failed to save file '${selectedPath}':`, err);
+      setSaveError(`保存に失敗しました: ${errMsg}`);
+      setSaveStatus("error");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedPath, fileContent, isSaving]);
+
+  // ショートカット (Ctrl+S / Cmd+S)
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        handleSaveRef.current();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  // 未保存時のページ離脱防止
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
+
   // ファイル選択時
   const handleSelectFile = useCallback(async (entry: FileEntry) => {
     if (entry.is_dir) return;
 
+    if (isDirty && entry.path !== selectedPath) {
+      const ok = window.confirm("保存されていない変更があります。保存せずに別のファイルを開きますか？");
+      if (!ok) return;
+    }
+
     setSelectedPath(entry.path);
     setIsFileLoading(true);
     setFileError(null);
+    setSaveError(null);
+    setSaveStatus(null);
 
     try {
       const content = await openFile(entry.path);
       setFileContent(content);
+      setSavedContent(content);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to open file '${entry.path}':`, err);
@@ -96,7 +172,7 @@ function App() {
     } finally {
       setIsFileLoading(false);
     }
-  }, []);
+  }, [isDirty, selectedPath]);
 
   // ディレクトリ展開・折りたたみ
   const handleToggleDirectory = async (entry: FileEntry) => {
@@ -182,24 +258,126 @@ function App() {
         </div>
         <div className="flex items-center gap-2">
           {currentFileName ? (
-            <div
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 max-w-[300px] truncate"
-              title={selectedPath ?? undefined}
-            >
-              <svg
-                className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
+            <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 max-w-[260px] truncate"
+                title={selectedPath ?? undefined}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <span className="font-medium truncate">{currentFileName}</span>
+                <svg
+                  className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <span className="font-medium truncate">{currentFileName}</span>
+                {isDirty && (
+                  <span
+                    className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"
+                    title="未保存の変更があります"
+                  />
+                )}
+              </div>
+
+              {/* 保存ボタン / ステータス */}
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium transition-colors ${
+                  isSaving
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-wait"
+                    : saveStatus === "saved"
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                    : saveStatus === "error"
+                    ? "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
+                    : isDirty
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+                title="保存 (Ctrl+S / Cmd+S)"
+              >
+                {isSaving ? (
+                  <>
+                    <svg
+                      className="w-3.5 h-3.5 animate-spin text-zinc-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      />
+                    </svg>
+                    <span>保存中...</span>
+                  </>
+                ) : saveStatus === "saved" ? (
+                  <>
+                    <svg
+                      className="w-3.5 h-3.5 text-emerald-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>保存完了</span>
+                  </>
+                ) : saveStatus === "error" ? (
+                  <>
+                    <svg
+                      className="w-3.5 h-3.5 text-rose-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <span>保存失敗</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                      />
+                    </svg>
+                    <span>{isDirty ? "保存 (Ctrl+S)" : "保存済み"}</span>
+                  </>
+                )}
+              </button>
             </div>
           ) : (
             <span>Markdown Mode</span>
@@ -225,6 +403,17 @@ function App() {
           onOpenDirectory={handleOpenDirectory}
         />
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-900 relative">
+          {saveError && (
+            <div className="bg-rose-500 text-white text-xs px-4 py-1.5 flex items-center justify-between shadow-md z-10">
+              <span className="truncate">{saveError}</span>
+              <button
+                onClick={() => setSaveError(null)}
+                className="ml-2 hover:bg-rose-600 rounded px-1.5 py-0.5 text-xs font-semibold"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {isFileLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-xs text-zinc-400 dark:text-zinc-500 gap-2">
               <svg

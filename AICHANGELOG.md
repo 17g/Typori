@@ -263,9 +263,33 @@ Tauri の `read_dir` コマンドを呼び出す API モジュール (`src/api/f
 - `src/App.tsx`
 
 
+## 2026-09-26: 結合: エディタ内容の変更を検知し、ショートカット（Ctrl+S / Cmd+S）で save_file を呼び出す保存機能の実装
 
+### 概要
+Milkdown エディタでのテキスト変更を検知し、未保存状態（ダーティ状態）のトラッキング、ショートカットキー（`Ctrl+S` / `Cmd+S`）および保存ボタンによる Tauri の `save_file` コマンド呼び出し、保存中・完了・エラーのフィードバックUI、未保存時のファイル切り替え・ページ離脱防止機能を実装した。
 
+### 変更内容 (Before / After)
+- **Before**:
+  - エディタでテキストを編集してもディスク上のファイルへの保存機能（`save_file`）が連携されておらず、ショートカット（`Ctrl+S` / `Cmd+S`）を押すとブラウザ標準のWebページ保存ダイアログが作動していた。
+  - 未保存状態の視覚的表示がなく、ファイルを切り替えた際に変更が警告なしで破棄されていた。
+- **After**:
+  - `src/components/Editor/Editor.tsx`:
+    - `listenerCtx.markdownUpdated` 内で `prevContentRef.current` を更新し、タイピングによるステート更新時の不要な `replaceAll` 実行およびカーソル飛びを防止。
+  - `src/App.tsx`:
+    - `saveFile` API をインポートし、保存状態管理用のステート（`savedContent`, `isSaving`, `saveStatus`, `saveError`）を追加。
+    - `isDirty`（ファイル内容と保存済み内容の差分検知）を実装。
+    - `handleSave` を実装し、非同期で `save_file` を呼び出してファイル書き込みを行い、成功時に `savedContent` を同期、ステータス表示（「保存中...」「保存完了」「保存失敗」）を管理。
+    - `keydown` イベントリスナーにより `Ctrl+S` / `Cmd+S` をフックしてデフォルト動作を防止し、`handleSave` を安全にトリガー。
+    - 未保存状態で別ファイルを開こうとした場合の確認ダイアログ（`window.confirm`）およびウィンドウ離脱防止（`beforeunload`）を実装。
+    - ヘッダーに未保存インジケータ（オレンジ丸マーク）、保存状態・ショートカット案内付きの保存ボタン、保存失敗時のエラー通知バーを追加。
+  - `pnpm run build` および `cargo test` (11 passed) がすべて正常終了（Exit Code 0）することを確認。
 
+### 変更理由
+`Plan.md` の Phase 4 タスク12「結合: エディタ内容の変更を検知し、ショートカット（Ctrl+S / Cmd+S）で save_file を呼び出す保存機能の実装」に基づき、ユーザーが編集したドキュメントを安全かつ快適にディスクへ保存できるようにするため。
+
+### 影響範囲
+- `src/components/Editor/Editor.tsx`
+- `src/App.tsx`
 
 
 
