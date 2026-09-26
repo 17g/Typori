@@ -106,4 +106,28 @@ Tauriバックエンド（Rust）において、指定されたパスにテキ�
 - `src-tauri/src/fs.rs`
 - `src-tauri/src/lib.rs`
 
+## 2026-09-26: Rust: 指定ディレクトリ直下のファイル/ディレクトリ一覧を返す read_dir コマンドの実装と単体テスト
+
+### 概要
+Tauriバックエンド（Rust）において、指定されたディレクトリ直下のファイルおよびディレクトリ一覧を走査して返す `read_dir` コマンドとエントリ情報構造体 `FileEntry` を実装し、ハンドラ登録および単体テスト（正常系・ディレクトリ優先昇順ソート・空ディレクトリ・存在しないパス・ファイルパス指定エラー）を追加した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - ディレクトリ一覧取得用Tauriコマンドおよび `FileEntry` 構造体が存在しなかった。
+  - `fs.rs` には `open_file` と `save_file` のみ実装されていた。
+- **After**:
+  - `src-tauri/src/fs.rs` に `FileEntry` 構造体（`name`, `path`, `is_dir`）を定義（`Serialize`, `Deserialize` 導出）。
+  - `src-tauri/src/fs.rs` に `read_dir(path: String) -> Result<Vec<FileEntry>, String>` を実装。ディレクトリを先頭に、ファイル名昇順でソートして返却。
+  - `read_dir` に対するテスト（`test_read_dir_success`, `test_read_dir_empty`, `test_read_dir_not_found`, `test_read_dir_not_a_directory`）を追加。
+  - `src-tauri/src/lib.rs` の `tauri::generate_handler!` に `fs::read_dir` を登録。
+  - `cargo test` による全単体テスト通過（9 passed, Exit Code 0）および `pnpm run build` の正常終了を確認。
+
+### 変更理由
+`Plan.md` の Phase 2 タスク6に基づき、フロントエンド（React/サイドバー）でディレクトリツリーやファイル一覧を表示するためのバックエンドAPIを提供するため。
+
+### 影響範囲
+- `src-tauri/src/fs.rs`
+- `src-tauri/src/lib.rs`
+
+
 

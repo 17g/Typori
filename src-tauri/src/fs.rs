@@ -1,4 +1,13 @@
+use serde::{Deserialize, Serialize};
 use std::fs;
+
+/// ディレクトリ内のファイルまたはディレクトリのエントリ情報
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+}
 
 /// 指定されたパスのファイルをUTF-8文字列として読み込みます。
 #[tauri::command]
@@ -16,6 +25,44 @@ pub fn save_file(path: String, content: String) -> Result<(), String> {
         }
     }
     fs::write(&path, content).map_err(|e| format!("Failed to write file '{}': {}", path, e))
+}
+
+/// 指定されたディレクトリ直下のファイルおよびディレクトリ一覧を返します。
+/// ディレクトリが先、ファイルが後、名前順にソートされます。
+#[tauri::command]
+pub fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
+    let dir_path = std::path::Path::new(&path);
+    if !dir_path.exists() {
+        return Err(format!("Directory '{}' does not exist", path));
+    }
+    if !dir_path.is_dir() {
+        return Err(format!("Path '{}' is not a directory", path));
+    }
+
+    let read_entries = fs::read_dir(dir_path)
+        .map_err(|e| format!("Failed to read directory '{}': {}", path, e))?;
+
+    let mut result = Vec::new();
+    for entry in read_entries {
+        let entry = entry.map_err(|e| format!("Failed to process entry in '{}': {}", path, e))?;
+        let entry_path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+        result.push(FileEntry {
+            name,
+            path: entry_path.to_string_lossy().to_string(),
+            is_dir,
+        });
+    }
+
+    result.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -113,4 +160,83 @@ mod tests {
         // クリーンアップ
         let _ = fs::remove_dir_all(dir_path);
     }
+
+    #[test]
+    fn test_read_dir_success() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir_path = std::env::temp_dir().join(format!("typori_test_read_dir_{}", timestamp));
+        fs::create_dir_all(&dir_path).unwrap();
+
+        // テスト用ファイル・ディレクトリ作成
+        let sub_dir = dir_path.join("sub_directory");
+        fs::create_dir(&sub_dir).unwrap();
+        let file_b = dir_path.join("b_test.md");
+        fs::write(&file_b, "b").unwrap();
+        let file_a = dir_path.join("a_test.md");
+        fs::write(&file_a, "a").unwrap();
+
+        let path_str = dir_path.to_str().unwrap().to_string();
+        let result = read_dir(path_str);
+        assert!(result.is_ok());
+
+        let entries = result.unwrap();
+        assert_eq!(entries.len(), 3);
+
+        // ディレクトリが先、その後ファイル名昇順
+        assert_eq!(entries[0].name, "sub_directory");
+        assert!(entries[0].is_dir);
+
+        assert_eq!(entries[1].name, "a_test.md");
+        assert!(!entries[1].is_dir);
+
+        assert_eq!(entries[2].name, "b_test.md");
+        assert!(!entries[2].is_dir);
+
+        // クリーンアップ
+        let _ = fs::remove_dir_all(dir_path);
+    }
+
+    #[test]
+    fn test_read_dir_empty() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir_path = std::env::temp_dir().join(format!("typori_test_read_empty_{}", timestamp));
+        fs::create_dir_all(&dir_path).unwrap();
+
+        let path_str = dir_path.to_str().unwrap().to_string();
+        let result = read_dir(path_str);
+        assert!(result.is_ok());
+        let entries = result.unwrap();
+        assert!(entries.is_empty());
+
+        // クリーンアップ
+        let _ = fs::remove_dir_all(dir_path);
+    }
+
+    #[test]
+    fn test_read_dir_not_found() {
+        let non_existent_path = std::env::temp_dir().join("typori_non_existent_dir_99999");
+        let result = read_dir(non_existent_path.to_str().unwrap().to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_read_dir_not_a_directory() {
+        let file_path = create_temp_file("test");
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let result = read_dir(path_str);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("is not a directory"));
+
+        // クリーンアップ
+        let _ = fs::remove_file(file_path);
+    }
 }
+
