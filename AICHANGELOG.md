@@ -177,6 +177,33 @@ Milkdown エディタに GFM プリセット (`@milkdown/kit/preset/gfm`) を追
 - `src/components/Editor/Editor.tsx`
 - `src/index.css`
 
+## 2026-09-26: React: サイドバーの基本UIコンポーネント実装（Tailwind CSS利用）とビルド確認
+
+### 概要
+Tailwind CSS を用いたサイドバーコンポーネント（`Sidebar`、`SidebarItem`、型定義 `FileEntry` / `SidebarProps`）を実装し、エディタとの左右分割レイアウトを `App.tsx` に統合した。サイドバーの展開/折りたたみ、ファイル/フォルダのアイコン表示、選択中アイテムのハイライトに対応し、フロントエンドビルド (`pnpm run build`) およびバックエンドチェック/テスト (`cargo check`, `cargo test`) の正常終了を確認した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - `src/components/Sidebar/` は未作成で、サイドバーUIが存在せず、画面全体にエディタのみが表示されていた。
+- **After**:
+  - `src/components/Sidebar/types.ts` を作成し、Rust 側の `FileEntry` 構造体と互換性のあるファイル/ディレクトリエントリ型およびコンポーネント Props を定義。
+  - `src/components/Sidebar/SidebarItem.tsx` を作成し、ディレクトリと各種ファイル（Markdown / テキスト / 一般ファイル）に応じたアイコン、選択状態、ホバー効果を実装。
+  - `src/components/Sidebar/Sidebar.tsx` を作成し、エクスプローラーヘッダー、カレントディレクトリ表示、展開/折りたたみトグルボタン、ファイル一覧スクロール領域、空状態表示、フッターを構築。
+  - `src/components/Sidebar/index.ts` からコンポーネントと型をエクスポート。
+  - `src/App.tsx` に `Sidebar` を配置し、ヘッダーのトグルボタンおよびサイドバー内の開閉ボタンで開閉可能にし、左右分割レイアウトを整備。
+  - `pnpm run build`、`cargo check`、`cargo test` が Exit Code 0 で正常終了することを確認。
+
+### 変更理由
+`Plan.md` の Phase 4 タスク9「React: サイドバーの基本UIコンポーネント実装（Tailwind CSS利用）とビルド確認」に基づき、次ステップで実装する Tauri IPC (`read_dir`) 連携に先立ち、ディレクトリツリーやファイルを表示・選択するための基盤UIコンポーネントを整備するため。
+
+### 影響範囲
+- `src/components/Sidebar/types.ts` (新規作成)
+- `src/components/Sidebar/SidebarItem.tsx` (新規作成)
+- `src/components/Sidebar/Sidebar.tsx` (新規作成)
+- `src/components/Sidebar/index.ts` (新規作成)
+- `src/App.tsx`
+
+
 
 
 
