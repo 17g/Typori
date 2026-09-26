@@ -203,6 +203,37 @@ Tailwind CSS を用いたサイドバーコンポーネント（`Sidebar`、`Sid
 - `src/components/Sidebar/index.ts` (新規作成)
 - `src/App.tsx`
 
+## 2026-09-26: 結合: Rustの read_dir を呼び出し、サイドバーにディレクトリ一覧を表示する機能の実装
+
+### 概要
+Tauri の `read_dir` コマンドを呼び出す API モジュール (`src/api/fs.ts`) を新設し、サイドバーと結合して実ディレクトリのツリー表示・オンデマンド階層展開・親ディレクトリへの移動・フォルダパス指定オープン・更新機能を実装した。併せて Rust バックエンドにカレントディレクトリ取得 (`get_current_dir`) および親ディレクトリ取得 (`get_parent_dir`) コマンドと単体テストを追加した。
+
+### 変更内容 (Before / After)
+- **Before**: 
+  - `src/App.tsx` 内でハードコードされたモック用ファイル一覧（`initialSampleEntries`）を表示していた。
+  - サブディレクトリの階層展開や親ディレクトリ移動、フォルダ変更操作が未対応だった。
+  - Tauri IPC 呼び出し用の共通 API モジュールが存在しなかった。
+- **After**:
+  - `src/api/fs.ts` を作成し、Tauri コマンド（`read_dir`, `get_current_dir`, `get_parent_dir`, `open_file`, `save_file`）の型付き呼び出し関数を定義。
+  - `src-tauri/src/fs.rs` に `get_current_dir` と `get_parent_dir` コマンドを追加し、単体テスト（`test_get_current_dir`, `test_get_parent_dir`）を実装（計11テストすべてパス）。
+  - `src-tauri/src/lib.rs` の `tauri::generate_handler!` に `fs::get_current_dir` と `fs::get_parent_dir` を登録。
+  - `src/components/Sidebar/` の各コンポーネント（`Sidebar`, `SidebarItem`, `types.ts`）を拡張し、ディレクトリの再帰的ツリー表示、ローディング表示、エラーハンドリング、親ディレクトリ移動、フォルダパス入力による切り替え、最新化（リフレッシュ）に対応。
+  - `src/App.tsx` で初期起動時に `getCurrentDir()` を呼び出し、`readDir` でカレントディレクトリのファイル一覧を取得してサイドバーに動的レンダリング。
+  - `cargo test` (11 passed)、`cargo check`、`pnpm run build` がすべて Exit Code 0 で完了することを確認。
+
+### 変更理由
+`Plan.md` の Phase 4 タスク10「結合: Rustの read_dir を呼び出し、サイドバーにディレクトリ一覧を表示する機能の実装」に基づき、実ファイルシステムとフロントエンドUIを接続して、ローカルファイルの走査・ツリー探索を行えるようにするため。
+
+### 影響範囲
+- `src-tauri/src/fs.rs`
+- `src-tauri/src/lib.rs`
+- `src/api/fs.ts` (新規作成)
+- `src/components/Sidebar/types.ts`
+- `src/components/Sidebar/SidebarItem.tsx`
+- `src/components/Sidebar/Sidebar.tsx`
+- `src/App.tsx`
+
+
 
 
 

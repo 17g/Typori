@@ -5,10 +5,19 @@ export interface FileEntry {
 }
 
 export interface SidebarProps {
-  entries?: FileEntry[];
+  currentDirectory: string | null;
+  entries: FileEntry[];
   selectedPath?: string | null;
-  currentDirectory?: string | null;
-  onSelectEntry?: (entry: FileEntry) => void;
+  directoryContents?: Record<string, FileEntry[]>;
+  expandedPaths?: Set<string>;
+  loadingPaths?: Set<string>;
+  isLoading?: boolean;
+  error?: string | null;
   isOpen?: boolean;
   onToggleOpen?: () => void;
+  onSelectFile?: (entry: FileEntry) => void;
+  onToggleDirectory?: (entry: FileEntry) => void;
+  onNavigateUp?: () => void;
+  onRefresh?: () => void;
+  onOpenDirectory?: (path: string) => void;
 }

@@ -65,6 +65,21 @@ pub fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(result)
 }
 
+/// カレントワーキングディレクトリの絶対パスを返します。
+#[tauri::command]
+pub fn get_current_dir() -> Result<String, String> {
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| format!("Failed to get current directory: {}", e))
+}
+
+/// 指定されたパスの親ディレクトリのパスを返します。親が存在しない場合は None を返します。
+#[tauri::command]
+pub fn get_parent_dir(path: String) -> Result<Option<String>, String> {
+    let p = std::path::Path::new(&path);
+    Ok(p.parent().map(|parent| parent.to_string_lossy().to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,6 +252,25 @@ mod tests {
 
         // クリーンアップ
         let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_get_current_dir() {
+        let result = get_current_dir();
+        assert!(result.is_ok());
+        let current_dir = result.unwrap();
+        assert!(!current_dir.is_empty());
+        assert!(std::path::Path::new(&current_dir).exists());
+    }
+
+    #[test]
+    fn test_get_parent_dir() {
+        let temp_dir = std::env::temp_dir();
+        let child = temp_dir.join("child");
+        let parent = get_parent_dir(child.to_str().unwrap().to_string());
+        assert!(parent.is_ok());
+        let expected = child.parent().map(|p| p.to_string_lossy().to_string());
+        assert_eq!(parent.unwrap(), expected);
     }
 }
 
