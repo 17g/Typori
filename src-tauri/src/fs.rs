@@ -80,6 +80,35 @@ pub fn get_parent_dir(path: String) -> Result<Option<String>, String> {
     Ok(p.parent().map(|parent| parent.to_string_lossy().to_string()))
 }
 
+/// 指定されたパスに新しいファイルを作成します。すでにファイルが存在する場合はエラーを返します。
+#[tauri::command]
+pub fn create_file(path: String, initial_content: Option<String>) -> Result<FileEntry, String> {
+    let file_path = std::path::Path::new(&path);
+    if file_path.exists() {
+        return Err(format!("File '{}' already exists", path));
+    }
+    if let Some(parent) = file_path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directories for '{}': {}", path, e))?;
+        }
+    }
+    let content = initial_content.unwrap_or_default();
+    fs::write(file_path, content)
+        .map_err(|e| format!("Failed to create file '{}': {}", path, e))?;
+
+    let name = file_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Untitled.md".to_string());
+
+    Ok(FileEntry {
+        name,
+        path: file_path.to_string_lossy().to_string(),
+        is_dir: false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +300,60 @@ mod tests {
         assert!(parent.is_ok());
         let expected = child.parent().map(|p| p.to_string_lossy().to_string());
         assert_eq!(parent.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_create_file_success() {
+        let file_path = get_temp_file_path("typori_test_create_file");
+        let path_str = file_path.to_str().unwrap().to_string();
+        let initial_content = "# New Note\nInitial text.";
+
+        let result = create_file(path_str.clone(), Some(initial_content.to_string()));
+        assert!(result.is_ok());
+
+        let entry = result.unwrap();
+        assert_eq!(entry.path, path_str);
+        assert!(!entry.is_dir);
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, initial_content);
+
+        // クリーンアップ
+        let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_create_file_already_exists() {
+        let file_path = create_temp_file("existing");
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let result = create_file(path_str, Some("conflict".to_string()));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already exists"));
+
+        // クリーンアップ
+        let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_create_file_creates_parent_dirs() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir_path = std::env::temp_dir().join(format!("typori_test_create_dir_{}", timestamp));
+        let file_path = dir_path.join("subfolder").join("new_note.md");
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let result = create_file(path_str.clone(), None);
+        assert!(result.is_ok());
+
+        assert!(file_path.exists());
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "");
+
+        // クリーンアップ
+        let _ = fs::remove_dir_all(dir_path);
     }
 }
 

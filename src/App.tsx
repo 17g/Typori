@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import TyporiEditor from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
-import { getCurrentDir, getParentDir, openFile, readDir, saveFile } from "./api/fs";
+import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile } from "./api/fs";
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -232,6 +232,44 @@ function App() {
     await loadDirectory(path, true);
   };
 
+  // 新規ファイル作成
+  const handleCreateFile = async (fileName: string): Promise<boolean> => {
+    if (!currentDirectory) {
+      alert("ファイルを作成するフォルダが選択されていません。");
+      return false;
+    }
+
+    if (isDirty) {
+      const ok = window.confirm("保存されていない変更があります。新規ファイルを作成して切り替えますか？");
+      if (!ok) return false;
+    }
+
+    const separator = currentDirectory.includes("\\") ? "\\" : "/";
+    const fullPath =
+      currentDirectory.endsWith("/") || currentDirectory.endsWith("\\")
+        ? `${currentDirectory}${fileName}`
+        : `${currentDirectory}${separator}${fileName}`;
+
+    const title = fileName.replace(/\.[^/.]+$/, "");
+    const initialContent = `# ${title}\n\n`;
+
+    try {
+      const newEntry = await createFile(fullPath, initialContent);
+      await loadDirectory(currentDirectory, true);
+      setSelectedPath(newEntry.path);
+      setFileContent(initialContent);
+      setSavedContent(initialContent);
+      setSaveStatus(null);
+      setSaveError(null);
+      setFileError(null);
+      return true;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`Failed to create file '${fullPath}':`, err);
+      throw new Error(`新規ファイルの作成に失敗しました: ${errMsg}`);
+    }
+  };
+
   const rootEntries = currentDirectory ? directoryContents[currentDirectory] || [] : [];
   const currentFileName = selectedPath
     ? selectedPath.split(/[/\\]/).filter(Boolean).pop() || selectedPath
@@ -264,6 +302,7 @@ function App() {
         onNavigateUp={handleNavigateUp}
         onRefresh={handleRefresh}
         onOpenDirectory={handleOpenDirectory}
+        onCreateFile={handleCreateFile}
       />
 
       {/* メインエディタ領域（ヘッダーレス・ミニマルレイアウト） */}

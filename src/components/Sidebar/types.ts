@@ -20,4 +20,5 @@ export interface SidebarProps {
   onNavigateUp?: () => void;
   onRefresh?: () => void;
   onOpenDirectory?: (path: string) => void;
+  onCreateFile?: (fileName: string) => Promise<boolean | void>;
 }

@@ -16,7 +16,8 @@ pub fn run() {
             fs::save_file,
             fs::read_dir,
             fs::get_current_dir,
-            fs::get_parent_dir
+            fs::get_parent_dir,
+            fs::create_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

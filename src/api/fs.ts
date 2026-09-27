@@ -40,3 +40,13 @@ export async function openFile(path: string): Promise<string> {
 export async function saveFile(path: string, content: string): Promise<void> {
   await invoke<void>("save_file", { path, content });
 }
+
+/**
+ * 指定パスに新しいファイルを作成します。
+ * @param path 作成するファイルのフルパス
+ * @param initialContent 初期コンテンツ（省略時は空文字）
+ */
+export async function createFile(path: string, initialContent?: string): Promise<FileEntry> {
+  return await invoke<FileEntry>("create_file", { path, initialContent });
+}
+

@@ -323,6 +323,45 @@ Typoraライクなミニマルな執筆体験を実現するため、従来の�
 - `src/App.tsx`
 - `src/index.css`
 
+## 2026-09-27: 新規ファイル作成機能: サイドバーから新規Markdownファイルを作成するUIとバックエンド処理の追加
+
+### 概要
+サイドバーから直接新規Markdownファイル（`.md`）を作成できる機能を実装した。Rust バックエンドに `create_file` コマンドおよび自動親ディレクトリ生成・既存ファイル重複防止チェック・単体テスト（正常系・重複エラー・親ディレクトリ自動生成）を追加し、フロントエンドに新規ファイル作成ボタン、インラインファイル名入力フォーム（キーボード操作対応）、および作成直後の自動オープン処理を統合した。
+
+### 変更内容 (Before / After)
+- **Before**:
+  - サイドバーから新しいファイルを作成する手段がなく、既存のファイルを開いて保存することしかできなかった。
+  - バックエンドには `open_file` と `save_file` のみ存在し、意図しない上書きを防止しながら安全に新規作成する専用APIがなかった。
+- **After**:
+  - `src-tauri/src/fs.rs`:
+    - `create_file(path: String, initial_content: Option<String>) -> Result<FileEntry, String>` コマンドを実装。既存ファイルがある場合は上書きせずエラーを返し、安全に新規作成を行う。
+    - 単体テスト（`test_create_file_success`, `test_create_file_already_exists`, `test_create_file_creates_parent_dirs`）を追加（計14テストすべてパス）。
+  - `src-tauri/src/lib.rs`:
+    - `tauri::generate_handler!` に `fs::create_file` を登録。
+  - `src/api/fs.ts`:
+    - `createFile(path: string, initialContent?: string): Promise<FileEntry>` を追加。
+  - `src/components/Sidebar/types.ts`:
+    - `SidebarProps` に `onCreateFile?: (fileName: string) => Promise<boolean | void>;` を追加。
+  - `src/components/Sidebar/Sidebar.tsx`:
+    - サイドバーヘッダーのツールバーに「新規ファイル作成」ボタン（プラスアイコン `+`）を追加。
+    - クリック時にインライン入力フォームを展開し、ファイル名（デフォルト: `Untitled.md`）の入力・自動 `.md` 拡張子補完・作成中スピナー・エラー表示・Escapeキーでのキャンセルに対応。
+  - `src/App.tsx`:
+    - `handleCreateFile` コールバックを実装。
+    - 未保存の変更がある場合の確認ダイアログ、カレントディレクトリ基準の安全なパス解決、見出し入りの初期コンテンツ生成、ファイル作成後のツリー即時再読み込みおよびエディタへの自動ロード・フォーカス切り替えを実現。
+  - `cargo test` (14 passed) および `pnpm run build` がすべて正常終了（Exit Code 0）することを確認。
+
+### 変更理由
+`Plan.md` の Phase 5 タスク14「新規ファイル作成機能: サイドバーから新規Markdownファイルを作成するUIとバックエンド処理の追加」に基づき、ユーザーがアプリ内からワンクリックで新しいMarkdownドキュメントを作成し、即座に執筆を開始できるようにするため。
+
+### 影響範囲
+- `src-tauri/src/fs.rs`
+- `src-tauri/src/lib.rs`
+- `src/api/fs.ts`
+- `src/components/Sidebar/types.ts`
+- `src/components/Sidebar/Sidebar.tsx`
+- `src/App.tsx`
+
+
 
 
 
