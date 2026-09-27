@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { listen } from "@tauri-apps/api/event";
 import TyporiEditor from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile } from "./api/fs";
@@ -126,8 +127,15 @@ function App() {
   const handleToggleSidebarRef = useRef(handleToggleSidebar);
   handleToggleSidebarRef.current = handleToggleSidebar;
 
+  const handleMenuNewFileRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 新規作成 (Ctrl+N / Cmd+N)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        handleMenuNewFileRef.current();
+      }
       // 保存
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
@@ -272,6 +280,62 @@ function App() {
       throw new Error(`新規ファイルの作成に失敗しました: ${errMsg}`);
     }
   };
+
+  // メニューまたはショートカットからの新規ファイル作成
+  const handleMenuNewFile = useCallback(async () => {
+    if (!currentDirectory) {
+      alert("ファイルを作成するフォルダが読み込まれていません。");
+      return;
+    }
+    const fileName = window.prompt("新しいファイル名を入力してください (例: memo.md):", "Untitled.md");
+    if (!fileName || !fileName.trim()) return;
+    try {
+      await handleCreateFile(fileName.trim());
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    }
+  }, [currentDirectory, handleCreateFile]);
+
+  handleMenuNewFileRef.current = handleMenuNewFile;
+
+  // Tauri OSネイティブメニューイベントの受信
+  useEffect(() => {
+    let isMounted = true;
+    const unlistens: (() => void)[] = [];
+
+    const setupMenuListeners = async () => {
+      try {
+        const uSave = await listen("menu:save_file", () => {
+          handleSaveRef.current();
+        });
+        if (isMounted) unlistens.push(uSave);
+        else uSave();
+
+        const uNew = await listen("menu:new_file", () => {
+          handleMenuNewFileRef.current();
+        });
+        if (isMounted) unlistens.push(uNew);
+        else uNew();
+
+        const uToggle = await listen("menu:toggle_sidebar", () => {
+          handleToggleSidebarRef.current();
+        });
+        if (isMounted) unlistens.push(uToggle);
+        else uToggle();
+      } catch (err) {
+        console.warn("Native menu event listening is not supported in this environment:", err);
+      }
+    };
+
+    setupMenuListeners();
+
+    return () => {
+      isMounted = false;
+      for (const unlisten of unlistens) {
+        unlisten();
+      }
+    };
+  }, []);
 
   const rootEntries = currentDirectory ? directoryContents[currentDirectory] || [] : [];
   const currentFileName = selectedPath

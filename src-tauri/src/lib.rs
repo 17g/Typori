@@ -1,4 +1,5 @@
 pub mod fs;
+pub mod menu;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -10,6 +11,14 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let app_menu = menu::create_app_menu(app.handle())?;
+            app.set_menu(app_menu)?;
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            menu::handle_menu_event(app, event);
+        })
         .invoke_handler(tauri::generate_handler![
             greet,
             fs::open_file,

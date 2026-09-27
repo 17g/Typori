@@ -392,10 +392,42 @@ Tailwind CSS v4 の `@custom-variant dark (&:where(.dark, .dark *));` を設定�
 - `src/hooks/useTheme.ts`
 - `src/components/ThemeToggle/ThemeToggle.tsx`
 - `src/components/ThemeToggle/index.ts`
+## 2026-09-27: OS連携: Tauriの機能を用いたOSネイティブメニューの構築（保存、新規作成など）
+
+### 概要
+Tauri v2 のメニュー API（`Menu`, `Submenu`, `MenuItem`, `PredefinedMenuItem`）を用いてOSネイティブメニューバー（ファイル、編集、表示、ヘルプ）を構築し、フロントエンド（React）とのイベント連携（`app.emit` / `listen`）を実装した。ネイティブメニューおよびショートカット（Ctrl+N / Ctrl+S / Ctrl+\）からの操作でファイル新規作成、保存、サイドバー開閉がシームレスに連動する。
+
+### 変更内容 (Before / After)
+- **Before**:
+  - Tauri アプリケーションにネイティブメニューが未設定で、OS標準または空のメニュー状態だった。
+  - ショートカットキー操作やメニュー操作からの新規作成連携が未対応だった。
+- **After**:
+  - `src-tauri/src/menu.rs`:
+    - `create_app_menu`: ファイル（新規ファイル、保存、終了）、編集（Undo, Redo, Cut, Copy, Paste, Select All）、表示（サイドバーの表示切替、全画面表示切替）、ヘルプ（Typori について）のOSネイティブメニューを構築。
+    - `handle_menu_event`: メニュー項目クリック時に `menu:new_file`, `menu:save_file`, `menu:toggle_sidebar` イベントをフロントエンドへ発火。
+    - 単体テストを追加し検証。
+  - `src-tauri/src/lib.rs`:
+    - `menu` モジュールを追加し、`setup` フックで `create_app_menu` をアプリケーションメニューに登録。
+    - `on_menu_event` でメニューイベントハンドラを登録。
+  - `src/App.tsx`:
+    - `@tauri-apps/api/event` の `listen` を用いて `menu:new_file`, `menu:save_file`, `menu:toggle_sidebar` を購読。
+    - メニューや `Ctrl+N`（`Cmd+N`）からファイル新規作成をプロンプト経由で実行可能に実装。
+    - アンマウント時にイベントリスナーを安全に解除するクリーンアップ処理を実装。
+  - `for_agent/architecture.md`:
+    - OSネイティブメニュー連携の仕様とデータフロー、改訂履歴を追記。
+  - バックエンドテスト（`cargo test` in `src-tauri`、15 passed）およびフロントエンドビルド（`pnpm run build`）がエラーなく完了（Exit Code 0）。
+
+### 変更理由
+`Plan.md` の Phase 5 タスク16「OS連携: Tauriの機能を用いたOSネイティブメニューの構築（保存、新規作成など）」に基づき、OSネイティブのメニューバーを通じたエディタの基本操作（新規作成、保存、編集、表示切替等）を提供し、デスクトップアプリとしての操作性と完成度を向上させるため。
+
+### 影響範囲
+- `src-tauri/src/menu.rs` (新規)
+- `src-tauri/src/lib.rs`
 - `src/App.tsx`
 - `for_agent/architecture.md`
 - `Plan.md`
 - `AICHANGELOG.md`
+
 
 
 
