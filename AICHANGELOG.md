@@ -428,6 +428,34 @@ Tauri v2 のメニュー API（`Menu`, `Submenu`, `MenuItem`, `PredefinedMenuIte
 - `Plan.md`
 - `AICHANGELOG.md`
 
+## 2026-09-27: 最終ビルド確認とインストーラの作成 (pnpm tauri build)
+
+### 概要
+Tauri v2 による最終リリースビルドとインストーラバンドル作成コマンド（`pnpm tauri build`）を実行し、最適化済み実行可能ファイル (`typori.exe`) ならびに Windows 向けインストーラ（NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）の正常生成（Exit Code 0）を確認した。
+
+### 変更内容 (Before / After)
+- **Before**:
+  - 開発ビルド・単体テストのみ実施済みで、リリースプロファイルでの最適化ビルドバイナリおよびインストーラバンドルが未作成だった。
+- **After**:
+  - `pnpm tauri build` を実行。
+  - フロントエンドのアセットビルド（TypeScript 型チェック `tsc` および Vite によるバンドル生成 `vite build`）が完了。
+  - バックエンドの最適化リリースビルド（LTO 有効化、オプティマイズレベル 3、シンボルストリップ）が完了。
+  - Windows インストーラ（WiX: `Typori_0.1.0_x64_en-US.msi`、NSIS: `Typori_0.1.0_x64-setup.exe`）のバンドル生成が正常に完了。
+  - `for_agent/architecture.md` にパッケージング・配布仕様を追記。
+  - 全工程が Exit Code 0 で完了。
+
+### 変更理由
+`Plan.md` の Phase 6 タスク17「最終ビルド確認とインストーラの作成 (`pnpm tauri build`)」に基づき、プロダクション環境向けのエンドユーザー配布可能なインストーラパッケージの整合性とビルドパイプラインの正常完了を検証・確立するため。
+
+### 影響範囲
+- `src-tauri/target/release/bundle/msi/Typori_0.1.0_x64_en-US.msi` (生成物)
+- `src-tauri/target/release/bundle/nsis/Typori_0.1.0_x64-setup.exe` (生成物)
+- `src-tauri/target/release/typori.exe` (生成物)
+- `for_agent/architecture.md`
+- `Plan.md`
+- `AICHANGELOG.md`
+
+
 
 
 
