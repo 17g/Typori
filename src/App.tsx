@@ -2,8 +2,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import TyporiEditor from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile } from "./api/fs";
+import { useTheme } from "./hooks/useTheme";
+import ThemeToggle from "./components/ThemeToggle";
 
 function App() {
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -358,8 +361,13 @@ function App() {
             )}
           </div>
 
-          {/* 右: 保存ボタン / ステータス */}
-          <div className="flex items-center gap-2">
+          {/* 右: 保存ボタン / ステータス / テーマ切替 */}
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle
+              theme={theme}
+              resolvedTheme={resolvedTheme}
+              onSelectTheme={setTheme}
+            />
             {currentFileName && (
               <button
                 onClick={handleSave}

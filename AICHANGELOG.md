@@ -361,6 +361,43 @@ Typoraライクなミニマルな執筆体験を実現するため、従来の�
 - `src/components/Sidebar/Sidebar.tsx`
 - `src/App.tsx`
 
+## 2026-09-27: テーマ機能: Tailwind CSS を活用したライト/ダークテーマの切り替え機能の実装
+
+### 概要
+Tailwind CSS v4 の `@custom-variant dark (&:where(.dark, .dark *));` を設定し、ライト / ダーク / システム連動のテーマ切り替え機能（`useTheme` フックおよび `ThemeToggle` コンポーネント）を実装した。ユーザーの選択は `localStorage` に保存され、エディタ本体やサイドバー・トップバー等の全UI要素がシームレスにテーマ切り替えに対応する。
+
+### 変更内容 (Before / After)
+- **Before**:
+  - テーマの切り替え機能がなく、UI全体が静的なスタイルまたはOSの設定依存に留まっていた。
+  - Tailwind v4 のクラスベースのダークモードバリアント（`.dark` クラス）が未設定だったため、ユーザーの手動切り替えに対応していなかった。
+- **After**:
+  - `src/index.css`:
+    - `@custom-variant dark (&:where(.dark, .dark *));` を追加し、HTML要素の `.dark` クラスに基づくスタイル適用を有効化。
+    - 見出し（h1, h2）、コードブロック（code, pre）、水平線（hr）、テーブル（table, th, td）のダークモード用スタイリングを洗練。
+  - `src/hooks/useTheme.ts`:
+    - テーマ状態（`light` | `dark` | `system`）の管理、`localStorage`（キー: `typori-theme`）への永続化、OS設定（`prefers-color-scheme: dark`）への自動追従、HTML要素への `.dark` クラス付与を行うカスタムフックを実装。
+  - `src/components/ThemeToggle/`:
+    - テーマ切り替え用のドロップダウン/トグルコンポーネント（`ThemeToggle.tsx`）を作成。ライト、ダーク、システム連動の各モードをアイコン付きで選択可能にし、外側クリック・Escキーでのクローズに対応。
+  - `src/App.tsx`:
+    - `useTheme` フックを統合し、トップバーの右側に `ThemeToggle` ボタンを配置。
+  - `for_agent/architecture.md`:
+    - テーマ機能の要件および改訂履歴を追記。
+  - バックエンドテスト（`cargo test` in `src-tauri`、14 passed）およびフロントエンドビルド（`pnpm run build`）がエラーなく完了（Exit Code 0）。
+
+### 変更理由
+`Plan.md` の Phase 5 タスク15「テーマ機能: Tailwind CSS を活用したライト/ダークテーマの切り替え機能の実装」に基づき、ユーザーの作業環境や好みに応じてライトテーマとダークテーマを柔軟に切り替えられるようにするため。
+
+### 影響範囲
+- `src/index.css`
+- `src/hooks/useTheme.ts`
+- `src/components/ThemeToggle/ThemeToggle.tsx`
+- `src/components/ThemeToggle/index.ts`
+- `src/App.tsx`
+- `for_agent/architecture.md`
+- `Plan.md`
+- `AICHANGELOG.md`
+
+
 
 
 
