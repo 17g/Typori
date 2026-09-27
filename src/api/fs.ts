@@ -50,3 +50,10 @@ export async function createFile(path: string, initialContent?: string): Promise
   return await invoke<FileEntry>("create_file", { path, initialContent });
 }
 
+/**
+ * コマンドライン引数を取得します。
+ */
+export async function getCliArgs(): Promise<string[]> {
+  return await invoke<string[]>("get_cli_args");
+}
+

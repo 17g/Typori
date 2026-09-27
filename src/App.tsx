@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import TyporiEditor from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
-import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile } from "./api/fs";
+import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile, getCliArgs } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import ThemeToggle from "./components/ThemeToggle";
 
@@ -67,14 +67,46 @@ function App() {
     let isMounted = true;
     const initWorkspace = async () => {
       try {
-        const cwd = await getCurrentDir();
+        const args = await getCliArgs();
+        let targetFilePath: string | null = null;
+        let targetDir: string | null = null;
+
+        for (let i = 1; i < args.length; i++) {
+          const arg = args[i];
+          if (arg.toLowerCase().endsWith(".md") || arg.toLowerCase().endsWith(".txt") || arg.toLowerCase().endsWith(".markdown")) {
+            targetFilePath = arg;
+            break;
+          }
+        }
+
+        if (targetFilePath) {
+          targetDir = await getParentDir(targetFilePath);
+        }
+
+        const cwd = targetDir || await getCurrentDir();
         if (isMounted) {
           await loadDirectory(cwd, true);
+
+          if (targetFilePath) {
+            setSelectedPath(targetFilePath);
+            setIsFileLoading(true);
+            try {
+              const content = await openFile(targetFilePath);
+              setFileContent(content);
+              setSavedContent(content);
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              console.error(`Failed to open initial file '${targetFilePath}':`, err);
+              setFileError(`ファイルの読み込みに失敗しました: ${errMsg}`);
+            } finally {
+              setIsFileLoading(false);
+            }
+          }
         }
       } catch (err) {
         if (isMounted) {
-          console.warn("Could not determine current directory from Tauri:", err);
-          setRootError("作業ディレクトリの取得に失敗しました。フォルダパスを指定してください。");
+          console.warn("Could not determine current directory or load file from Tauri:", err);
+          setRootError("作業ディレクトリの取得またはファイルの読み込みに失敗しました。フォルダパスを指定してください。");
         }
       }
     };
@@ -196,6 +228,9 @@ function App() {
       setIsFileLoading(false);
     }
   }, [isDirty, selectedPath]);
+
+  const handleSelectFileRef = useRef(handleSelectFile);
+  handleSelectFileRef.current = handleSelectFile;
 
   // ディレクトリ展開・折りたたみ
   const handleToggleDirectory = async (entry: FileEntry) => {
@@ -322,6 +357,22 @@ function App() {
         });
         if (isMounted) unlistens.push(uToggle);
         else uToggle();
+
+        const uFileDrop = await listen("tauri://drag-drop", (e) => {
+          const payload = e.payload as any;
+          const paths = payload.paths || [];
+          if (paths.length > 0) {
+            const firstPath = paths[0];
+            if (firstPath.endsWith('.md')) {
+              const fileName = firstPath.split(/[/\\]/).filter(Boolean).pop() || "";
+              handleSelectFileRef.current({ name: fileName, path: firstPath, is_dir: false });
+            } else {
+              alert("Markdownファイル(.md)のみサポートしています。");
+            }
+          }
+        });
+        if (isMounted) unlistens.push(uFileDrop);
+        else uFileDrop();
       } catch (err) {
         console.warn("Native menu event listening is not supported in this environment:", err);
       }

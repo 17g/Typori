@@ -3,6 +3,7 @@ import { defaultValueCtx, Editor, rootCtx } from "@milkdown/kit/core";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import { history } from "@milkdown/kit/plugin/history";
 import { replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 
@@ -56,6 +57,7 @@ const MilkdownEditorContent: React.FC<EditorProps> = ({
         })
         .use(commonmark)
         .use(gfm)
+        .use(history)
         .use(listener);
     },
     []
