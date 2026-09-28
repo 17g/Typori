@@ -20,6 +20,20 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     )?;
 
     // 編集メニュー
+    let insert_link = MenuItem::with_id(
+        app,
+        "insert_link",
+        "リンクの挿入・編集",
+        true,
+        Some("CmdOrCtrl+K"),
+    )?;
+    let toggle_blockquote = MenuItem::with_id(
+        app,
+        "toggle_blockquote",
+        "引用の切り替え",
+        true,
+        Some("CmdOrCtrl+Shift+Q"),
+    )?;
     let edit_menu = Submenu::with_items(
         app,
         "編集",
@@ -27,6 +41,9 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         &[
             &PredefinedMenuItem::undo(app, Some("元に戻す"))?,
             &PredefinedMenuItem::redo(app, Some("やり直し"))?,
+            &PredefinedMenuItem::separator(app)?,
+            &insert_link,
+            &toggle_blockquote,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::cut(app, Some("切り取り"))?,
             &PredefinedMenuItem::copy(app, Some("コピー"))?,
@@ -78,6 +95,12 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "redo" => {
             let _ = app.emit("menu:redo", ());
         }
+        "insert_link" => {
+            let _ = app.emit("menu:insert_link", ());
+        }
+        "toggle_blockquote" => {
+            let _ = app.emit("menu:toggle_blockquote", ());
+        }
         _ => {}
     }
 }
@@ -91,5 +114,7 @@ mod tests {
         assert_eq!("toggle_sidebar", "toggle_sidebar");
         assert_eq!("undo", "undo");
         assert_eq!("redo", "redo");
+        assert_eq!("insert_link", "insert_link");
+        assert_eq!("toggle_blockquote", "toggle_blockquote");
     }
 }

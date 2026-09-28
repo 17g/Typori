@@ -179,7 +179,7 @@ function App() {
         e.preventDefault();
         handleToggleSidebarRef.current();
       }
-      // Undo / Redo フォールバック（エディタ外にフォーカスがある場合）
+      // Undo / Redo / Link / Blockquote フォールバック（エディタ外にフォーカスがある場合）
       const target = e.target as HTMLElement | null;
       const isInput =
         target instanceof HTMLInputElement ||
@@ -198,6 +198,16 @@ function App() {
         ) {
           e.preventDefault();
           editorRef.current?.redo();
+        }
+        // リンク挿入/編集: Ctrl+K / Cmd+K
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          editorRef.current?.openLinkModal();
+        }
+        // 引用トグル: Ctrl+Shift+Q / Cmd+Shift+Q
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "q") {
+          e.preventDefault();
+          editorRef.current?.toggleBlockquote();
         }
       }
     };
@@ -391,6 +401,18 @@ function App() {
         });
         if (isMounted) unlistens.push(uRedo);
         else uRedo();
+
+        const uLink = await listen("menu:insert_link", () => {
+          editorRef.current?.openLinkModal();
+        });
+        if (isMounted) unlistens.push(uLink);
+        else uLink();
+
+        const uQuote = await listen("menu:toggle_blockquote", () => {
+          editorRef.current?.toggleBlockquote();
+        });
+        if (isMounted) unlistens.push(uQuote);
+        else uQuote();
 
         const uFileDrop = await listen("tauri://drag-drop", (e) => {
           const payload = e.payload as any;

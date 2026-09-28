@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "node scripts/verify-history.mjs"
+    "test": "node scripts/verify-history.mjs && node scripts/verify-link-blockquote.mjs"
   },
   "dependencies": {
     "@milkdown/kit": "^7.22.2",

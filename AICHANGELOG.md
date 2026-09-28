@@ -14,3 +14,21 @@
   - **Before**: `for_agent/architecture.md` にエクスポート機能の記載がなく、ファイル管理機能においてもファイル検索の要件が含まれていなかった。
   - **After**: `for_agent/architecture.md` のファイル管理セクションに「ファイル名検索」を追記し、新たに「エクスポート機能（PDF・HTML形式）」セクションを追加。合わせて改訂履歴を更新。
   - **影響範囲**: `for_agent/architecture.md` のみ。コード変更なし。
+
+- 2026-09-28: タスク19「エディタ: リンク・引用の視覚的編集サポートの組み込みと動作確認」を完了。
+  - **変更理由**: Milkdownエディタ上でのリンク挿入・編集・解除およびブラウザジャンプ、引用ブロックのトグルをシームレスに行える視覚的サポートとタイポグラフィを提供し、TyporaライクなWYSIWYG編集体験を実現するため。
+  - **Before**: リンクや引用はMarkdown記法による入力に依存し、インラインでのリンク編集や解除、URLの確認、引用ブロックのトグルショートカット、視覚的なフローティングUIやクイックツールバーが存在せず、引用のスタイリングもシンプルな枠線のみであった。
+  - **After**:
+    - `src/components/Editor/LinkTooltip.tsx`: リンク編集ポップオーバーUIを新規作成。URL・テキストのインライン編集、外部リンクのOSブラウザオープン（`@tauri-apps/plugin-opener` 連動）、リンク解除、キーボード操作（Enter/Esc）をサポート。
+    - `src/components/Editor/EditorToolbar.tsx`: エディタ右上に控えめに配置されるクイックアクションバーを新規作成。リンク追加/編集（Ctrl+K）、引用トグル（Ctrl+Shift+Q）、Undo（Ctrl+Z）、Redo（Ctrl+Y）の視覚的ボタンを提供。
+    - `src/components/Editor/Editor.tsx`:
+      - リンククリックハンドリング（通常クリックでツールチップ表示、Ctrl+Click / Cmd+Clickでブラウザ直接オープン）。
+      - ショートカットキー `Ctrl+K`（リンク）および `Ctrl+Shift+Q`（引用）の実装。
+      - ProseMirrorの `wrapIn` と `lift` を用いた安全な引用ブロックスイッチング（`toggleBlockquote`）。
+      - `EditorRef` に `toggleBlockquote`, `openLinkModal`, `insertLink`, `removeLink` を公開。
+    - `src/index.css`: Typoraライクな洗練された引用デザイン（アクセントボーダー、やわらかな背景ティント、パディング、多重ネスト対応）およびリンクのホバーハイライトを強化。
+    - `src/App.tsx`: エディタ外フォーカス時の `Ctrl+K` / `Ctrl+Shift+Q` フォールバック処理と、Tauri ネイティブメニューイベント `menu:insert_link` / `menu:toggle_blockquote` の受信処理を追加。
+    - `src-tauri/src/menu.rs`: OSネイティブ「編集」メニューに「リンクの挿入・編集 (CmdOrCtrl+K)」と「引用の切り替え (CmdOrCtrl+Shift+Q)」を追加し、単体テストを更新。
+    - `scripts/verify-link-blockquote.mjs`: リンクスキーマ、引用スキーマ、コマンド、プラグインの動作を検証する自動テストスクリプトを追加し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント、クイックツールバー、リンクツールチップ、CSSスタイル、ショートカット、Tauriネイティブメニュー。既存のファイル読み書きや保存処理等に悪影響なし。
+
