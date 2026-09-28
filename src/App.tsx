@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import TyporiEditor, { EditorRef } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
+import OutlineSidebar from "./components/OutlineSidebar";
 import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile, getCliArgs } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import ThemeToggle from "./components/ThemeToggle";
@@ -10,6 +11,7 @@ function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const editorRef = useRef<EditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -159,6 +161,10 @@ function App() {
   }, []);
   const handleToggleSidebarRef = useRef(handleToggleSidebar);
   handleToggleSidebarRef.current = handleToggleSidebar;
+
+  const handleToggleRightSidebar = useCallback(() => {
+    setIsRightSidebarOpen((prev) => !prev);
+  }, []);
 
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
@@ -539,6 +545,19 @@ function App() {
               resolvedTheme={resolvedTheme}
               onSelectTheme={setTheme}
             />
+            <button
+              onClick={handleToggleRightSidebar}
+              className={`p-1 rounded transition-colors ${
+                isRightSidebarOpen
+                  ? "text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title="アウトラインを表示"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+              </svg>
+            </button>
             {currentFileName && (
               <button
                 onClick={handleSave}
@@ -668,6 +687,9 @@ function App() {
           </div>
         </footer>
       </div>
+      
+      {/* 右サイドバー（アウトライン） */}
+      <OutlineSidebar content={fileContent} isOpen={isRightSidebarOpen} />
     </div>
   );
 }
