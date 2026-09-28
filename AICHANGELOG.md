@@ -1,1 +1,11 @@
-﻿- 2026-09-27: 起動引数の修正を含む最新の状態でリリースビルド (pnpm tauri build) を実行し、インストーラ (MSI, NSIS) を正常に生成しました。
+- 2026-09-27: 起動引数の修正を含む最新の状態でリリースビルド (pnpm tauri build) を実行し、インストーラ (MSI, NSIS) を正常に生成しました。
+- 2026-09-28: タスク18「エディタ: Undo/Redo機能の実装（Milkdown history plugin の追加）と Ctrl+Z/Ctrl+Y 確認」を完了。
+  - **変更理由**: Milkdownエディタにおける履歴管理（Undo/Redo）を確実に機能させ、ショートカットキー（Ctrl+Z / Ctrl+Y / Shift+Ctrl+Z）やOSメニューイベント、外部インターフェースからの実行を可能にするため。
+  - **Before**: `Editor.tsx` で history プラグインが読み込まれていたものの、外部や親コンポーネントから Undo/Redo を操作するインターフェース（ref）がなく、エディタ外フォーカス時のフォールバックやメニューイベント連携が存在しなかった。
+  - **After**:
+    - `Editor.tsx`: `forwardRef` を適用し、`undo`, `redo`, `focus`, `getMarkdown` を備えた `EditorRef` を公開。Milkdown の `callCommand` と `undoCommand.key` / `redoCommand.key` を用いた明示的なコマンドディスパッチを実装。
+    - `App.tsx`: `editorRef` を `TyporiEditor` に接続。エディタ外フォーカス時の `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` のフォールバック処理、および Tauri ネイティブメニューイベント `menu:undo` / `menu:redo` の受信処理を追加。
+    - `src-tauri/src/menu.rs`: `undo` / `redo` のメニューイベントハンドラおよび単体テストを追加。
+    - `scripts/verify-history.mjs`: Milkdown historyプラグイン、ショートカットキー設定（`Mod-z`, `Mod-y`, `Shift-Mod-z`）、およびコマンドの動作を検証する自動テストスクリプトを追加し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント、ショートカットハンドリング、Tauriメニューイベント。既存の保存・新規作成等の挙動には影響なし。
+

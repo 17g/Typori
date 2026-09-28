@@ -72,6 +72,12 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "toggle_sidebar" => {
             let _ = app.emit("menu:toggle_sidebar", ());
         }
+        "undo" => {
+            let _ = app.emit("menu:undo", ());
+        }
+        "redo" => {
+            let _ = app.emit("menu:redo", ());
+        }
         _ => {}
     }
 }
@@ -83,5 +89,7 @@ mod tests {
         assert_eq!("new_file", "new_file");
         assert_eq!("save_file", "save_file");
         assert_eq!("toggle_sidebar", "toggle_sidebar");
+        assert_eq!("undo", "undo");
+        assert_eq!("redo", "redo");
     }
 }

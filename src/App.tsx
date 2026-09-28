@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import TyporiEditor from "./components/Editor";
+import TyporiEditor, { EditorRef } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile, getCliArgs } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
@@ -8,6 +8,7 @@ import ThemeToggle from "./components/ThemeToggle";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const editorRef = useRef<EditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -177,6 +178,27 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && (e.key === "\\" || e.key === "¥" || e.code === "Backslash")) {
         e.preventDefault();
         handleToggleSidebarRef.current();
+      }
+      // Undo / Redo フォールバック（エディタ外にフォーカスがある場合）
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+      if (!isInput) {
+        // Undo: Ctrl+Z / Cmd+Z (Shiftなし)
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+          e.preventDefault();
+          editorRef.current?.undo();
+        }
+        // Redo: Ctrl+Y / Cmd+Y または Ctrl+Shift+Z / Cmd+Shift+Z
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))
+        ) {
+          e.preventDefault();
+          editorRef.current?.redo();
+        }
       }
     };
 
@@ -357,6 +379,18 @@ function App() {
         });
         if (isMounted) unlistens.push(uToggle);
         else uToggle();
+
+        const uUndo = await listen("menu:undo", () => {
+          editorRef.current?.undo();
+        });
+        if (isMounted) unlistens.push(uUndo);
+        else uUndo();
+
+        const uRedo = await listen("menu:redo", () => {
+          editorRef.current?.redo();
+        });
+        if (isMounted) unlistens.push(uRedo);
+        else uRedo();
 
         const uFileDrop = await listen("tauri://drag-drop", (e) => {
           const payload = e.payload as any;
@@ -582,6 +616,7 @@ function App() {
             </div>
           ) : (
             <TyporiEditor
+              ref={editorRef}
               key={selectedPath ?? "__welcome__"}
               content={fileContent ?? undefined}
               filePath={selectedPath}
