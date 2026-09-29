@@ -1,7 +1,18 @@
 import { forwardRef, useImperativeHandle, useEffect, useRef, useState, useCallback } from "react";
 import { defaultValueCtx, Editor, editorViewCtx, rootCtx } from "@milkdown/kit/core";
 import { commonmark, linkSchema, blockquoteSchema } from "@milkdown/kit/preset/commonmark";
-import { gfm } from "@milkdown/kit/preset/gfm";
+import { gfm, columnResizingPlugin, createTable } from "@milkdown/kit/preset/gfm";
+import {
+  isInTable,
+  addRowBefore,
+  addRowAfter,
+  deleteRow,
+  addColumnBefore,
+  addColumnAfter,
+  deleteColumn,
+  deleteTable,
+} from "@milkdown/kit/prose/tables";
+import "@milkdown/kit/prose/tables/style/tables.css";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
 import { wrapIn, lift } from "@milkdown/kit/prose/commands";
@@ -10,6 +21,7 @@ import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/re
 import { openUrl } from "@tauri-apps/plugin-opener";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
+import TableFloatingToolbar from "./TableFloatingToolbar";
 
 export interface EditorRef {
   undo: () => boolean;
@@ -20,6 +32,15 @@ export interface EditorRef {
   openLinkModal: () => void;
   insertLink: (href: string, title?: string) => boolean;
   removeLink: () => boolean;
+  insertTable: (rows?: number, cols?: number) => boolean;
+  addRowBefore: () => boolean;
+  addRowAfter: () => boolean;
+  deleteRow: () => boolean;
+  addColumnBefore: () => boolean;
+  addColumnAfter: () => boolean;
+  deleteColumn: () => boolean;
+  deleteTable: () => boolean;
+  isInTable: () => boolean;
 }
 
 export interface EditorProps {
@@ -80,6 +101,14 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       linkRange: null,
     });
 
+    const [tableToolbarState, setTableToolbarState] = useState<{
+      isOpen: boolean;
+      position: { top: number; left: number } | null;
+    }>({
+      isOpen: false,
+      position: null,
+    });
+
     useEditor(
       (root) => {
         return Editor.make()
@@ -90,9 +119,36 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
               prevContentRef.current = markdown;
               onChangeRef.current?.(markdown);
             });
+            ctx.get(listenerCtx).selectionUpdated((ctx) => {
+              try {
+                const view = ctx.get(editorViewCtx);
+                const inTable = isInTable(view.state);
+                if (inTable) {
+                  const coords = view.coordsAtPos(view.state.selection.from);
+                  const containerRect = containerRef.current?.getBoundingClientRect();
+                  if (containerRect && coords) {
+                    const scrollOffset = containerRef.current?.scrollTop || 0;
+                    const top = Math.max(8, coords.top - containerRect.top + scrollOffset - 44);
+                    const left = Math.max(
+                      16,
+                      Math.min(coords.left - containerRect.left, containerRect.width - 340)
+                    );
+                    setTableToolbarState({
+                      isOpen: true,
+                      position: { top, left },
+                    });
+                  }
+                } else {
+                  setTableToolbarState((prev) => (prev.isOpen ? { ...prev, isOpen: false } : prev));
+                }
+              } catch {
+                // ignore
+              }
+            });
           })
           .use(commonmark)
           .use(gfm)
+          .use(columnResizingPlugin)
           .use(history)
           .use(listener);
       },
@@ -282,6 +338,130 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       return success;
     }, [loading, getEditor, tooltipState.linkRange]);
 
+    // 表（テーブル）の挿入
+    const insertTable = useCallback(
+      (rows = 3, cols = 3) => {
+        if (loading) return false;
+        const editor = getEditor();
+        if (!editor) return false;
+
+        return editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state, dispatch } = view;
+          const tableNode = createTable(ctx, rows, cols);
+          const tr = state.tr.replaceSelectionWith(tableNode).scrollIntoView();
+          dispatch(tr);
+          view.focus();
+          return true;
+        });
+      },
+      [loading, getEditor]
+    );
+
+    // 行を上に追加
+    const addRowBeforeAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const res = addRowBefore(view.state, view.dispatch);
+        view.focus();
+        return res;
+      });
+    }, [loading, getEditor]);
+
+    // 行を下に追加
+    const addRowAfterAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const res = addRowAfter(view.state, view.dispatch);
+        view.focus();
+        return res;
+      });
+    }, [loading, getEditor]);
+
+    // 行を削除
+    const deleteRowAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const res = deleteRow(view.state, view.dispatch);
+        view.focus();
+        return res;
+      });
+    }, [loading, getEditor]);
+
+    // 列を左に追加
+    const addColBeforeAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const res = addColumnBefore(view.state, view.dispatch);
+        view.focus();
+        return res;
+      });
+    }, [loading, getEditor]);
+
+    // 列を右に追加
+    const addColAfterAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const res = addColumnAfter(view.state, view.dispatch);
+        view.focus();
+        return res;
+      });
+    }, [loading, getEditor]);
+
+    // 列を削除
+    const deleteColAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const res = deleteColumn(view.state, view.dispatch);
+        view.focus();
+        return res;
+      });
+    }, [loading, getEditor]);
+
+    // 表を削除
+    const deleteTableAction = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      const res = editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const r = deleteTable(view.state, view.dispatch);
+        view.focus();
+        return r;
+      });
+      setTableToolbarState((prev) => ({ ...prev, isOpen: false }));
+      return res;
+    }, [loading, getEditor]);
+
+    // 表内か判定
+    const checkIsInTable = useCallback(() => {
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+      return editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        return isInTable(view.state);
+      });
+    }, [loading, getEditor]);
+
     // クリック処理（Ctrl+Clickで外部リンク、通常クリックでツールチップ）
     const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
       const anchor = (e.target as HTMLElement).closest("a");
@@ -322,6 +502,13 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "q" || e.key === "Q")) {
         e.preventDefault();
         toggleBlockquote();
+        return;
+      }
+
+      // Ctrl+Alt+T / Cmd+Alt+T: 表（テーブル）挿入
+      if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === "t" || e.key === "T")) {
+        e.preventDefault();
+        insertTable(3, 3);
         return;
       }
     };
@@ -371,8 +558,33 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         openLinkModal,
         insertLink: (href: string, title?: string) => applyLink(href, title),
         removeLink,
+        insertTable,
+        addRowBefore: addRowBeforeAction,
+        addRowAfter: addRowAfterAction,
+        deleteRow: deleteRowAction,
+        addColumnBefore: addColBeforeAction,
+        addColumnAfter: addColAfterAction,
+        deleteColumn: deleteColAction,
+        deleteTable: deleteTableAction,
+        isInTable: checkIsInTable,
       }),
-      [loading, getEditor, toggleBlockquote, openLinkModal, applyLink, removeLink]
+      [
+        loading,
+        getEditor,
+        toggleBlockquote,
+        openLinkModal,
+        applyLink,
+        removeLink,
+        insertTable,
+        addRowBeforeAction,
+        addRowAfterAction,
+        deleteRowAction,
+        addColBeforeAction,
+        addColAfterAction,
+        deleteColAction,
+        deleteTableAction,
+        checkIsInTable,
+      ]
     );
 
     useEffect(() => {
@@ -396,6 +608,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         <EditorToolbar
           onInsertLink={openLinkModal}
           onToggleBlockquote={toggleBlockquote}
+          onInsertTable={() => insertTable(3, 3)}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));
@@ -422,6 +635,18 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onRemove={removeLink}
           onOpenUrl={openExternalUrl}
           onClose={() => setTooltipState((prev) => ({ ...prev, isOpen: false }))}
+        />
+
+        <TableFloatingToolbar
+          isOpen={tableToolbarState.isOpen}
+          position={tableToolbarState.position}
+          onAddRowBefore={addRowBeforeAction}
+          onAddRowAfter={addRowAfterAction}
+          onDeleteRow={deleteRowAction}
+          onAddColBefore={addColBeforeAction}
+          onAddColAfter={addColAfterAction}
+          onDeleteCol={deleteColAction}
+          onDeleteTable={deleteTableAction}
         />
       </div>
     );

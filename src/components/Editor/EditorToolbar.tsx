@@ -3,6 +3,7 @@ import React from "react";
 export interface EditorToolbarProps {
   onInsertLink: () => void;
   onToggleBlockquote: () => void;
+  onInsertTable?: () => void;
   onUndo: () => void;
   onRedo: () => void;
 }
@@ -10,11 +11,35 @@ export interface EditorToolbarProps {
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onInsertLink,
   onToggleBlockquote,
+  onInsertTable,
   onUndo,
   onRedo,
 }) => {
   return (
     <div className="typori-quick-toolbar absolute top-3 right-6 z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
+      {onInsertTable && (
+        <button
+          type="button"
+          onClick={onInsertTable}
+          title="表（テーブル）を挿入 (3x3)"
+          className="p-1.5 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 rounded transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.8}
+              d="M3 10h18M3 14h18M9 4v16M15 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"
+            />
+          </svg>
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onInsertLink}

@@ -39,3 +39,22 @@
     - `src/components/OutlineSidebar/OutlineSidebar.tsx`: Markdownの内容から正規表現で見出し（h1〜h6）を抽出しリスト表示する右サイドバーコンポーネントを追加。
     - `src/App.tsx`: ヘッダー右上にアウトライン表示切り替えボタンを追加し、`OutlineSidebar` コンポーネントをレイアウトに組み込み。
   - **影響範囲**: アプリのメインレイアウト。既存のファイル読み書きや他の機能への影響はなし。
+
+- 2026-09-29: タスク20「エディタ: 表（テーブル）の作成・視覚的な編集とサイズ変更機能の実装」を完了。
+  - **変更理由**: Milkdownエディタ上での表（テーブル）の新規作成、行/列の追加・削除、表全体の削除といった視覚的な編集と、マウスドラッグによるカラム幅のリサイズを可能にし、TyporaライクなWYSIWYGテーブル編集体験を提供するため。
+  - **Before**: GFM記法によるテーブル構文の表示・テキスト編集は行えるものの、GUIからのテーブル挿入、コンテキストに応じた行/列の追加・削除・表削除UI、ドラッグによるカラムサイズ変更機能が存在せず、OSネイティブメニューからのテーブル挿入も連携していなかった。
+  - **After**:
+    - `src/components/Editor/TableFloatingToolbar.tsx`: テーブル内にカーソルがある際に自動表示されるフローティングツールバーを新規作成。行の追加（上/下）、行の削除、列の追加（左/右）、列の削除、表の削除をワンクリックで実行可能。
+    - `src/components/Editor/EditorToolbar.tsx`: エディタ右上のクイックツールバーに「表（テーブル）を挿入 (3x3)」ボタンを追加。
+    - `src/components/Editor/Editor.tsx`:
+      - `@milkdown/kit/preset/gfm` の `columnResizingPlugin` を適用し、カラム境界のマウスドラッグによる列幅リサイズ機能を有効化。
+      - `@milkdown/kit/prose/tables/style/tables.css` を適用。
+      - `selectionUpdated` リスナーにより、テーブル内にカーソルが入った時に `TableFloatingToolbar` を表示・位置計算するロジックを実装。
+      - `createTable` および `@milkdown/kit/prose/tables`（`addRowBefore`, `addRowAfter`, `deleteRow`, `addColumnBefore`, `addColumnAfter`, `deleteColumn`, `deleteTable`, `isInTable`）を活用したテーブル編集アクションを実装。
+      - `EditorRef` にテーブル関連操作メソッドを公開。
+      - ショートカットキー `Ctrl+Alt+T` / `Cmd+Alt+T` によるテーブル挿入をサポート。
+    - `src/App.tsx`: エディタ外フォーカス時の `Ctrl+Alt+T` / `Cmd+Alt+T` フォールバック処理と、Tauri ネイティブメニューイベント `menu:insert_table` の受信処理を追加。
+    - `src-tauri/src/menu.rs`: OSネイティブ「編集」メニューに「表（テーブル）の挿入 (CmdOrCtrl+Alt+T)」を追加し、単体テストを更新。
+    - `scripts/verify-table.mjs`: GFMテーブルプラグイン、カラムリサイズプラグイン、テーブル編集コマンド群の存在およびエディタ構成の正常性を検証するテストスクリプトを追加し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント、ツールバー、Tauriネイティブメニュー、テストスクリプト。既存のテキスト・リンク・引用編集やファイル保存等に悪影響なし。
+

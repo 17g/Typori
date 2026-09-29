@@ -215,6 +215,11 @@ function App() {
           e.preventDefault();
           editorRef.current?.toggleBlockquote();
         }
+        // 表（テーブル）挿入: Ctrl+Alt+T / Cmd+Alt+T
+        if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "t") {
+          e.preventDefault();
+          editorRef.current?.insertTable(3, 3);
+        }
       }
     };
 
@@ -419,6 +424,12 @@ function App() {
         });
         if (isMounted) unlistens.push(uQuote);
         else uQuote();
+
+        const uTable = await listen("menu:insert_table", () => {
+          editorRef.current?.insertTable(3, 3);
+        });
+        if (isMounted) unlistens.push(uTable);
+        else uTable();
 
         const uFileDrop = await listen("tauri://drag-drop", (e) => {
           const payload = e.payload as any;

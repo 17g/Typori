@@ -34,6 +34,13 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+Shift+Q"),
     )?;
+    let insert_table = MenuItem::with_id(
+        app,
+        "insert_table",
+        "表（テーブル）の挿入",
+        true,
+        Some("CmdOrCtrl+Alt+T"),
+    )?;
     let edit_menu = Submenu::with_items(
         app,
         "編集",
@@ -44,6 +51,7 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::separator(app)?,
             &insert_link,
             &toggle_blockquote,
+            &insert_table,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::cut(app, Some("切り取り"))?,
             &PredefinedMenuItem::copy(app, Some("コピー"))?,
@@ -101,6 +109,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "toggle_blockquote" => {
             let _ = app.emit("menu:toggle_blockquote", ());
         }
+        "insert_table" => {
+            let _ = app.emit("menu:insert_table", ());
+        }
         _ => {}
     }
 }
@@ -116,5 +127,6 @@ mod tests {
         assert_eq!("redo", "redo");
         assert_eq!("insert_link", "insert_link");
         assert_eq!("toggle_blockquote", "toggle_blockquote");
+        assert_eq!("insert_table", "insert_table");
     }
 }
