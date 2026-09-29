@@ -77,4 +77,22 @@
     - `src/App.tsx`: `tauri://drag-drop` リスナーを拡張し、画像ファイル（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp` 等）のドロップを検知して `saveImageFile` から `editorRef.current?.insertImage` へ連携。
     - `scripts/verify-image-dnd.mjs`: 画像スキーマ、ファイル判定、MIME判定、エディタ構成の検証スクリプトを新規作成し、`pnpm test` に登録。
   - **影響範囲**: エディタコンポーネント、ツールバー、ファイルシステムAPI、Tauri D&D連携、テストスクリプト。既存のMarkdownファイルD&Dやテキスト編集・保存等に悪影響なし。
-
+- 2026-09-29: タスク22「エディタ: Markdownソース直接編集モードコンポーネント（CodeMirror等を利用）の実装と状態管理」を完了。
+  - **変更理由**: TyporaライクなMarkdownソース直接編集モードを実現するため、CodeMirror 6を活用した専用のソースコードエディタコンポーネントを導入し、WYSIWYGモードとシームレスに相互切り替え・状態管理できるようにするため。
+  - **Before**: エディタはMilkdownによるWYSIWYGモードのみであり、MarkdownのRAWソースコードを直接確認・編集する専用のインターフェースおよび状態管理が存在しなかった。
+  - **After**:
+    - 依存関係の追加: `@uiw/react-codemirror` および `@codemirror/lang-markdown` を導入。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - CodeMirror 6 を用いた Markdown ソース直接編集モードコンポーネントを新規作成。
+      - Markdown シンタックスハイライト、行番号表示、行折り返し（lineWrapping）、ブラケット補完、現在行ハイライト等を完備。
+      - ライト／ダークテーマ対応（`oneDark` および Typori のカラーパレットに統合したカスタムテーマ適用）。
+      - ショートカットキー `Ctrl+S` / `Cmd+S` による保存キーマップを組み込み。
+      - Typoraライクなヘッダーバナー（モード名インジケータおよび「WYSIWYG表示に戻る」ボタン）を実装。
+    - `src/components/Editor/index.ts`: `SourceEditor` および `SourceEditorProps` をエクスポートに追加。
+    - `src/App.tsx`:
+      - `isSourceMode` の状態管理および `handleToggleSourceMode` ハンドラを追加。
+      - トップバー（ヘッダー）にソース直接編集モード切替ボタン（`</>` アイコン）を配置。
+      - ステータスバー（フッター）に現在の編集モード表示バッジ（WYSIWYG / ソースモード）を追加し、クリックでトグル可能に。
+      - モード切替時に `fileContent`（Markdownテキスト）を完全同期し、どちらのモードでもアウトライン、統計、Ctrl+S保存がシームレスに機能するように統合。
+    - `scripts/verify-source-editor.mjs`: CodeMirror 6、Markdown拡張、キーマップ、テーマ設定の正常性を検証するテストスクリプトを新規作成し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント群、メイン画面レイアウト（トップバー、ステータスバー）、テストスクリプト。既存のWYSIWYGエディタやファイル保存・読み込み処理等に悪影響なし。

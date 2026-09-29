@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import TyporiEditor, { EditorRef } from "./components/Editor";
+import TyporiEditor, { EditorRef, SourceEditor } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import OutlineSidebar from "./components/OutlineSidebar";
 import {
@@ -22,6 +22,7 @@ function App() {
   const editorRef = useRef<EditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [isSourceMode, setIsSourceMode] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -180,6 +181,10 @@ function App() {
 
   const handleToggleRightSidebar = useCallback(() => {
     setIsRightSidebarOpen((prev) => !prev);
+  }, []);
+
+  const handleToggleSourceMode = useCallback(() => {
+    setIsSourceMode((prev) => !prev);
   }, []);
 
   const handleMenuNewFileRef = useRef<() => void>(() => {});
@@ -588,6 +593,19 @@ function App() {
               onSelectTheme={setTheme}
             />
             <button
+              onClick={handleToggleSourceMode}
+              className={`p-1 rounded transition-colors ${
+                isSourceMode
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title={isSourceMode ? "WYSIWYGモードに切り替え" : "Markdownソース直接編集モードに切り替え"}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+            </button>
+            <button
               onClick={handleToggleRightSidebar}
               className={`p-1 rounded transition-colors ${
                 isRightSidebarOpen
@@ -600,6 +618,7 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
               </svg>
             </button>
+
             {currentFileName && (
               <button
                 onClick={handleSave}
@@ -697,6 +716,17 @@ function App() {
                 )}
               </div>
             </div>
+          ) : isSourceMode ? (
+            <SourceEditor
+              content={fileContent ?? ""}
+              theme={resolvedTheme}
+              onChange={(markdown) => {
+                setFileContent(markdown);
+              }}
+              onSave={handleSave}
+              onExitSourceMode={() => setIsSourceMode(false)}
+              filePath={selectedPath}
+            />
           ) : (
             <TyporiEditor
               ref={editorRef}
@@ -721,6 +751,17 @@ function App() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleSourceMode}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+                isSourceMode
+                  ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold"
+                  : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50"
+              }`}
+              title="編集モードの切替 (WYSIWYG / ソースコード)"
+            >
+              {isSourceMode ? "</> ソースモード" : "WYSIWYG"}
+            </button>
             <span>{wordCount} 単語</span>
             <span>{charCount} 文字</span>
             <span className="flex items-center gap-1.5">
@@ -729,6 +770,7 @@ function App() {
             </span>
           </div>
         </footer>
+
       </div>
       
       {/* 右サイドバー（アウトライン） */}
