@@ -58,3 +58,23 @@
     - `scripts/verify-table.mjs`: GFMテーブルプラグイン、カラムリサイズプラグイン、テーブル編集コマンド群の存在およびエディタ構成の正常性を検証するテストスクリプトを追加し、`pnpm test` に登録。
   - **影響範囲**: エディタコンポーネント、ツールバー、Tauriネイティブメニュー、テストスクリプト。既存のテキスト・リンク・引用編集やファイル保存等に悪影響なし。
 
+- 2026-09-29: タスク21「エディタ: D&Dによる画像ファイルの挿入と保存処理・表示ロジックの実装」を完了。
+  - **変更理由**: エディタ領域またはウィンドウへのドラッグ＆ドロップ（D&D）により、画像ファイル（PNG, JPEG, GIF, WebP, SVG, BMP等）をシームレスに挿入し、ドキュメント直下の `assets/` フォルダへ自動保存してエディタ上でローカルプレビューを正しく表示可能にするため。
+  - **Before**: ウィンドウへのD&Dハンドラは `.md` ファイルの読み込みのみに限定され、画像ファイルのドロップはエラーとして拒否されていた。また、画像の保存処理やローカル画像の相対パスプレビューを解決する仕組みが存在しなかった。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - 画像保存コマンド `save_image_file`（ローカル画像ファイルのコピー）および `save_image_binary`（バイナリデータからの保存）を実装。ファイル名の衝突を自動回避（`image_1.png` 等の連番付与）し、開いているドキュメントの `assets/` フォルダへ保存。
+      - バイナリ読み込みコマンド `read_file_binary` および相対パス解決コマンド `resolve_image_path` を実装。
+      - 画像拡張子判定、ユニークパス生成、画像ファイル保存・解決、バイナリ保存の単体テストを追加。
+    - `src-tauri/src/lib.rs`: 新規コマンドをTauriハンドラに登録。
+    - `src/api/fs.ts`: `saveImageFile`, `saveImageBinary`, `readFileBinary`, `resolveImagePath`, `isImageFilePath` を公開。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorRef` に `insertImage` を追加し、Milkdownの `imageSchema` を用いた画像ノード挿入アクションを実装。
+      - エディタコンテナにHTML5 Drag & Drop（`onDragEnter`, `onDragOver`, `onDragLeave`, `onDrop`）を実装し、ドラッグ中の視覚的オーバーレイを表示。
+      - DOM内画像自動解決ロジック（`resolveImagesInDOM`）を実装。ローカル相対パス（例: `assets/photo.png`）を `readFileBinary` と Blob URL（`URL.createObjectURL`）に透過的に変換してキャッシュ表示。Markdown本文のポータビリティ（相対パス記述）を維持したまま、WebView上での確実なプレビュー表示を実現。
+      - ファイルピッカー入力要素を追加。
+    - `src/components/Editor/EditorToolbar.tsx`: クイックツールバーに「画像を挿入」ボタン（アイコン）を追加。
+    - `src/App.tsx`: `tauri://drag-drop` リスナーを拡張し、画像ファイル（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp` 等）のドロップを検知して `saveImageFile` から `editorRef.current?.insertImage` へ連携。
+    - `scripts/verify-image-dnd.mjs`: 画像スキーマ、ファイル判定、MIME判定、エディタ構成の検証スクリプトを新規作成し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント、ツールバー、ファイルシステムAPI、Tauri D&D連携、テストスクリプト。既存のMarkdownファイルD&Dやテキスト編集・保存等に悪影響なし。
+

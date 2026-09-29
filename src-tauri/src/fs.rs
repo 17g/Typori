@@ -109,6 +109,163 @@ pub fn create_file(path: String, initial_content: Option<String>) -> Result<File
     })
 }
 
+/// 保存された画像の情報
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SavedImage {
+    pub file_name: String,
+    pub relative_path: String,
+    pub absolute_path: String,
+}
+
+/// 拡張子から画像ファイルかどうかを判定します。
+pub fn is_image_extension(ext: &str) -> bool {
+    matches!(
+        ext.to_lowercase().as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" | "avif" | "tiff"
+    )
+}
+
+/// 衝突を避けるためのユニークなファイルパスを生成します。
+pub fn get_unique_file_path(dir: &std::path::Path, file_name: &str) -> (std::path::PathBuf, String) {
+    let path = std::path::Path::new(file_name);
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
+
+    let mut candidate = dir.join(file_name);
+    let mut candidate_name = file_name.to_string();
+    let mut counter = 1;
+
+    while candidate.exists() {
+        candidate_name = format!("{}_{}.{}", stem, counter, ext);
+        candidate = dir.join(&candidate_name);
+        counter += 1;
+    }
+
+    (candidate, candidate_name)
+}
+
+/// 指定された画像ファイルを開いているドキュメントの assets フォルダにコピーして保存します。
+#[tauri::command]
+pub fn save_image_file(
+    source_path: String,
+    document_path: Option<String>,
+    workspace_dir: Option<String>,
+) -> Result<SavedImage, String> {
+    let src = std::path::Path::new(&source_path);
+    if !src.exists() || !src.is_file() {
+        return Err(format!("Source image file '{}' does not exist", source_path));
+    }
+
+    let file_name = src
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| format!("Invalid file name for '{}'", source_path))?;
+
+    let base_dir = if let Some(doc) = document_path {
+        let p = std::path::PathBuf::from(doc);
+        p.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
+    } else if let Some(ws) = workspace_dir {
+        std::path::PathBuf::from(ws)
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    };
+
+    let assets_dir = base_dir.join("assets");
+    if !assets_dir.exists() {
+        fs::create_dir_all(&assets_dir)
+            .map_err(|e| format!("Failed to create assets directory: {}", e))?;
+    }
+
+    let (dest_path, unique_name) = get_unique_file_path(&assets_dir, file_name);
+
+    fs::copy(src, &dest_path)
+        .map_err(|e| format!("Failed to copy image to '{}': {}", dest_path.display(), e))?;
+
+    let relative_path = format!("assets/{}", unique_name);
+    let absolute_path = dest_path.to_string_lossy().to_string();
+
+    Ok(SavedImage {
+        file_name: unique_name,
+        relative_path,
+        absolute_path,
+    })
+}
+
+/// バイナリデータから画像を開いているドキュメントの assets フォルダに保存します。
+#[tauri::command]
+pub fn save_image_binary(
+    file_name: String,
+    data: Vec<u8>,
+    document_path: Option<String>,
+    workspace_dir: Option<String>,
+) -> Result<SavedImage, String> {
+    let base_dir = if let Some(doc) = document_path {
+        let p = std::path::PathBuf::from(doc);
+        p.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
+    } else if let Some(ws) = workspace_dir {
+        std::path::PathBuf::from(ws)
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    };
+
+    let assets_dir = base_dir.join("assets");
+    if !assets_dir.exists() {
+        fs::create_dir_all(&assets_dir)
+            .map_err(|e| format!("Failed to create assets directory: {}", e))?;
+    }
+
+    let (dest_path, unique_name) = get_unique_file_path(&assets_dir, &file_name);
+
+    fs::write(&dest_path, data)
+        .map_err(|e| format!("Failed to write image to '{}': {}", dest_path.display(), e))?;
+
+    let relative_path = format!("assets/{}", unique_name);
+    let absolute_path = dest_path.to_string_lossy().to_string();
+
+    Ok(SavedImage {
+        file_name: unique_name,
+        relative_path,
+        absolute_path,
+    })
+}
+
+/// 指定されたファイルのバイナリデータを読み込みます。
+#[tauri::command]
+pub fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
+    fs::read(&path).map_err(|e| format!("Failed to read binary file '{}': {}", path, e))
+}
+
+/// 相対パスとドキュメントパスから画像の絶対パスを解決します。
+#[tauri::command]
+pub fn resolve_image_path(
+    image_src: String,
+    document_path: Option<String>,
+    workspace_dir: Option<String>,
+) -> Result<String, String> {
+    let p = std::path::Path::new(&image_src);
+    if p.is_absolute() {
+        return Ok(image_src);
+    }
+
+    let base_dir = if let Some(doc) = document_path {
+        let p = std::path::PathBuf::from(doc);
+        p.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
+    } else if let Some(ws) = workspace_dir {
+        std::path::PathBuf::from(ws)
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    };
+
+    let normalized = image_src.trim_start_matches("./").trim_start_matches(".\\");
+    let mut full = base_dir;
+    for part in normalized.split(['/', '\\']) {
+        if !part.is_empty() && part != "." {
+            full.push(part);
+        }
+    }
+    Ok(full.to_string_lossy().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,6 +511,112 @@ mod tests {
 
         // クリーンアップ
         let _ = fs::remove_dir_all(dir_path);
+    }
+
+    #[test]
+    fn test_is_image_extension() {
+        assert!(is_image_extension("png"));
+        assert!(is_image_extension("PNG"));
+        assert!(is_image_extension("jpg"));
+        assert!(is_image_extension("jpeg"));
+        assert!(is_image_extension("gif"));
+        assert!(is_image_extension("webp"));
+        assert!(is_image_extension("svg"));
+        assert!(!is_image_extension("txt"));
+        assert!(!is_image_extension("md"));
+        assert!(!is_image_extension("rs"));
+    }
+
+    #[test]
+    fn test_get_unique_file_path() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("typori_test_unique_{}", timestamp));
+        fs::create_dir_all(&dir).unwrap();
+
+        let (path1, name1) = get_unique_file_path(&dir, "sample.png");
+        assert_eq!(name1, "sample.png");
+        fs::write(&path1, "fake image 1").unwrap();
+
+        let (path2, name2) = get_unique_file_path(&dir, "sample.png");
+        assert_eq!(name2, "sample_1.png");
+        fs::write(&path2, "fake image 2").unwrap();
+
+        let (_path3, name3) = get_unique_file_path(&dir, "sample.png");
+        assert_eq!(name3, "sample_2.png");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_save_image_file_and_resolve() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = std::env::temp_dir().join(format!("typori_test_img_{}", timestamp));
+        let doc_path = base_dir.join("notes").join("my_doc.md");
+        let src_img = base_dir.join("download.png");
+        fs::create_dir_all(doc_path.parent().unwrap()).unwrap();
+        fs::write(&src_img, "mock_png_binary_data").unwrap();
+
+        let res = save_image_file(
+            src_img.to_str().unwrap().to_string(),
+            Some(doc_path.to_str().unwrap().to_string()),
+            None,
+        );
+        assert!(res.is_ok());
+        let saved = res.unwrap();
+        assert_eq!(saved.file_name, "download.png");
+        assert_eq!(saved.relative_path, "assets/download.png");
+        assert!(std::path::Path::new(&saved.absolute_path).exists());
+
+        // resolve_image_path
+        let resolved = resolve_image_path(
+            saved.relative_path.clone(),
+            Some(doc_path.to_str().unwrap().to_string()),
+            None,
+        );
+        assert!(resolved.is_ok());
+        assert_eq!(resolved.unwrap(), saved.absolute_path);
+
+        // read_file_binary
+        let bin_res = read_file_binary(saved.absolute_path);
+        assert!(bin_res.is_ok());
+        assert_eq!(bin_res.unwrap(), b"mock_png_binary_data");
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_save_image_binary() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = std::env::temp_dir().join(format!("typori_test_bin_{}", timestamp));
+        let doc_path = base_dir.join("doc.md");
+        fs::create_dir_all(&base_dir).unwrap();
+        fs::write(&doc_path, "# Title").unwrap();
+
+        let binary_data = vec![137, 80, 78, 71, 13, 10, 26, 10]; // PNG header
+        let res = save_image_binary(
+            "pasted.png".to_string(),
+            binary_data.clone(),
+            Some(doc_path.to_str().unwrap().to_string()),
+            None,
+        );
+        assert!(res.is_ok());
+        let saved = res.unwrap();
+        assert_eq!(saved.file_name, "pasted.png");
+        assert_eq!(saved.relative_path, "assets/pasted.png");
+
+        let read_back = fs::read(&saved.absolute_path).unwrap();
+        assert_eq!(read_back, binary_data);
+
+        let _ = fs::remove_dir_all(base_dir);
     }
 }
 

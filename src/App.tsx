@@ -3,7 +3,17 @@ import { listen } from "@tauri-apps/api/event";
 import TyporiEditor, { EditorRef } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import OutlineSidebar from "./components/OutlineSidebar";
-import { getCurrentDir, getParentDir, openFile, readDir, saveFile, createFile, getCliArgs } from "./api/fs";
+import {
+  getCurrentDir,
+  getParentDir,
+  openFile,
+  readDir,
+  saveFile,
+  createFile,
+  getCliArgs,
+  saveImageFile,
+  isImageFilePath,
+} from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import ThemeToggle from "./components/ThemeToggle";
 
@@ -26,6 +36,12 @@ function App() {
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [isLoadingRoot, setIsLoadingRoot] = useState(false);
   const [rootError, setRootError] = useState<string | null>(null);
+
+  const selectedPathRef = useRef<string | null>(selectedPath);
+  selectedPathRef.current = selectedPath;
+
+  const currentDirectoryRef = useRef<string | null>(currentDirectory);
+  currentDirectoryRef.current = currentDirectory;
 
   // 指定ディレクトリの読み込み
   const loadDirectory = useCallback(async (dirPath: string, isRoot = false) => {
@@ -431,16 +447,31 @@ function App() {
         if (isMounted) unlistens.push(uTable);
         else uTable();
 
-        const uFileDrop = await listen("tauri://drag-drop", (e) => {
+        const uFileDrop = await listen("tauri://drag-drop", async (e) => {
           const payload = e.payload as any;
-          const paths = payload.paths || [];
+          const paths: string[] = payload.paths || [];
           if (paths.length > 0) {
-            const firstPath = paths[0];
-            if (firstPath.endsWith('.md')) {
-              const fileName = firstPath.split(/[/\\]/).filter(Boolean).pop() || "";
-              handleSelectFileRef.current({ name: fileName, path: firstPath, is_dir: false });
-            } else {
-              alert("Markdownファイル(.md)のみサポートしています。");
+            for (const filePath of paths) {
+              const lower = filePath.toLowerCase();
+              if (lower.endsWith(".md") || lower.endsWith(".markdown")) {
+                const fileName = filePath.split(/[/\\]/).filter(Boolean).pop() || "";
+                handleSelectFileRef.current({ name: fileName, path: filePath, is_dir: false });
+                break;
+              } else if (isImageFilePath(filePath)) {
+                try {
+                  const saved = await saveImageFile(
+                    filePath,
+                    selectedPathRef.current,
+                    currentDirectoryRef.current
+                  );
+                  editorRef.current?.insertImage(saved.relative_path, saved.file_name);
+                } catch (err) {
+                  console.error("Failed to save and insert image:", err);
+                  alert(`画像の保存・挿入に失敗しました: ${err}`);
+                }
+              } else {
+                alert("Markdownファイル(.md)または画像ファイルのみサポートしています。");
+              }
             }
           }
         });
@@ -672,6 +703,7 @@ function App() {
               key={selectedPath ?? "__welcome__"}
               content={fileContent ?? undefined}
               filePath={selectedPath}
+              workspaceDir={currentDirectory}
               onChange={(markdown) => {
                 setFileContent(markdown);
               }}

@@ -57,3 +57,73 @@ export async function getCliArgs(): Promise<string[]> {
   return await invoke<string[]>("get_cli_args");
 }
 
+export interface SavedImage {
+  file_name: string;
+  relative_path: string;
+  absolute_path: string;
+}
+
+/**
+ * ファイルパスまたはファイル名が画像ファイルかどうかを判定します。
+ */
+export function isImageFilePath(path: string): boolean {
+  const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif", ".tiff"];
+  const lower = path.toLowerCase();
+  return imageExtensions.some((ext) => lower.endsWith(ext));
+}
+
+/**
+ * 指定されたローカル画像ファイルを開いているドキュメントの assets フォルダにコピーして保存します。
+ */
+export async function saveImageFile(
+  sourcePath: string,
+  documentPath?: string | null,
+  workspaceDir?: string | null
+): Promise<SavedImage> {
+  return await invoke<SavedImage>("save_image_file", {
+    sourcePath,
+    documentPath: documentPath ?? null,
+    workspaceDir: workspaceDir ?? null,
+  });
+}
+
+/**
+ * バイナリデータから画像を開いているドキュメントの assets フォルダに保存します。
+ */
+export async function saveImageBinary(
+  fileName: string,
+  data: number[],
+  documentPath?: string | null,
+  workspaceDir?: string | null
+): Promise<SavedImage> {
+  return await invoke<SavedImage>("save_image_binary", {
+    fileName,
+    data,
+    documentPath: documentPath ?? null,
+    workspaceDir: workspaceDir ?? null,
+  });
+}
+
+/**
+ * 指定されたパスのファイルのバイナリデータを読み込みます。
+ */
+export async function readFileBinary(path: string): Promise<number[]> {
+  return await invoke<number[]>("read_file_binary", { path });
+}
+
+/**
+ * 画像の相対パスから絶対パスを解決します。
+ */
+export async function resolveImagePath(
+  imageSrc: string,
+  documentPath?: string | null,
+  workspaceDir?: string | null
+): Promise<string> {
+  return await invoke<string>("resolve_image_path", {
+    imageSrc,
+    documentPath: documentPath ?? null,
+    workspaceDir: workspaceDir ?? null,
+  });
+}
+
+

@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useEffect, useRef, useState, useCallback } from "react";
 import { defaultValueCtx, Editor, editorViewCtx, rootCtx } from "@milkdown/kit/core";
-import { commonmark, linkSchema, blockquoteSchema } from "@milkdown/kit/preset/commonmark";
+import { commonmark, linkSchema, blockquoteSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
 import { gfm, columnResizingPlugin, createTable } from "@milkdown/kit/preset/gfm";
 import {
   isInTable,
@@ -19,6 +19,7 @@ import { wrapIn, lift } from "@milkdown/kit/prose/commands";
 import { callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
@@ -41,12 +42,14 @@ export interface EditorRef {
   deleteColumn: () => boolean;
   deleteTable: () => boolean;
   isInTable: () => boolean;
+  insertImage: (src: string, alt?: string, title?: string) => boolean;
 }
 
 export interface EditorProps {
   defaultValue?: string;
   content?: string;
   filePath?: string | null;
+  workspaceDir?: string | null;
   onChange?: (markdown: string) => void;
 }
 
@@ -83,14 +86,44 @@ interface TooltipState {
   linkRange: { from: number; to: number } | null;
 }
 
+function getMimeType(filePath: string): string {
+  const ext = filePath.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "svg":
+      return "image/svg+xml";
+    case "bmp":
+      return "image/bmp";
+    case "ico":
+      return "image/x-icon";
+    case "avif":
+      return "image/avif";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
-  ({ defaultValue, content, onChange }, ref) => {
+  ({ defaultValue, content, filePath, workspaceDir, onChange }, ref) => {
     const initialValue = content ?? defaultValue ?? defaultContent;
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
 
     const prevContentRef = useRef(content ?? initialValue);
     const containerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const resolvedImageUrlsRef = useRef<Map<string, string>>(new Map());
+
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const dragCounterRef = useRef(0);
 
     const [tooltipState, setTooltipState] = useState<TooltipState>({
       isOpen: false,
@@ -108,6 +141,84 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       isOpen: false,
       position: null,
     });
+
+    // DOM内のローカル画像パスを読み込みBlob URLとして解決・表示する
+    const resolveImagesInDOM = useCallback(async () => {
+      if (!containerRef.current) return;
+      const imgElements = containerRef.current.querySelectorAll<HTMLImageElement>("img");
+      for (const img of Array.from(imgElements)) {
+        const rawSrc = img.getAttribute("data-raw-src") || img.getAttribute("src");
+        if (!rawSrc) continue;
+
+        if (
+          rawSrc.startsWith("http://") ||
+          rawSrc.startsWith("https://") ||
+          rawSrc.startsWith("data:") ||
+          rawSrc.startsWith("blob:") ||
+          rawSrc.startsWith("asset://")
+        ) {
+          continue;
+        }
+
+        if (!img.hasAttribute("data-raw-src")) {
+          img.setAttribute("data-raw-src", rawSrc);
+        }
+
+        if (resolvedImageUrlsRef.current.has(rawSrc)) {
+          const cached = resolvedImageUrlsRef.current.get(rawSrc)!;
+          if (img.src !== cached) {
+            img.src = cached;
+          }
+          continue;
+        }
+
+        try {
+          const absPath = await resolveImagePath(rawSrc, filePath, workspaceDir);
+          const binaryData = await readFileBinary(absPath);
+          const mime = getMimeType(absPath);
+          const blob = new Blob([new Uint8Array(binaryData)], { type: mime });
+          const blobUrl = URL.createObjectURL(blob);
+          resolvedImageUrlsRef.current.set(rawSrc, blobUrl);
+          img.src = blobUrl;
+        } catch (err) {
+          console.warn(`Failed to resolve local image '${rawSrc}':`, err);
+        }
+      }
+    }, [filePath, workspaceDir]);
+
+    // DOMの変更を監視して画像を自動解決
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      resolveImagesInDOM();
+
+      const observer = new MutationObserver(() => {
+        resolveImagesInDOM();
+      });
+
+      observer.observe(container, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["src"],
+      });
+
+      return () => {
+        observer.disconnect();
+      };
+    }, [resolveImagesInDOM]);
+
+    // アンマウント時にBlob URLを解放
+    useEffect(() => {
+      const urlsMap = resolvedImageUrlsRef.current;
+      return () => {
+        for (const url of urlsMap.values()) {
+          URL.revokeObjectURL(url);
+        }
+        urlsMap.clear();
+      };
+    }, []);
 
     useEditor(
       (root) => {
@@ -462,6 +573,85 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       });
     }, [loading, getEditor]);
 
+    // 画像の挿入
+    const insertImage = useCallback(
+      (src: string, alt = "", title = "") => {
+        if (loading) return false;
+        const editor = getEditor();
+        if (!editor) return false;
+
+        const res = editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state, dispatch } = view;
+          const imageType = imageSchema.type(ctx);
+          const imageNode = imageType.createAndFill({
+            src,
+            alt: alt || "image",
+            title: title || alt || "",
+          });
+          if (!imageNode) return false;
+          const tr = state.tr.replaceSelectionWith(imageNode).scrollIntoView();
+          dispatch(tr);
+          view.focus();
+          return true;
+        });
+
+        setTimeout(resolveImagesInDOM, 50);
+        return res;
+      },
+      [loading, getEditor, resolveImagesInDOM]
+    );
+
+    // ドラッグ＆ドロップハンドラー
+    const handleDragEnter = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current += 1;
+      if (e.dataTransfer.types.includes("Files")) {
+        setIsDraggingOver(true);
+      }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsDraggingOver(false);
+      }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDraggingOver(false);
+
+      const files = Array.from(e.dataTransfer.files);
+      const imageFiles = files.filter((f) => f.type.startsWith("image/") || isImageFilePath(f.name));
+
+      if (imageFiles.length === 0) return;
+
+      for (const file of imageFiles) {
+        try {
+          const buffer = await file.arrayBuffer();
+          const bytes = Array.from(new Uint8Array(buffer));
+          const saved = await saveImageBinary(file.name, bytes, filePath, workspaceDir);
+          insertImage(saved.relative_path, saved.file_name);
+        } catch (err) {
+          console.error(`Failed to save image '${file.name}':`, err);
+          alert(`画像の保存に失敗しました: ${err}`);
+        }
+      }
+    };
+
     // クリック処理（Ctrl+Clickで外部リンク、通常クリックでツールチップ）
     const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
       const anchor = (e.target as HTMLElement).closest("a");
@@ -567,6 +757,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         deleteColumn: deleteColAction,
         deleteTable: deleteTableAction,
         isInTable: checkIsInTable,
+        insertImage,
       }),
       [
         loading,
@@ -584,6 +775,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         deleteColAction,
         deleteTableAction,
         checkIsInTable,
+        insertImage,
       ]
     );
 
@@ -601,14 +793,60 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     return (
       <div
         ref={containerRef}
-        className="typori-editor-wrapper relative w-full h-full flex-1 overflow-y-auto px-8 py-6"
+        className={`typori-editor-wrapper relative w-full h-full flex-1 overflow-y-auto px-8 py-6 transition-colors ${
+          isDraggingOver ? "bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 inset-ring" : ""
+        }`}
         onClick={handleContainerClick}
         onKeyDown={handleKeyDown}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={async (e) => {
+            const files = Array.from(e.target.files || []);
+            for (const file of files) {
+              try {
+                const buffer = await file.arrayBuffer();
+                const bytes = Array.from(new Uint8Array(buffer));
+                const saved = await saveImageBinary(file.name, bytes, filePath, workspaceDir);
+                insertImage(saved.relative_path, saved.file_name);
+              } catch (err) {
+                console.error("Failed to insert image:", err);
+                alert(`画像の挿入に失敗しました: ${err}`);
+              }
+            }
+            e.target.value = "";
+          }}
+        />
+
+        {isDraggingOver && (
+          <div className="absolute inset-4 z-30 pointer-events-none flex flex-col items-center justify-center bg-indigo-50/80 dark:bg-zinc-900/85 border-2 border-dashed border-indigo-500 rounded-xl backdrop-blur-xs transition-all shadow-xl">
+            <div className="flex flex-col items-center gap-2.5 p-6 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400">
+              <svg className="w-10 h-10 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span className="font-semibold text-sm">画像をドロップして挿入</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">assets フォルダに自動保存されます</span>
+            </div>
+          </div>
+        )}
+
         <EditorToolbar
           onInsertLink={openLinkModal}
           onToggleBlockquote={toggleBlockquote}
           onInsertTable={() => insertTable(3, 3)}
+          onInsertImage={() => fileInputRef.current?.click()}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));

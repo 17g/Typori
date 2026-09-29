@@ -32,7 +32,11 @@ pub fn run() {
             fs::read_dir,
             fs::get_current_dir,
             fs::get_parent_dir,
-            fs::create_file
+            fs::create_file,
+            fs::save_image_file,
+            fs::save_image_binary,
+            fs::read_file_binary,
+            fs::resolve_image_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
