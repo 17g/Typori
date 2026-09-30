@@ -18,6 +18,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useTabSettings } from "./hooks/useTabSettings";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
+import { CheatSheetModal } from "./components/CheatSheetModal";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -27,6 +28,7 @@ function App() {
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -437,10 +439,25 @@ function App() {
   const handleCloseTabRef = useRef(handleCloseTab);
   handleCloseTabRef.current = handleCloseTab;
 
+  const handleToggleCheatSheet = useCallback(() => {
+    setIsCheatSheetOpen((prev) => !prev);
+  }, []);
+  const handleToggleCheatSheetRef = useRef(handleToggleCheatSheet);
+  handleToggleCheatSheetRef.current = handleToggleCheatSheet;
+
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // チートシート表示切替 (F1 または Ctrl+Shift+? / Cmd+Shift+?)
+      if (
+        e.key === "F1" ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "?" || e.code === "Slash"))
+      ) {
+        e.preventDefault();
+        handleToggleCheatSheetRef.current();
+        return;
+      }
       // タブを閉じる (Ctrl+W / Cmd+W)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
         if (activeTabIdRef.current) {
@@ -937,6 +954,12 @@ function App() {
         if (isMounted) unlistens.push(uToggleTabs);
         else uToggleTabs();
 
+        const uCheatSheet = await listen("menu:open_cheatsheet", () => {
+          setIsCheatSheetOpen(true);
+        });
+        if (isMounted) unlistens.push(uCheatSheet);
+        else uCheatSheet();
+
         const uFileDrop = await listen("tauri://drag-drop", async (e) => {
           const payload = e.payload as any;
           const paths: string[] = payload.paths || [];
@@ -1136,6 +1159,21 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
               </svg>
             </button>
+            <button
+              onClick={handleToggleCheatSheet}
+              className={`p-1 rounded transition-colors ${
+                isCheatSheetOpen
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title="チートシート (Markdown & ショートカット) (F1)"
+              aria-label="チートシートを表示"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01" />
+              </svg>
+            </button>
 
             {currentFileName && (
               <button
@@ -1317,6 +1355,12 @@ function App() {
       
       {/* 右サイドバー（アウトライン） */}
       <OutlineSidebar content={fileContent} isOpen={isRightSidebarOpen} />
+
+      {/* チートシートモーダル */}
+      <CheatSheetModal
+        isOpen={isCheatSheetOpen}
+        onClose={() => setIsCheatSheetOpen(false)}
+      />
     </div>
   );
 }

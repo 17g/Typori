@@ -83,5 +83,6 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-09-30: 複数ファイルを開くためのタブ機能UI（TabBarコンポーネント、表示・切替・閉じる、未保存インジケータ、Ctrl+Wショートカット、中クリッククローズ、コンテンツ自動保護）の仕様を追記
 - 2026-09-30: タブ機能のグローバル状態管理（useTabSettings、localStorage永続化）とデフォルト無効化（単一ファイルモード・TabBar非表示・未保存保護）および切替トグルロジック（UIボタン、Ctrl+Shift+T、menu:toggle_tabs連携）の仕様を追記
 - 2026-09-30: OSネイティブメニュー（表示メニュー）への「タブ機能の有効/無効 (CmdOrCtrl+Shift+T)」「ソース直接編集モードの切替 (CmdOrCtrl+/)」項目の追加と、フロントエンド双方向イベント連携（menu:toggle_tabs, menu:toggle_source_mode）の実装仕様を追記
+- 2026-09-30: Markdown記法およびショートカットキーのチートシートモーダルUI（CheatSheetModal、タブ切替・検索・カテゴリ絞り込み・コードコピー機能）、ヘッダー呼び出しボタン、ショートカットキー (F1 / Ctrl+Shift+?)、およびTauriネイティブヘルプメニュー連携（menu:open_cheatsheet）の実装仕様を追記
 
 
