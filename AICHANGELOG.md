@@ -1,3 +1,34 @@
+- 2026-09-30: タスク33「エクスポート: MarkdownファイルをHTML形式へエクスポートする機能の実装」を完了。
+  - **変更理由**: 編集中のMarkdownファイルをブラウザや他の環境で容易に閲覧・配布・共有できるよう、CommonMark/GFMに完全準拠し、美しいタイポグラフィとCSSスタイル（ライト・ダーク対応）を内蔵したスタンドアロンHTMLファイルとしてエクスポートする機能を提供するため。
+  - **Before**: Markdownファイルの保存（.md）のみ対応しており、HTML形式への書き出し機能やエクスポート用UI・OSネイティブメニュー項目が存在しなかった。
+  - **After**:
+    - `src-tauri/Cargo.toml` & `src-tauri/src/fs.rs`:
+      - `pulldown-cmark` クレート（CommonMark/GFM、テーブル、タスクリスト、取り消し線、見出し属性、脚注対応）を導入。
+      - Markdown文字列からドキュメントタイトルを自動抽出する `extract_title_from_markdown` を実装。
+      - MarkdownをCSSスタイル（GitHubライクなクリーンなライト/ダークテーマ、テーブル罫線、コードブロック背景、引用ブロック、チェックボックス、印刷スタイル最適化）が埋め込まれたスタンドアロンHTML文書に変換する `convert_markdown_to_html` コマンドを実装。
+      - 生成したHTML文書を指定パスへ書き出す `export_to_html` コマンドを実装（親ディレクトリの自動作成対応）。
+      - 単体テスト（`test_extract_title_from_markdown`, `test_convert_markdown_to_html`, `test_export_to_html_file`）を追加し、`cargo test` で検証。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `fs::convert_markdown_to_html`, `fs::export_to_html` を登録。
+    - `src-tauri/src/menu.rs`:
+      - ファイルメニューに「HTML形式でエクスポート... (CmdOrCtrl+Shift+E)」項目を追加。
+      - `menu:export_html` イベント送出処理およびメニューテストを追加。
+    - `src/api/fs.ts`:
+      - Tauri IPC経由でRustバックエンドを呼び出す `convertMarkdownToHtml`, `exportToHtml` API関数を追加。
+    - `src/components/ExportModal/`:
+      - エクスポート設定用モーダルダイアログ `ExportModal` を新規実装（ドキュメントタイトル入力、出力ファイルパス編集、ライト/ダークスタイリングテーマ選択、エクスポート実行、成功時パス表示、Escキー対応、アクセシビリティ対応）。
+    - `src/components/ShortcutSettingsModal/types.ts` & `src/components/CheatSheetModal/data.ts`:
+      - `export_html`（デフォルト: `Ctrl+Shift+E`）をショートカット項目およびチートシートに追加し、ユーザーカスタマイズに対応。
+    - `src/App.tsx`:
+      - ヘッダーバーに「HTML形式でエクスポート」ツールボタンを追加（ショートカットキー設定とツールチップ連動）。
+      - OSネイティブメニューイベント `menu:export_html` のリッスンおよび `handleKeyDown` でのショートカット検知を実装。
+      - `ExportModal` をマウントし、未保存の変更を含むエディタの最新内容を確実に取得してエクスポートできるよう連携。
+    - `scripts/verify-export-html.mjs`:
+      - タイトル・パス算出ロジック、モーダル構造、API定義、ショートカット定義、Rustバックエンド実装、App.tsx連携を検証する自動テストスクリプトを追加し、`package.json` の `pnpm test` に統合。
+    - `for_agent/architecture.md`:
+      - HTMLエクスポート機能のデータフローおよび改訂履歴を同期更新。
+  - **影響範囲**: エクスポート機能（HTML）、OSネイティブファイルメニュー、ショートカット設定、チートシート、ヘッダーバー。既存のファイルオープン・保存・編集等の動作への悪影響なし。
+
 - 2026-09-30: タスク32「ファイル管理: サイドバーのフォルダツリー部分におけるファイル名検索（フィルタリング）機能の実装」を完了。
   - **変更理由**: 多数のMarkdownドキュメントやサブフォルダを扱う際に、目的のファイルを迅速に発見・選択できるよう、サイドバーのフォルダツリー部分にファイル名リアルタイム検索・フィルタリング機能を提供するため。
   - **Before**: サイドバーにはカレントディレクトリ直下および展開したサブディレクトリの全エントリがそのまま表示され、検索・フィルタリング入力欄が存在しなかったため、深い階層や多数のファイルから目的のファイルを探すには手動でフォルダを展開してスクロールする必要があった。

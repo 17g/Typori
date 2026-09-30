@@ -37,7 +37,9 @@ pub fn run() {
             fs::save_image_binary,
             fs::read_file_binary,
             fs::resolve_image_path,
-            fs::search_files
+            fs::search_files,
+            fs::convert_markdown_to_html,
+            fs::export_to_html
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

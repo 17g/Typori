@@ -26,6 +26,7 @@ import {
   formatKeys,
   areKeysEqual,
 } from "./components/ShortcutSettingsModal";
+import { ExportModal } from "./components/ExportModal";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -38,6 +39,7 @@ function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
   const [isShortcutSettingsOpen, setIsShortcutSettingsOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -465,11 +467,47 @@ function App() {
   const handleToggleShortcutSettingsRef = useRef(handleToggleShortcutSettings);
   handleToggleShortcutSettingsRef.current = handleToggleShortcutSettings;
 
+  const handleOpenExportModal = useCallback(() => {
+    setIsExportModalOpen(true);
+  }, []);
+  const handleCloseExportModal = useCallback(() => {
+    setIsExportModalOpen(false);
+  }, []);
+  const handleOpenExportModalRef = useRef(handleOpenExportModal);
+  handleOpenExportModalRef.current = handleOpenExportModal;
+
+  const getCurrentMarkdown = useCallback((): string => {
+    if (!isSourceMode && editorRef.current) {
+      try {
+        const md = editorRef.current.getMarkdown();
+        if (md !== undefined && md !== null) {
+          return md;
+        }
+      } catch (e) {
+        console.warn("Could not get markdown from editorRef:", e);
+      }
+    }
+    return fileContent ?? "";
+  }, [fileContent, isSourceMode]);
+
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const config = shortcutConfigRef.current;
+
+      // HTMLエクスポート (デフォルト: Ctrl+Shift+E)
+      if (
+        isShortcutEvent(e, config.export_html || ["Ctrl", "Shift", "E"]) ||
+        (areKeysEqual(config.export_html || ["Ctrl", "Shift", "E"], ["Ctrl", "Shift", "E"]) &&
+          (e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          e.key.toLowerCase() === "e")
+      ) {
+        e.preventDefault();
+        handleOpenExportModalRef.current();
+        return;
+      }
 
       // ショートカット設定画面 (デフォルト: Ctrl+,)
       if (
@@ -953,6 +991,12 @@ function App() {
         if (isMounted) unlistens.push(uSave);
         else uSave();
 
+        const uExport = await listen("menu:export_html", () => {
+          handleOpenExportModalRef.current();
+        });
+        if (isMounted) unlistens.push(uExport);
+        else uExport();
+
         const uNew = await listen("menu:new_file", () => {
           handleMenuNewFileRef.current();
         });
@@ -1273,6 +1317,22 @@ function App() {
               </svg>
             </button>
 
+            {/* HTMLエクスポートボタン */}
+            <button
+              onClick={handleOpenExportModal}
+              className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title={
+                areKeysEqual(shortcutConfig.export_html, ["Ctrl", "Shift", "E"])
+                  ? "HTML形式でエクスポート (Ctrl+Shift+E)"
+                  : `HTML形式でエクスポート (${formatKeys(shortcutConfig.export_html)})`
+              }
+              aria-label="HTML形式でエクスポート"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </button>
+
             {currentFileName && (
               <button
                 onClick={handleSave}
@@ -1471,6 +1531,15 @@ function App() {
         onClose={() => setIsShortcutSettingsOpen(false)}
         currentConfig={shortcutConfig}
         onSave={saveShortcutConfig}
+      />
+
+      {/* HTMLエクスポートモーダル */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={handleCloseExportModal}
+        currentFilePath={selectedPath}
+        currentDirectory={currentDirectory}
+        markdownContent={getCurrentMarkdown()}
       />
     </div>
   );

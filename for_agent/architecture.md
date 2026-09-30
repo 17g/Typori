@@ -62,6 +62,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 画像ファイルの挿入と保存: OSネイティブD&D (`tauri://drag-drop`) またはエディタ領域への直接ドロップ時に、`save_image_file` / `save_image_binary` コマンド(Rust)により開いているドキュメントの `assets/` フォルダへ自動保存し、Markdown内に相対パス `assets/{fileName}` として画像ノードを挿入。
 - 画像プレビュー表示: ローカル相対パスの画像をエディタ内で確実に表示するため、`resolve_image_path` および `read_file_binary` を介してBlob URLへ自動解決・キャッシュしてプレビュー描画。
 - ファイル名検索・ツリーフィルタリング: サイドバーの検索入力欄に入力されたクエリに対し、フロントエンド側でロード済みツリーの即時フィルタリングを行うとともに、`search_files` コマンド(Rust)によりカレントディレクトリ配下を再帰的に走査（除外フォルダ対応・大文字小文字無視）。ヒットしたファイルまでの親フォルダ階層を自動展開してツリー表示し、マッチ箇所のテキストをハイライト描画。
+- HTMLエクスポート: Rust側コマンド `convert_markdown_to_html` / `export_to_html` (pulldown-cmark利用) により、CommonMark/GFM（テーブル・タスクリスト・打ち消し線など）に完全準拠したスタンドアロンHTML文書（ドキュメントタイトル、レスポンシブタイポグラフィ、ライト/ダークテーマCSSスタイル内蔵、印刷最適化）を高速・安全に生成・保存。UI側の `ExportModal`、ヘッダーのエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+E)、およびOSネイティブメニュー連携 (`menu:export_html`) と連動。
 
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
@@ -88,6 +89,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-09-30: ショートカットキーカスタマイズ設定画面モーダルUI（ShortcutSettingsModal、キー入力検知・記録、重複/競合警告、カテゴリ別検索・絞り込み、個別/一括デフォルト初期化、ヘッダー設定ボタン、ショートカット Ctrl+,、およびTauriネイティブメニュー連携 menu:open_shortcuts_settings）の実装仕様を追記
 - 2026-09-30: ショートカット設定の永続化管理フック (useShortcutSettings、localStorage連携 typori:shortcuts_config、デフォルト設定との安全マージ) と動的キーバインド反映ロジック (App.tsx での動的ショートカット判定・各ボタンツールチップの動的同期、CheatSheetModal / ShortcutSettingsModal 連携) の仕様を追記
 - 2026-09-30: サイドバーのフォルダツリーにおけるファイル名検索（フィルタリング）機能（検索入力バー、デバウンス検索、Rust側再帰検索コマンド search_files、未展開親フォルダの自動階層展開、マッチ文字列ハイライト表示、0件空状態UI、Ctrl+Fショートカット連携）の実装仕様を追記
+- 2026-09-30: HTMLエクスポート機能（pulldown-cmarkによるスタンドアロンHTML生成、ライト/ダークCSSテーマ内蔵、ExportModal UI、ヘッダーエクスポートボタン、ショートカット Ctrl+Shift+E、Tauriメニュー連携 menu:export_html）の実装仕様を追記
 
 
 

@@ -17,6 +17,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     category: "file",
   },
   {
+    id: "export_html",
+    name: "HTML形式でエクスポート",
+    keys: ["Ctrl", "Shift", "E"],
+    description: "編集中のMarkdownファイルをHTML形式でエクスポートします",
+    category: "file",
+  },
+  {
     id: "close_tab",
     name: "タブを閉じる",
     keys: ["Ctrl", "W"],

@@ -33,6 +33,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     defaultKeys: ["Ctrl", "S"],
   },
   {
+    id: "export_html",
+    name: "HTML形式でエクスポート",
+    description: "編集中のMarkdownファイルをHTMLファイルとして保存・エクスポートします",
+    category: "file",
+    defaultKeys: ["Ctrl", "Shift", "E"],
+  },
+  {
     id: "close_tab",
     name: "タブを閉じる",
     description: "現在アクティブなタブを閉じます",

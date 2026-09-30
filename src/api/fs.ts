@@ -144,4 +144,36 @@ export async function resolveImagePath(
   });
 }
 
+/**
+ * Markdown文字列をスタンドアロンのHTML（CSSスタイル内蔵）文字列に変換します。
+ */
+export async function convertMarkdownToHtml(
+  markdown: string,
+  title?: string | null,
+  theme?: string | null
+): Promise<string> {
+  return await invoke<string>("convert_markdown_to_html", {
+    markdown,
+    title: title ?? null,
+    theme: theme ?? null,
+  });
+}
+
+/**
+ * 指定パスにMarkdownをHTMLファイルとしてエクスポートします。
+ */
+export async function exportToHtml(
+  path: string,
+  markdown: string,
+  title?: string | null,
+  theme?: string | null
+): Promise<void> {
+  await invoke<void>("export_to_html", {
+    path,
+    markdown,
+    title: title ?? null,
+    theme: theme ?? null,
+  });
+}
+
 

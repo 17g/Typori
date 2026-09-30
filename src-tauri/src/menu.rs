@@ -7,6 +7,13 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // ファイルメニュー
     let new_file = MenuItem::with_id(app, "new_file", "新規ファイル", true, Some("CmdOrCtrl+N"))?;
     let save_file = MenuItem::with_id(app, "save_file", "保存", true, Some("CmdOrCtrl+S"))?;
+    let export_html = MenuItem::with_id(
+        app,
+        "export_html",
+        "HTML形式でエクスポート...",
+        true,
+        Some("CmdOrCtrl+Shift+E"),
+    )?;
     let file_menu = Submenu::with_items(
         app,
         "ファイル",
@@ -14,6 +21,7 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         &[
             &new_file,
             &save_file,
+            &export_html,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::quit(app, Some("終了"))?,
         ],
@@ -142,6 +150,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "save_file" => {
             let _ = app.emit("menu:save_file", ());
         }
+        "export_html" => {
+            let _ = app.emit("menu:export_html", ());
+        }
         "toggle_sidebar" => {
             let _ = app.emit("menu:toggle_sidebar", ());
         }
@@ -185,6 +196,7 @@ mod tests {
     fn test_menu_event_ids() {
         assert_eq!("new_file", "new_file");
         assert_eq!("save_file", "save_file");
+        assert_eq!("export_html", "export_html");
         assert_eq!("toggle_sidebar", "toggle_sidebar");
         assert_eq!("undo", "undo");
         assert_eq!("redo", "redo");

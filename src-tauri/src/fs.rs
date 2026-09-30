@@ -366,6 +366,294 @@ pub fn resolve_image_path(
     Ok(full.to_string_lossy().to_string())
 }
 
+/// Markdown文字列から最初の見出しテキスト（H1など）を抽出します。見つからない場合はNoneを返します。
+pub fn extract_title_from_markdown(markdown: &str) -> Option<String> {
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        if let Some(heading) = trimmed.strip_prefix("# ") {
+            let t = heading.trim();
+            if !t.is_empty() {
+                return Some(t.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn escape_html(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+/// Markdown文字列をスタンドアロンのHTMLドキュメント（CSSスタイル内蔵）に変換します。
+#[tauri::command]
+pub fn convert_markdown_to_html(
+    markdown: String,
+    title: Option<String>,
+    theme: Option<String>,
+) -> Result<String, String> {
+    use pulldown_cmark::{html, Options, Parser};
+
+    let doc_title = title
+        .filter(|t| !t.trim().is_empty())
+        .or_else(|| extract_title_from_markdown(&markdown))
+        .unwrap_or_else(|| "Typori Document".to_string());
+
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_FOOTNOTES);
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TASKLISTS);
+    options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
+
+    let parser = Parser::new_ext(&markdown, options);
+    let mut body_html = String::new();
+    html::push_html(&mut body_html, parser);
+
+    let theme_mode = theme.unwrap_or_else(|| "light".to_string());
+    let is_dark = theme_mode.to_lowercase() == "dark";
+
+    let css = if is_dark {
+        r#"
+:root {
+  --bg-color: #0d1117;
+  --text-color: #c9d1d9;
+  --heading-color: #f0f6fc;
+  --link-color: #58a6ff;
+  --border-color: #30363d;
+  --code-bg: #161b22;
+  --code-border: #30363d;
+  --blockquote-border: #388bfd;
+  --blockquote-bg: #161b22;
+  --blockquote-text: #8b949e;
+  --table-border: #30363d;
+  --table-th-bg: #161b22;
+  --table-even-bg: #0d1117;
+  --table-odd-bg: #161b22;
+  --hr-color: #30363d;
+  --checkbox-accent: #1f6feb;
+}
+"#
+    } else {
+        r#"
+:root {
+  --bg-color: #ffffff;
+  --text-color: #24292f;
+  --heading-color: #1f2328;
+  --link-color: #0969da;
+  --border-color: #d0d7de;
+  --code-bg: #f6f8fa;
+  --code-border: #d0d7de;
+  --blockquote-border: #0969da;
+  --blockquote-bg: #f6f8fa;
+  --blockquote-text: #57606a;
+  --table-border: #d0d7de;
+  --table-th-bg: #f6f8fa;
+  --table-even-bg: #ffffff;
+  --table-odd-bg: #f6f8fa;
+  --hr-color: #d0d7de;
+  --checkbox-accent: #0969da;
+}
+"#
+    };
+
+    let full_html = format!(
+        r#"<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{}</title>
+  <style>
+{}
+    * {{
+      box-sizing: border-box;
+    }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      font-size: 16px;
+      line-height: 1.6;
+      word-wrap: break-word;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 0;
+    }}
+    .markdown-container {{
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }}
+    h1, h2, h3, h4, h5, h6 {{
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+      line-height: 1.25;
+      color: var(--heading-color);
+    }}
+    h1 {{
+      font-size: 2em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--border-color);
+    }}
+    h2 {{
+      font-size: 1.5em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--border-color);
+    }}
+    h3 {{ font-size: 1.25em; }}
+    h4 {{ font-size: 1em; }}
+    h5 {{ font-size: 0.875em; }}
+    h6 {{ font-size: 0.85em; color: var(--blockquote-text); }}
+    p {{
+      margin-top: 0;
+      margin-bottom: 16px;
+    }}
+    a {{
+      color: var(--link-color);
+      text-decoration: none;
+    }}
+    a:hover {{
+      text-decoration: underline;
+    }}
+    ul, ol {{
+      margin-top: 0;
+      margin-bottom: 16px;
+      padding-left: 2em;
+    }}
+    li + li {{
+      margin-top: 0.25em;
+    }}
+    li input[type="checkbox"] {{
+      margin-right: 0.4em;
+      accent-color: var(--checkbox-accent);
+      vertical-align: middle;
+    }}
+    ul.contains-task-list, ul:has(input[type="checkbox"]) {{
+      list-style-type: none;
+      padding-left: 1.2em;
+    }}
+    blockquote {{
+      margin: 0 0 16px 0;
+      padding: 0 1em;
+      color: var(--blockquote-text);
+      border-left: 0.25em solid var(--blockquote-border);
+      background-color: var(--blockquote-bg);
+      border-radius: 0 4px 4px 0;
+    }}
+    hr {{
+      height: 0.25em;
+      padding: 0;
+      margin: 24px 0;
+      background-color: var(--hr-color);
+      border: 0;
+    }}
+    table {{
+      border-spacing: 0;
+      border-collapse: collapse;
+      margin-top: 0;
+      margin-bottom: 16px;
+      width: 100%;
+      overflow: auto;
+      display: block;
+    }}
+    table th, table td {{
+      padding: 8px 14px;
+      border: 1px solid var(--table-border);
+    }}
+    table th {{
+      font-weight: 600;
+      background-color: var(--table-th-bg);
+    }}
+    table tr:nth-child(2n) {{
+      background-color: var(--table-odd-bg);
+    }}
+    code {{
+      padding: 0.2em 0.4em;
+      margin: 0;
+      font-size: 85%;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      background-color: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 6px;
+    }}
+    pre {{
+      padding: 16px;
+      overflow: auto;
+      font-size: 85%;
+      line-height: 1.45;
+      background-color: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 6px;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }}
+    pre code {{
+      padding: 0;
+      background-color: transparent;
+      border: 0;
+      font-size: 100%;
+    }}
+    img {{
+      max-width: 100%;
+      box-sizing: content-box;
+      border-radius: 4px;
+    }}
+    @media print {{
+      body {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+      }}
+      .markdown-container {{
+        max-width: 100% !important;
+        padding: 0 !important;
+      }}
+      pre, blockquote, table {{
+        page-break-inside: avoid;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="markdown-container">
+    {}
+  </div>
+</body>
+</html>
+"#,
+        escape_html(&doc_title),
+        css,
+        body_html
+    );
+
+    Ok(full_html)
+}
+
+/// 指定パスにMarkdownをHTMLとしてエクスポートします。親ディレクトリが存在しない場合は作成します。
+#[tauri::command]
+pub fn export_to_html(
+    path: String,
+    markdown: String,
+    title: Option<String>,
+    theme: Option<String>,
+) -> Result<(), String> {
+    let html_content = convert_markdown_to_html(markdown, title, theme)?;
+
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directories for '{}': {}", path, e))?;
+        }
+    }
+
+    fs::write(&path, html_content)
+        .map_err(|e| format!("Failed to export HTML to '{}': {}", path, e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -772,6 +1060,64 @@ mod tests {
         assert!(not_found_res.is_err());
 
         let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_extract_title_from_markdown() {
+        assert_eq!(
+            extract_title_from_markdown("# My Title\nSome text"),
+            Some("My Title".to_string())
+        );
+        assert_eq!(
+            extract_title_from_markdown("No title\n## Sub heading"),
+            None
+        );
+        assert_eq!(
+            extract_title_from_markdown("  #   Indented Title  \n"),
+            Some("Indented Title".to_string())
+        );
+    }
+
+    #[test]
+    fn test_convert_markdown_to_html() {
+        let md = "# Sample Document\n\nThis is a **bold** paragraph with a [link](https://example.com).\n\n| Col1 | Col2 |\n|---|---|\n| A | B |\n\n- [x] Task 1\n- [ ] Task 2";
+        let res = convert_markdown_to_html(md.to_string(), None, Some("light".to_string()));
+        assert!(res.is_ok());
+        let html = res.unwrap();
+        assert!(html.contains("<title>Sample Document</title>"));
+        assert!(html.contains("<h1>Sample Document</h1>"));
+        assert!(html.contains("<strong>bold</strong>"));
+        assert!(html.contains("<a href=\"https://example.com\">link</a>"));
+        assert!(html.contains("<table>"));
+        assert!(html.contains("<th>Col1</th>"));
+        assert!(html.contains("type=\"checkbox\""));
+    }
+
+    #[test]
+    fn test_export_to_html_file() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let file_path = std::env::temp_dir().join(format!("typori_test_export_{}.html", timestamp));
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let md = "# Export Test\nContent to be exported.";
+        let res = export_to_html(
+            path_str.clone(),
+            md.to_string(),
+            Some("Custom Export Title".to_string()),
+            Some("dark".to_string()),
+        );
+        assert!(res.is_ok());
+        assert!(file_path.exists());
+
+        let read_html = fs::read_to_string(&file_path).unwrap();
+        assert!(read_html.contains("<title>Custom Export Title</title>"));
+        assert!(read_html.contains("<h1>Export Test</h1>"));
+        assert!(read_html.contains("--bg-color: #0d1117"));
+
+        let _ = fs::remove_file(file_path);
     }
 }
 
