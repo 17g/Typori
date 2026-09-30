@@ -16,6 +16,7 @@ import {
 } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import ThemeToggle from "./components/ThemeToggle";
+import TabBar, { TabItem } from "./components/TabBar";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -27,6 +28,8 @@ function App() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<TabItem[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saved" | "error" | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -41,6 +44,12 @@ function App() {
 
   const selectedPathRef = useRef<string | null>(selectedPath);
   selectedPathRef.current = selectedPath;
+
+  const tabsRef = useRef<TabItem[]>(tabs);
+  tabsRef.current = tabs;
+
+  const activeTabIdRef = useRef<string | null>(activeTabId);
+  activeTabIdRef.current = activeTabId;
 
   const currentDirectoryRef = useRef<string | null>(currentDirectory);
   currentDirectoryRef.current = currentDirectory;
@@ -115,6 +124,18 @@ function App() {
               const content = await openFile(targetFilePath);
               setFileContent(content);
               setSavedContent(content);
+              const fileName =
+                targetFilePath.split(/[/\\]/).filter(Boolean).pop() || targetFilePath;
+              const initialTab: TabItem = {
+                id: targetFilePath,
+                path: targetFilePath,
+                title: fileName,
+                content,
+                savedContent: content,
+                isDirty: false,
+              };
+              setTabs([initialTab]);
+              setActiveTabId(initialTab.id);
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
               console.error(`Failed to open initial file '${targetFilePath}':`, err);
@@ -156,6 +177,13 @@ function App() {
     try {
       await saveFile(selectedPath, fileContent);
       setSavedContent(fileContent);
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === activeTabIdRef.current || t.path === selectedPath
+            ? { ...t, content: fileContent, savedContent: fileContent, isDirty: false }
+            : t
+        )
+      );
       setSaveStatus("saved");
       setTimeout(() => {
         setSaveStatus(null);
@@ -209,10 +237,140 @@ function App() {
   const handleToggleSourceModeRef = useRef(handleToggleSourceMode);
   handleToggleSourceModeRef.current = handleToggleSourceMode;
 
+  // コンテンツ更新時にアクティブタブの content も同期
+  const handleContentChange = useCallback((markdown: string) => {
+    setFileContent(markdown);
+    setTabs((prev) =>
+      prev.map((t) =>
+        t.id === activeTabIdRef.current
+          ? { ...t, content: markdown, isDirty: markdown !== t.savedContent }
+          : t
+      )
+    );
+  }, []);
+
+  // タブ選択（切り替え）
+  const handleSelectTab = useCallback(
+    (tabId: string) => {
+      if (tabId === activeTabIdRef.current) return;
+
+      // 現在のエディタの変更内容を取得し、切り替え前のタブに保存
+      let currentContent = fileContent;
+      if (!isSourceMode && editorRef.current) {
+        try {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) {
+            currentContent = md;
+          }
+        } catch (e) {
+          console.warn("Could not get markdown from editorRef before tab switch:", e);
+        }
+      }
+
+      const currentActiveId = activeTabIdRef.current;
+      const updatedTabs = tabsRef.current.map((t) => {
+        if (t.id === currentActiveId && currentContent !== null) {
+          return {
+            ...t,
+            content: currentContent,
+            isDirty: currentContent !== t.savedContent,
+          };
+        }
+        return t;
+      });
+
+      const targetTab = updatedTabs.find((t) => t.id === tabId);
+      if (!targetTab) return;
+
+      setTabs(updatedTabs);
+      setActiveTabId(tabId);
+      setSelectedPath(targetTab.path);
+      setFileContent(targetTab.content);
+      setSavedContent(targetTab.savedContent);
+      setSaveStatus(null);
+      setSaveError(null);
+      setFileError(null);
+    },
+    [fileContent, isSourceMode]
+  );
+  const handleSelectTabRef = useRef(handleSelectTab);
+  handleSelectTabRef.current = handleSelectTab;
+
+  // タブを閉じる
+  const handleCloseTab = useCallback(
+    (tabId: string) => {
+      const currentActiveId = activeTabIdRef.current;
+      let currentContent = fileContent;
+      if (tabId === currentActiveId && !isSourceMode && editorRef.current) {
+        try {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) {
+            currentContent = md;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const currentTabs = tabsRef.current;
+      const targetTab = currentTabs.find((t) => t.id === tabId);
+      if (!targetTab) return;
+
+      const targetIsDirty =
+        tabId === currentActiveId && currentContent !== null
+          ? currentContent !== targetTab.savedContent
+          : (targetTab.isDirty ?? (targetTab.content !== targetTab.savedContent));
+
+      if (targetIsDirty) {
+        const ok = window.confirm(
+          `「${targetTab.title}」には保存されていない変更があります。保存せずに閉じますか？`
+        );
+        if (!ok) return;
+      }
+
+      const targetIndex = currentTabs.findIndex((t) => t.id === tabId);
+      const newTabs = currentTabs.filter((t) => t.id !== tabId);
+      setTabs(newTabs);
+
+      if (tabId === currentActiveId) {
+        if (newTabs.length > 0) {
+          const nextIndex = Math.min(targetIndex, newTabs.length - 1);
+          const nextTab = newTabs[nextIndex];
+          setActiveTabId(nextTab.id);
+          setSelectedPath(nextTab.path);
+          setFileContent(nextTab.content);
+          setSavedContent(nextTab.savedContent);
+          setSaveStatus(null);
+          setSaveError(null);
+          setFileError(null);
+        } else {
+          setActiveTabId(null);
+          setSelectedPath(null);
+          setFileContent(null);
+          setSavedContent(null);
+          setSaveStatus(null);
+          setSaveError(null);
+          setFileError(null);
+        }
+      }
+    },
+    [fileContent, isSourceMode]
+  );
+  const handleCloseTabRef = useRef(handleCloseTab);
+  handleCloseTabRef.current = handleCloseTab;
+
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // タブを閉じる (Ctrl+W / Cmd+W)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
+        if (activeTabIdRef.current) {
+          e.preventDefault();
+          handleCloseTabRef.current(activeTabIdRef.current);
+          return;
+        }
+      }
       // フォーカスモード切替 (F8)
       if (e.key === "F8") {
         e.preventDefault();
@@ -310,10 +468,39 @@ function App() {
   const handleSelectFile = useCallback(async (entry: FileEntry) => {
     if (entry.is_dir) return;
 
-    if (isDirty && entry.path !== selectedPath) {
-      const ok = window.confirm("保存されていない変更があります。保存せずに別のファイルを開きますか？");
-      if (!ok) return;
+    // 既に開かれているタブがあればそれに切り替え
+    const existingTab = tabsRef.current.find(
+      (t) => t.path === entry.path || t.id === entry.path
+    );
+    if (existingTab) {
+      handleSelectTabRef.current(existingTab.id);
+      return;
     }
+
+    // 現在のエディタの変更内容を取得し、切り替え前のタブに保存
+    let currentContent = fileContent;
+    if (!isSourceMode && editorRef.current) {
+      try {
+        const md = editorRef.current.getMarkdown();
+        if (md !== undefined && md !== null) {
+          currentContent = md;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const currentActiveId = activeTabIdRef.current;
+    const updatedTabs = tabsRef.current.map((t) => {
+      if (t.id === currentActiveId && currentContent !== null) {
+        return {
+          ...t,
+          content: currentContent,
+          isDirty: currentContent !== t.savedContent,
+        };
+      }
+      return t;
+    });
 
     setSelectedPath(entry.path);
     setIsFileLoading(true);
@@ -323,6 +510,19 @@ function App() {
 
     try {
       const content = await openFile(entry.path);
+      const fileName =
+        entry.name || entry.path.split(/[/\\]/).filter(Boolean).pop() || entry.path;
+      const newTab: TabItem = {
+        id: entry.path,
+        path: entry.path,
+        title: fileName,
+        content,
+        savedContent: content,
+        isDirty: false,
+      };
+
+      setTabs([...updatedTabs, newTab]);
+      setActiveTabId(newTab.id);
       setFileContent(content);
       setSavedContent(content);
     } catch (err) {
@@ -332,7 +532,7 @@ function App() {
     } finally {
       setIsFileLoading(false);
     }
-  }, [isDirty, selectedPath]);
+  }, [fileContent, isSourceMode]);
 
   const handleSelectFileRef = useRef(handleSelectFile);
   handleSelectFileRef.current = handleSelectFile;
@@ -390,11 +590,6 @@ function App() {
       return false;
     }
 
-    if (isDirty) {
-      const ok = window.confirm("保存されていない変更があります。新規ファイルを作成して切り替えますか？");
-      if (!ok) return false;
-    }
-
     const separator = currentDirectory.includes("\\") ? "\\" : "/";
     const fullPath =
       currentDirectory.endsWith("/") || currentDirectory.endsWith("\\")
@@ -407,6 +602,42 @@ function App() {
     try {
       const newEntry = await createFile(fullPath, initialContent);
       await loadDirectory(currentDirectory, true);
+
+      // 現在のアクティブタブの内容を同期
+      let currentContent = fileContent;
+      if (!isSourceMode && editorRef.current) {
+        try {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) currentContent = md;
+        } catch (e) {
+          // ignore
+        }
+      }
+      const currentActiveId = activeTabIdRef.current;
+      const updatedTabs = tabsRef.current.map((t) => {
+        if (t.id === currentActiveId && currentContent !== null) {
+          return {
+            ...t,
+            content: currentContent,
+            isDirty: currentContent !== t.savedContent,
+          };
+        }
+        return t;
+      });
+
+      const newTabName =
+        newEntry.name || newEntry.path.split(/[/\\]/).filter(Boolean).pop() || fileName;
+      const newTab: TabItem = {
+        id: newEntry.path,
+        path: newEntry.path,
+        title: newTabName,
+        content: initialContent,
+        savedContent: initialContent,
+        isDirty: false,
+      };
+
+      setTabs([...updatedTabs, newTab]);
+      setActiveTabId(newTab.id);
       setSelectedPath(newEntry.path);
       setFileContent(initialContent);
       setSavedContent(initialContent);
@@ -738,6 +969,15 @@ function App() {
           </div>
         </header>
 
+        {/* タブバー（複数ファイルオープン対応） */}
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSelectTab={handleSelectTab}
+          onCloseTab={handleCloseTab}
+          onNewTab={handleMenuNewFile}
+        />
+
         {/* 保存失敗通知 */}
         {saveError && (
           <div className="bg-rose-500 text-white text-xs px-4 py-1 flex items-center justify-between shadow-xs z-10">
@@ -787,9 +1027,7 @@ function App() {
             <SourceEditor
               content={fileContent ?? ""}
               theme={resolvedTheme}
-              onChange={(markdown) => {
-                setFileContent(markdown);
-              }}
+              onChange={handleContentChange}
               onSave={handleSave}
               onExitSourceMode={() => setIsSourceMode(false)}
               onToggleSourceMode={handleToggleSourceMode}
@@ -804,9 +1042,7 @@ function App() {
               content={fileContent ?? undefined}
               filePath={selectedPath}
               workspaceDir={currentDirectory}
-              onChange={(markdown) => {
-                setFileContent(markdown);
-              }}
+              onChange={handleContentChange}
               onToggleSourceMode={handleToggleSourceMode}
               isFocusMode={isFocusMode}
               onToggleFocusMode={handleToggleFocusMode}
