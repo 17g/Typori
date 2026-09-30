@@ -15,11 +15,13 @@ import {
   isImageFilePath,
 } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
+import { useTabSettings } from "./hooks/useTabSettings";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const { isTabsEnabled, setIsTabsEnabled } = useTabSettings();
   const editorRef = useRef<EditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
@@ -50,6 +52,9 @@ function App() {
 
   const activeTabIdRef = useRef<string | null>(activeTabId);
   activeTabIdRef.current = activeTabId;
+
+  const isTabsEnabledRef = useRef<boolean>(isTabsEnabled);
+  isTabsEnabledRef.current = isTabsEnabled;
 
   const currentDirectoryRef = useRef<string | null>(currentDirectory);
   currentDirectoryRef.current = currentDirectory;
@@ -237,6 +242,79 @@ function App() {
   const handleToggleSourceModeRef = useRef(handleToggleSourceMode);
   handleToggleSourceModeRef.current = handleToggleSourceMode;
 
+  // タブ機能の有効/無効切り替え
+  const handleToggleTabsEnabled = useCallback(() => {
+    let currentContent = fileContent;
+    if (!isSourceMode && editorRef.current) {
+      try {
+        const md = editorRef.current.getMarkdown();
+        if (md !== undefined && md !== null) {
+          currentContent = md;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (isTabsEnabledRef.current) {
+      // 有効 -> 無効への切り替え時
+      const currentActiveId = activeTabIdRef.current;
+      const currentTabs = tabsRef.current;
+
+      const syncedTabs = currentTabs.map((t) => {
+        if (t.id === currentActiveId && currentContent !== null) {
+          return {
+            ...t,
+            content: currentContent,
+            isDirty: currentContent !== t.savedContent,
+          };
+        }
+        return t;
+      });
+
+      // アクティブ以外のタブに未保存の変更があるかチェック
+      const otherDirtyTabs = syncedTabs.filter(
+        (t) => t.id !== currentActiveId && (t.isDirty ?? (t.content !== t.savedContent))
+      );
+
+      if (otherDirtyTabs.length > 0) {
+        const fileNames = otherDirtyTabs.map((t) => `「${t.title}」`).join("、");
+        const ok = window.confirm(
+          `未保存のタブ（${fileNames}）があります。\nタブ機能を無効にすると現在表示中のファイル以外は閉じられますが、無効にしますか？`
+        );
+        if (!ok) return;
+      }
+
+      const activeTab = syncedTabs.find((t) => t.id === currentActiveId);
+      if (activeTab) {
+        setTabs([activeTab]);
+      } else {
+        setTabs([]);
+      }
+      setIsTabsEnabled(false);
+    } else {
+      // 無効 -> 有効への切り替え時
+      if (selectedPathRef.current && currentContent !== null) {
+        const curPath = selectedPathRef.current;
+        const curFileName =
+          curPath.split(/[/\\]/).filter(Boolean).pop() || curPath;
+        const currentTab: TabItem = {
+          id: curPath,
+          path: curPath,
+          title: curFileName,
+          content: currentContent,
+          savedContent: savedContent ?? currentContent,
+          isDirty: currentContent !== savedContent,
+        };
+        setTabs([currentTab]);
+        setActiveTabId(currentTab.id);
+      }
+      setIsTabsEnabled(true);
+    }
+  }, [fileContent, isSourceMode, savedContent, setIsTabsEnabled]);
+  const handleToggleTabsEnabledRef = useRef(handleToggleTabsEnabled);
+  handleToggleTabsEnabledRef.current = handleToggleTabsEnabled;
+
   // コンテンツ更新時にアクティブタブの content も同期
   const handleContentChange = useCallback((markdown: string) => {
     setFileContent(markdown);
@@ -371,6 +449,12 @@ function App() {
           return;
         }
       }
+      // タブ機能の有効/無効切替 (Ctrl+Shift+T / Cmd+Shift+T)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        handleToggleTabsEnabledRef.current();
+        return;
+      }
       // フォーカスモード切替 (F8)
       if (e.key === "F8") {
         e.preventDefault();
@@ -468,16 +552,7 @@ function App() {
   const handleSelectFile = useCallback(async (entry: FileEntry) => {
     if (entry.is_dir) return;
 
-    // 既に開かれているタブがあればそれに切り替え
-    const existingTab = tabsRef.current.find(
-      (t) => t.path === entry.path || t.id === entry.path
-    );
-    if (existingTab) {
-      handleSelectTabRef.current(existingTab.id);
-      return;
-    }
-
-    // 現在のエディタの変更内容を取得し、切り替え前のタブに保存
+    // 現在のエディタの最新内容を取得
     let currentContent = fileContent;
     if (!isSourceMode && editorRef.current) {
       try {
@@ -488,6 +563,69 @@ function App() {
       } catch (e) {
         // ignore
       }
+    }
+
+    // タブ機能が無効（単一ファイルモード）の場合
+    if (!isTabsEnabledRef.current) {
+      if (selectedPathRef.current === entry.path) {
+        return;
+      }
+
+      const isCurrentDirty =
+        selectedPathRef.current !== null &&
+        currentContent !== null &&
+        savedContent !== null &&
+        currentContent !== savedContent;
+
+      if (isCurrentDirty) {
+        const curFileName =
+          selectedPathRef.current?.split(/[/\\]/).filter(Boolean).pop() || "現在のファイル";
+        const ok = window.confirm(
+          `「${curFileName}」には保存されていない変更があります。保存せずに別のファイルを開きますか？`
+        );
+        if (!ok) return;
+      }
+
+      setSelectedPath(entry.path);
+      setIsFileLoading(true);
+      setFileError(null);
+      setSaveError(null);
+      setSaveStatus(null);
+
+      try {
+        const content = await openFile(entry.path);
+        const fileName =
+          entry.name || entry.path.split(/[/\\]/).filter(Boolean).pop() || entry.path;
+        const newTab: TabItem = {
+          id: entry.path,
+          path: entry.path,
+          title: fileName,
+          content,
+          savedContent: content,
+          isDirty: false,
+        };
+
+        setTabs([newTab]);
+        setActiveTabId(newTab.id);
+        setFileContent(content);
+        setSavedContent(content);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to open file '${entry.path}':`, err);
+        setFileError(`ファイルの読み込みに失敗しました: ${errMsg}`);
+      } finally {
+        setIsFileLoading(false);
+      }
+      return;
+    }
+
+    // タブ機能が有効の場合: 既に開かれているタブがあればそれに切り替え
+    const existingTab = tabsRef.current.find(
+      (t) => t.path === entry.path || t.id === entry.path
+    );
+    if (existingTab) {
+      handleSelectTabRef.current(existingTab.id);
+      return;
     }
 
     const currentActiveId = activeTabIdRef.current;
@@ -532,7 +670,7 @@ function App() {
     } finally {
       setIsFileLoading(false);
     }
-  }, [fileContent, isSourceMode]);
+  }, [fileContent, isSourceMode, savedContent]);
 
   const handleSelectFileRef = useRef(handleSelectFile);
   handleSelectFileRef.current = handleSelectFile;
@@ -598,6 +736,63 @@ function App() {
 
     const title = fileName.replace(/\.[^/.]+$/, "");
     const initialContent = `# ${title}\n\n`;
+
+    // タブ機能が無効（単一ファイルモード）の場合
+    if (!isTabsEnabledRef.current) {
+      let currentContent = fileContent;
+      if (!isSourceMode && editorRef.current) {
+        try {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) currentContent = md;
+        } catch (e) {
+          // ignore
+        }
+      }
+      const isCurrentDirty =
+        selectedPathRef.current !== null &&
+        currentContent !== null &&
+        savedContent !== null &&
+        currentContent !== savedContent;
+
+      if (isCurrentDirty) {
+        const curFileName =
+          selectedPathRef.current?.split(/[/\\]/).filter(Boolean).pop() || "現在のファイル";
+        const ok = window.confirm(
+          `「${curFileName}」には保存されていない変更があります。保存せずに新規ファイルを作成しますか？`
+        );
+        if (!ok) return false;
+      }
+
+      try {
+        const newEntry = await createFile(fullPath, initialContent);
+        await loadDirectory(currentDirectory, true);
+
+        const newTabName =
+          newEntry.name || newEntry.path.split(/[/\\]/).filter(Boolean).pop() || fileName;
+        const newTab: TabItem = {
+          id: newEntry.path,
+          path: newEntry.path,
+          title: newTabName,
+          content: initialContent,
+          savedContent: initialContent,
+          isDirty: false,
+        };
+
+        setTabs([newTab]);
+        setActiveTabId(newTab.id);
+        setSelectedPath(newEntry.path);
+        setFileContent(initialContent);
+        setSavedContent(initialContent);
+        setSaveStatus(null);
+        setSaveError(null);
+        setFileError(null);
+        return true;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to create file '${fullPath}':`, err);
+        throw new Error(`新規ファイルの作成に失敗しました: ${errMsg}`);
+      }
+    }
 
     try {
       const newEntry = await createFile(fullPath, initialContent);
@@ -735,6 +930,12 @@ function App() {
         });
         if (isMounted) unlistens.push(uToggleFocus);
         else uToggleFocus();
+
+        const uToggleTabs = await listen("menu:toggle_tabs", () => {
+          handleToggleTabsEnabledRef.current();
+        });
+        if (isMounted) unlistens.push(uToggleTabs);
+        else uToggleTabs();
 
         const uFileDrop = await listen("tauri://drag-drop", async (e) => {
           const payload = e.payload as any;
@@ -876,6 +1077,25 @@ function App() {
               resolvedTheme={resolvedTheme}
               onSelectTheme={setTheme}
             />
+            {/* タブ機能の有効/無効切替ボタン */}
+            <button
+              onClick={handleToggleTabsEnabled}
+              className={`p-1 rounded transition-colors ${
+                isTabsEnabled
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title={
+                isTabsEnabled
+                  ? "タブ機能を無効化 (単一ドキュメントモード)"
+                  : "タブ機能を有効化 (複数ファイルオープン)"
+              }
+              aria-label={isTabsEnabled ? "タブ機能を無効化" : "タブ機能を有効化"}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </button>
             <button
               onClick={handleToggleFocusMode}
               className={`p-1 rounded transition-colors ${
@@ -969,14 +1189,16 @@ function App() {
           </div>
         </header>
 
-        {/* タブバー（複数ファイルオープン対応） */}
-        <TabBar
-          tabs={tabs}
-          activeTabId={activeTabId}
-          onSelectTab={handleSelectTab}
-          onCloseTab={handleCloseTab}
-          onNewTab={handleMenuNewFile}
-        />
+        {/* タブバー（複数ファイルオープン対応: タブ機能有効時のみ表示） */}
+        {isTabsEnabled && (
+          <TabBar
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onSelectTab={handleSelectTab}
+            onCloseTab={handleCloseTab}
+            onNewTab={handleMenuNewFile}
+          />
+        )}
 
         {/* 保存失敗通知 */}
         {saveError && (
