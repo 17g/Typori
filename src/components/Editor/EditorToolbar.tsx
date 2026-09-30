@@ -5,6 +5,7 @@ export interface EditorToolbarProps {
   onToggleBlockquote: () => void;
   onInsertTable?: () => void;
   onInsertImage?: () => void;
+  onToggleSourceMode?: () => void;
   onUndo: () => void;
   onRedo: () => void;
 }
@@ -14,11 +15,24 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleBlockquote,
   onInsertTable,
   onInsertImage,
+  onToggleSourceMode,
   onUndo,
   onRedo,
 }) => {
   return (
     <div className="typori-quick-toolbar absolute top-3 right-6 z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
+      {onToggleSourceMode && (
+        <button
+          type="button"
+          onClick={onToggleSourceMode}
+          title="ソース直接編集モードに切り替え (Ctrl+/)"
+          className="p-1.5 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 rounded transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        </button>
+      )}
       {onInsertImage && (
         <button
           type="button"

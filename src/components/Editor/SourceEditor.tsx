@@ -8,6 +8,7 @@ export interface SourceEditorProps {
   theme?: "light" | "dark";
   onSave?: () => void;
   onExitSourceMode?: () => void;
+  onToggleSourceMode?: () => void;
   filePath?: string | null;
   placeholder?: string;
 }
@@ -18,6 +19,7 @@ export function SourceEditor({
   theme = "light",
   onSave,
   onExitSourceMode,
+  onToggleSourceMode,
   placeholder = "Markdownを入力...",
 }: SourceEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
@@ -119,16 +121,19 @@ export function SourceEditor({
           </span>
         </div>
 
-        {onExitSourceMode && (
+        {(onExitSourceMode || onToggleSourceMode) && (
           <button
-            onClick={onExitSourceMode}
+            onClick={onExitSourceMode || onToggleSourceMode}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700 rounded shadow-2xs transition-colors cursor-pointer"
-            title="WYSIWYGエディタに戻る"
+            title="WYSIWYGエディタに戻る (Ctrl + /)"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
             <span>WYSIWYG表示に戻る</span>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-700/60 rounded border border-zinc-200 dark:border-zinc-600 ml-1">
+              Ctrl + /
+            </kbd>
           </button>
         )}
       </div>

@@ -51,6 +51,7 @@ export interface EditorProps {
   filePath?: string | null;
   workspaceDir?: string | null;
   onChange?: (markdown: string) => void;
+  onToggleSourceMode?: () => void;
 }
 
 export const defaultContent = `# ようこそ Typori へ
@@ -112,7 +113,7 @@ function getMimeType(filePath: string): string {
 }
 
 const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
-  ({ defaultValue, content, filePath, workspaceDir, onChange }, ref) => {
+  ({ defaultValue, content, filePath, workspaceDir, onChange, onToggleSourceMode }, ref) => {
     const initialValue = content ?? defaultValue ?? defaultContent;
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
@@ -847,6 +848,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onToggleBlockquote={toggleBlockquote}
           onInsertTable={() => insertTable(3, 3)}
           onInsertImage={() => fileInputRef.current?.click()}
+          onToggleSourceMode={onToggleSourceMode}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));

@@ -184,8 +184,23 @@ function App() {
   }, []);
 
   const handleToggleSourceMode = useCallback(() => {
-    setIsSourceMode((prev) => !prev);
+    setIsSourceMode((prev) => {
+      const next = !prev;
+      if (!prev && editorRef.current) {
+        try {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) {
+            setFileContent(md);
+          }
+        } catch (e) {
+          console.warn("Could not get markdown from editorRef:", e);
+        }
+      }
+      return next;
+    });
   }, []);
+  const handleToggleSourceModeRef = useRef(handleToggleSourceMode);
+  handleToggleSourceModeRef.current = handleToggleSourceMode;
 
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
@@ -195,16 +210,29 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         handleMenuNewFileRef.current();
+        return;
       }
       // 保存
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         handleSaveRef.current();
+        return;
       }
       // サイドバートグル (Ctrl+\ / Cmd+\)
       if ((e.ctrlKey || e.metaKey) && (e.key === "\\" || e.key === "¥" || e.code === "Backslash")) {
         e.preventDefault();
         handleToggleSidebarRef.current();
+        return;
+      }
+      // ソースコード直接編集モード切替 (Ctrl+/ / Cmd+/)
+      const isSlashKey =
+        e.key === "/" ||
+        (e.code === "Slash" && !e.shiftKey) ||
+        e.code === "NumpadDivide";
+      if ((e.ctrlKey || e.metaKey) && isSlashKey && !e.altKey) {
+        e.preventDefault();
+        handleToggleSourceModeRef.current();
+        return;
       }
       // Undo / Redo / Link / Blockquote フォールバック（エディタ外にフォーカスがある場合）
       const target = e.target as HTMLElement | null;
@@ -452,6 +480,12 @@ function App() {
         if (isMounted) unlistens.push(uTable);
         else uTable();
 
+        const uToggleSource = await listen("menu:toggle_source_mode", () => {
+          handleToggleSourceModeRef.current();
+        });
+        if (isMounted) unlistens.push(uToggleSource);
+        else uToggleSource();
+
         const uFileDrop = await listen("tauri://drag-drop", async (e) => {
           const payload = e.payload as any;
           const paths: string[] = payload.paths || [];
@@ -599,7 +633,7 @@ function App() {
                   ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
                   : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
-              title={isSourceMode ? "WYSIWYGモードに切り替え" : "Markdownソース直接編集モードに切り替え"}
+              title={isSourceMode ? "WYSIWYGモードに切り替え (Ctrl + /)" : "Markdownソース直接編集モードに切り替え (Ctrl + /)"}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -725,6 +759,7 @@ function App() {
               }}
               onSave={handleSave}
               onExitSourceMode={() => setIsSourceMode(false)}
+              onToggleSourceMode={handleToggleSourceMode}
               filePath={selectedPath}
             />
           ) : (
@@ -737,6 +772,7 @@ function App() {
               onChange={(markdown) => {
                 setFileContent(markdown);
               }}
+              onToggleSourceMode={handleToggleSourceMode}
             />
           )}
         </div>
@@ -758,7 +794,7 @@ function App() {
                   ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold"
                   : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50"
               }`}
-              title="編集モードの切替 (WYSIWYG / ソースコード)"
+              title="編集モードの切替 (WYSIWYG / ソースコード) (Ctrl + /)"
             >
               {isSourceMode ? "</> ソースモード" : "WYSIWYG"}
             </button>

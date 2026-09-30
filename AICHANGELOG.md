@@ -96,3 +96,23 @@
       - モード切替時に `fileContent`（Markdownテキスト）を完全同期し、どちらのモードでもアウトライン、統計、Ctrl+S保存がシームレスに機能するように統合。
     - `scripts/verify-source-editor.mjs`: CodeMirror 6、Markdown拡張、キーマップ、テーマ設定の正常性を検証するテストスクリプトを新規作成し、`pnpm test` に登録。
   - **影響範囲**: エディタコンポーネント群、メイン画面レイアウト（トップバー、ステータスバー）、テストスクリプト。既存のWYSIWYGエディタやファイル保存・読み込み処理等に悪影響なし。
+
+- 2026-09-30: タスク23「エディタ: ショートカット (Ctrl + /) によるソースコード直接編集モード切替機能の実装」を完了。
+  - **変更理由**: Typora同様、編集中にキーボードから手を離さず即座にWYSIWYG表示とMarkdownソース直接編集モードを行き来できるようにするため、グローバルショートカットキー（`Ctrl + /` / `Cmd + /`）によるシームレスな切替機能を実装。
+  - **Before**: ソース直接編集モードへの切替はトップバーのアイコンクリックまたはフッターのバッジクリックによるマウス操作に限定されており、キーボードショートカット `Ctrl + /` によるモード切替や、切替時の未反映Markdownテキストの強制同期ロジックが存在しなかった。
+  - **After**:
+    - `src/App.tsx`:
+      - `handleKeyDown` に `Ctrl + /` / `Cmd + /`（US・JIS・欧州キーボード等の多様なレイアウトおよびテンキーに対応）のキーボードショートカットハンドラーを実装。エディタ内外のフォーカス位置を問わず即座にトグル可能。
+      - `handleToggleSourceMode`: WYSIWYGからソースモードへの遷移時に `editorRef.current.getMarkdown()` を介して最新のMarkdown本文を即座に取得・同期するロジックを強化。
+      - 将来のOSネイティブメニュー連携を見越し、`menu:toggle_source_mode` イベントリスナーを追加。
+      - ヘッダーボタンおよびフッターステータスバーのツールチップに `(Ctrl + /)` のショートカット案内を追加。
+      - `TyporiEditor` および `SourceEditor` に `onToggleSourceMode` コールバックを伝播。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `SourceEditorProps` に `onToggleSourceMode` を追加。
+      - バナーの「WYSIWYG表示に戻る」ボタンに `(Ctrl + /)` ツールチップおよび `<kbd>` ショートカットバッジを追加。
+    - `src/components/Editor/EditorToolbar.tsx` & `Editor.tsx`:
+      - クイックツールバーに `onToggleSourceMode` プロパティおよび `</>` モード切替クイックボタンを追加。
+    - `scripts/verify-source-toggle.mjs`:
+      - US / JIS / macOS / 欧州レイアウト / テンキー等の入力検知判定、ネガティブテスト、モード切替状態遷移とMarkdown同期、静的コード構造検査を包含したテストスクリプトを新規作成し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント群、メイン画面のキーボードショートカット処理、クイックツールバー、テストスクリプト。既存のテキスト・テーブル・画像編集やファイル保存等に悪影響なし。
+
