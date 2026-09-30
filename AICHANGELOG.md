@@ -1,3 +1,30 @@
+- 2026-09-30: タスク31「設定機能: ショートカット設定の localStorage などを用いた永続化と動的反映ロジックの実装」を完了。
+  - **変更理由**: ショートカット設定画面（ShortcutSettingsModal）でユーザーがカスタマイズしたキーバインド設定をローカルストレージ（localStorage）へ確実に永続化し、アプリ全体のキーボードショートカット判定、各UIボタンのツールチップ表示、チートシートモーダル表示等へ動的かつ即座に反映させるため。
+  - **Before**: ショートカットキー設定画面は表示できたものの、設定内容が保存されずリロードで破棄されていた。また、App.tsx 内のキー判定処理はハードコードされたデフォルトキーしか認識できず、ユーザーが変更したカスタムキーバインドで操作を実行することができなかった。
+  - **After**:
+    - `src/hooks/useShortcutSettings.ts`:
+      - `typori:shortcuts_config` をストレージキーとして管理するカスタムフック `useShortcutSettings` を新規実装。
+      - 保存された設定とデフォルト設定を安全にマージ（将来のアクション追加や無効値へのフォールバック対応）する `mergeWithDefaultConfig`、`loadStoredShortcutConfig` を実装。
+      - 全体保存（`saveShortcutConfig`）、全初期化（`resetShortcutConfig`）、個別初期化（`resetShortcutItem`）、個別更新（`updateShortcutItem`）を提供。
+      - 他ウィンドウや同一ウィンドウ内の更新を監視・同期する `storage` および `typori:shortcuts_changed` イベント通知を実装。
+    - `src/components/ShortcutSettingsModal/utils.ts`:
+      - `isShortcutEvent(e: KeyboardEvent, targetKeys?: string[])`: 発生したキーイベントが指定されたショートカットキー配列と一致するかを動的判定するユーティリティ関数を追加。
+      - `mergeWithDefaultConfig`: 保存データとデフォルト設定の安全な結合関数を追加。
+    - `src/App.tsx`:
+      - `useShortcutSettings` を導入し、最新の設定（`shortcutConfig`）を `shortcutConfigRef` で常時参照。
+      - `handleKeyDown` の全ショートカット判定（保存、新規作成、タブ操作、サイドバー開閉、アウトライン表示切替、ソース直接編集切替、フォーカスモード切替、チートシート表示、設定モーダル表示、書式挿入、Undo/Redoなど）を `isShortcutEvent` を用いた動的判定に刷新。
+      - アウトライン（右サイドバー）表示切替（デフォルト: `Ctrl+Shift+O`）のショートカットハンドリングを追加。
+      - ヘッダーの各種トグルボタン（サイドバー、タブ機能、フォーカスモード、ソースモード、アウトライン、チートシート、設定、保存）のツールチップ（`title` 属性）に設定済みキーバインドを動的にフォーマット反映。
+      - `ShortcutSettingsModal` に `currentConfig={shortcutConfig}` と `onSave={saveShortcutConfig}` を渡し、設定画面での保存時に即座に反映されるように連携。
+      - `CheatSheetModal` に `shortcutConfig={shortcutConfig}` を渡し、チートシート内のショートカットキー一覧もカスタマイズ後のキーバインドでリアルタイム表示されるよう連携。
+    - `src/components/CheatSheetModal/CheatSheetModal.tsx`:
+      - オプショナルな `shortcutConfig` props を受け取り、カスタマイズされたキーバインドを反映して描画・検索できるよう拡張。解除されたキーは「未設定」と表示。
+    - `scripts/verify-shortcuts-persistence.mjs`:
+      - ショートカット永続化フック、マージロジック、キーイベント判定、App.tsx動的統合、CheatSheetModal動的連携を検証する自動テストスクリプトを追加し、`package.json` の `pnpm test` に統合。
+    - `for_agent/architecture.md`:
+      - ショートカット設定の永続化管理および動的反映ロジックの仕様と改訂履歴を同期更新。
+  - **影響範囲**: ショートカットイベント処理、localStorage永続化、ツールチップ表示、チートシート表示、設定モーダル保存連携。既存の基本機能への悪影響なし。
+
 - 2026-09-30: タスク30「設定機能: ショートカットキーのカスタマイズ用設定画面（ダイアログ等）UIの実装」を完了。
   - **変更理由**: Typoriの操作性・柔軟性向上のため、ユーザーが各種操作（保存、新規作成、モード切替、フォーカスモード、書式・テーブル挿入、履歴操作など）のショートカットキーを自由に確認・カスタマイズできる直感的な設定モーダルUIを提供するため。
   - **Before**: ショートカットキーはコード内に固定されており、ユーザーがキーバインドを一覧で確認して直接キーボード入力で変更したり、重複・競合を検知したり、初期設定に戻したりする設定画面が存在しなかった。

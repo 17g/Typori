@@ -16,14 +16,21 @@ import {
 } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import { useTabSettings } from "./hooks/useTabSettings";
+import { useShortcutSettings } from "./hooks/useShortcutSettings";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
 import { CheatSheetModal } from "./components/CheatSheetModal";
-import { ShortcutSettingsModal } from "./components/ShortcutSettingsModal";
+import {
+  ShortcutSettingsModal,
+  isShortcutEvent,
+  formatKeys,
+  areKeysEqual,
+} from "./components/ShortcutSettingsModal";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { isTabsEnabled, setIsTabsEnabled } = useTabSettings();
+  const { shortcutConfig, saveShortcutConfig } = useShortcutSettings();
   const editorRef = useRef<EditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
@@ -62,6 +69,9 @@ function App() {
 
   const currentDirectoryRef = useRef<string | null>(currentDirectory);
   currentDirectoryRef.current = currentDirectory;
+
+  const shortcutConfigRef = useRef(shortcutConfig);
+  shortcutConfigRef.current = shortcutConfig;
 
   // 指定ディレクトリの読み込み
   const loadDirectory = useCallback(async (dirPath: string, isRoot = false) => {
@@ -220,6 +230,8 @@ function App() {
   const handleToggleRightSidebar = useCallback(() => {
     setIsRightSidebarOpen((prev) => !prev);
   }, []);
+  const handleToggleRightSidebarRef = useRef(handleToggleRightSidebar);
+  handleToggleRightSidebarRef.current = handleToggleRightSidebar;
 
   const handleToggleFocusMode = useCallback(() => {
     setIsFocusMode((prev) => !prev);
@@ -457,65 +469,91 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ショートカット設定画面 (Ctrl+, / Cmd+,)
-      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+      const config = shortcutConfigRef.current;
+
+      // ショートカット設定画面 (デフォルト: Ctrl+,)
+      if (
+        isShortcutEvent(e, config.open_shortcuts_settings) ||
+        (areKeysEqual(config.open_shortcuts_settings, ["Ctrl", ","]) &&
+          (e.ctrlKey || e.metaKey) &&
+          e.key === ",")
+      ) {
         e.preventDefault();
         handleToggleShortcutSettingsRef.current();
         return;
       }
-      // チートシート表示切替 (F1 または Ctrl+Shift+? / Cmd+Shift+?)
+      // チートシート表示切替 (デフォルト: F1 または Ctrl+Shift+?)
       if (
-        e.key === "F1" ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "?" || e.code === "Slash"))
+        isShortcutEvent(e, config.open_cheatsheet) ||
+        (areKeysEqual(config.open_cheatsheet, ["F1"]) &&
+          (e.key === "F1" ||
+            ((e.ctrlKey || e.metaKey) &&
+              e.shiftKey &&
+              (e.key === "?" || e.code === "Slash"))))
       ) {
         e.preventDefault();
         handleToggleCheatSheetRef.current();
         return;
       }
-      // タブを閉じる (Ctrl+W / Cmd+W)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
+      // タブを閉じる (デフォルト: Ctrl+W)
+      if (isShortcutEvent(e, config.close_tab)) {
         if (activeTabIdRef.current) {
           e.preventDefault();
           handleCloseTabRef.current(activeTabIdRef.current);
           return;
         }
       }
-      // タブ機能の有効/無効切替 (Ctrl+Shift+T / Cmd+Shift+T)
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t") {
+      // タブ機能の有効/無効切替 (デフォルト: Ctrl+Shift+T)
+      if (isShortcutEvent(e, config.toggle_tabs)) {
         e.preventDefault();
         handleToggleTabsEnabledRef.current();
         return;
       }
-      // フォーカスモード切替 (F8)
-      if (e.key === "F8") {
+      // フォーカスモード切替 (デフォルト: F8)
+      if (
+        isShortcutEvent(e, config.toggle_focus_mode) ||
+        (areKeysEqual(config.toggle_focus_mode, ["F8"]) && e.key === "F8")
+      ) {
         e.preventDefault();
         handleToggleFocusModeRef.current();
         return;
       }
-      // 新規作成 (Ctrl+N / Cmd+N)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+      // 新規作成 (デフォルト: Ctrl+N)
+      if (isShortcutEvent(e, config.new_file)) {
         e.preventDefault();
         handleMenuNewFileRef.current();
         return;
       }
-      // 保存
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      // 保存 (デフォルト: Ctrl+S)
+      if (isShortcutEvent(e, config.save_file)) {
         e.preventDefault();
         handleSaveRef.current();
         return;
       }
-      // サイドバートグル (Ctrl+\ / Cmd+\)
-      if ((e.ctrlKey || e.metaKey) && (e.key === "\\" || e.key === "¥" || e.code === "Backslash")) {
+      // 左サイドバートグル (デフォルト: Ctrl+\)
+      if (isShortcutEvent(e, config.toggle_sidebar)) {
         e.preventDefault();
         handleToggleSidebarRef.current();
         return;
       }
-      // ソースコード直接編集モード切替 (Ctrl+/ / Cmd+/)
+      // 右サイドバー（アウトライン）トグル (デフォルト: Ctrl+Shift+O)
+      if (isShortcutEvent(e, config.toggle_right_sidebar)) {
+        e.preventDefault();
+        handleToggleRightSidebarRef.current();
+        return;
+      }
+      // ソースコード直接編集モード切替 (デフォルト: Ctrl+/)
       const isSlashKey =
         e.key === "/" ||
         (e.code === "Slash" && !e.shiftKey) ||
         e.code === "NumpadDivide";
-      if ((e.ctrlKey || e.metaKey) && isSlashKey && !e.altKey) {
+      if (
+        isShortcutEvent(e, config.toggle_source_mode) ||
+        (areKeysEqual(config.toggle_source_mode, ["Ctrl", "/"]) &&
+          (e.ctrlKey || e.metaKey) &&
+          isSlashKey &&
+          !e.altKey)
+      ) {
         e.preventDefault();
         handleToggleSourceModeRef.current();
         return;
@@ -527,33 +565,40 @@ function App() {
         target instanceof HTMLTextAreaElement ||
         target?.isContentEditable;
       if (!isInput) {
-        // Undo: Ctrl+Z / Cmd+Z (Shiftなし)
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        // Undo: デフォルト Ctrl+Z
+        if (isShortcutEvent(e, config.undo)) {
           e.preventDefault();
           editorRef.current?.undo();
+          return;
         }
-        // Redo: Ctrl+Y / Cmd+Y または Ctrl+Shift+Z / Cmd+Shift+Z
+        // Redo: デフォルト Ctrl+Y または Ctrl+Shift+Z
         if (
-          (e.ctrlKey || e.metaKey) &&
-          (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))
+          isShortcutEvent(e, config.redo) ||
+          (areKeysEqual(config.redo, ["Ctrl", "Y"]) &&
+            (e.ctrlKey || e.metaKey) &&
+            (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z")))
         ) {
           e.preventDefault();
           editorRef.current?.redo();
+          return;
         }
-        // リンク挿入/編集: Ctrl+K / Cmd+K
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        // リンク挿入/編集: デフォルト Ctrl+K
+        if (isShortcutEvent(e, config.insert_link)) {
           e.preventDefault();
           editorRef.current?.openLinkModal();
+          return;
         }
-        // 引用トグル: Ctrl+Shift+Q / Cmd+Shift+Q
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "q") {
+        // 引用トグル: デフォルト Ctrl+Shift+Q
+        if (isShortcutEvent(e, config.toggle_blockquote)) {
           e.preventDefault();
           editorRef.current?.toggleBlockquote();
+          return;
         }
-        // 表（テーブル）挿入: Ctrl+Alt+T / Cmd+Alt+T
-        if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "t") {
+        // 表（テーブル）挿入: デフォルト Ctrl+Alt+T
+        if (isShortcutEvent(e, config.insert_table)) {
           e.preventDefault();
           editorRef.current?.insertTable(3, 3);
+          return;
         }
       }
     };
@@ -1073,7 +1118,7 @@ function App() {
                   ? "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   : "text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
               }`}
-              title="サイドバーの表示切替 (Ctrl+\)"
+              title={`サイドバーの表示切替 (${formatKeys(shortcutConfig.toggle_sidebar)})`}
             >
               <svg
                 className="w-4 h-4"
@@ -1102,7 +1147,7 @@ function App() {
                 {isDirty && (
                   <span
                     className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse"
-                    title="未保存の変更があります (Ctrl+S で保存)"
+                    title={`未保存の変更があります (${formatKeys(shortcutConfig.save_file)} で保存)`}
                   />
                 )}
               </div>
@@ -1130,8 +1175,8 @@ function App() {
               }`}
               title={
                 isTabsEnabled
-                  ? "タブ機能を無効化 (単一ドキュメントモード)"
-                  : "タブ機能を有効化 (複数ファイルオープン)"
+                  ? `タブ機能を無効化 (単一ドキュメントモード) (${formatKeys(shortcutConfig.toggle_tabs)})`
+                  : `タブ機能を有効化 (複数ファイルオープン) (${formatKeys(shortcutConfig.toggle_tabs)})`
               }
               aria-label={isTabsEnabled ? "タブ機能を無効化" : "タブ機能を有効化"}
             >
@@ -1146,7 +1191,11 @@ function App() {
                   ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
                   : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
-              title={isFocusMode ? "フォーカスモードを解除 (F8)" : "フォーカスモードに切り替え (F8)"}
+              title={
+                isFocusMode
+                  ? `フォーカスモードを解除 (${formatKeys(shortcutConfig.toggle_focus_mode)})`
+                  : `フォーカスモードに切り替え (${formatKeys(shortcutConfig.toggle_focus_mode)})`
+              }
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <circle cx="12" cy="12" r="3" />
@@ -1160,7 +1209,11 @@ function App() {
                   ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
                   : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
-              title={isSourceMode ? "WYSIWYGモードに切り替え (Ctrl + /)" : "Markdownソース直接編集モードに切り替え (Ctrl + /)"}
+              title={
+                isSourceMode
+                  ? `WYSIWYGモードに切り替え (${formatKeys(shortcutConfig.toggle_source_mode)})`
+                  : `Markdownソース直接編集モードに切り替え (${formatKeys(shortcutConfig.toggle_source_mode)})`
+              }
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -1173,12 +1226,13 @@ function App() {
                   ? "text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800"
                   : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
-              title="アウトラインを表示"
+              title={`アウトラインを表示 (${formatKeys(shortcutConfig.toggle_right_sidebar)})`}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
               </svg>
             </button>
+            {/* title="チートシート (Markdown & ショートカット) (F1)" */}
             <button
               onClick={handleToggleCheatSheet}
               className={`p-1 rounded transition-colors ${
@@ -1186,7 +1240,11 @@ function App() {
                   ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
                   : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
-              title="チートシート (Markdown & ショートカット) (F1)"
+              title={
+                areKeysEqual(shortcutConfig.open_cheatsheet, ["F1"])
+                  ? "チートシート (Markdown & ショートカット) (F1)"
+                  : `チートシート (${formatKeys(shortcutConfig.open_cheatsheet)})`
+              }
               aria-label="チートシートを表示"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -1194,6 +1252,7 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01" />
               </svg>
             </button>
+            {/* title="ショートカットキー設定 (Ctrl+,)" */}
             <button
               onClick={handleToggleShortcutSettings}
               className={`p-1 rounded transition-colors ${
@@ -1201,7 +1260,11 @@ function App() {
                   ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
                   : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
-              title="ショートカットキー設定 (Ctrl+,)"
+              title={
+                areKeysEqual(shortcutConfig.open_shortcuts_settings, ["Ctrl", ","])
+                  ? "ショートカットキー設定 (Ctrl+,)"
+                  : `ショートカットキー設定 (${formatKeys(shortcutConfig.open_shortcuts_settings)})`
+              }
               aria-label="ショートカットキー設定を開く"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -1214,6 +1277,11 @@ function App() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
+                title={
+                  areKeysEqual(shortcutConfig.save_file, ["Ctrl", "S"])
+                    ? "保存 (Ctrl+S)"
+                    : `ファイルを保存 (${formatKeys(shortcutConfig.save_file)})`
+                }
                 className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
                   isSaving
                     ? "text-zinc-400 bg-zinc-100 dark:bg-zinc-800 cursor-wait"
@@ -1225,7 +1293,6 @@ function App() {
                     ? "text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs"
                     : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
-                title="保存 (Ctrl+S)"
               >
                 {isSaving ? (
                   <>
@@ -1395,12 +1462,15 @@ function App() {
       <CheatSheetModal
         isOpen={isCheatSheetOpen}
         onClose={() => setIsCheatSheetOpen(false)}
+        shortcutConfig={shortcutConfig}
       />
 
       {/* ショートカットキー設定モーダル */}
       <ShortcutSettingsModal
         isOpen={isShortcutSettingsOpen}
         onClose={() => setIsShortcutSettingsOpen(false)}
+        currentConfig={shortcutConfig}
+        onSave={saveShortcutConfig}
       />
     </div>
   );

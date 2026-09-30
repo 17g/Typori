@@ -6,13 +6,19 @@ import {
   MARKDOWN_CATEGORIES,
 } from "./data";
 import { CheatSheetTab } from "./types";
+import { ShortcutConfig } from "../ShortcutSettingsModal";
 
 interface CheatSheetModalProps {
   isOpen: boolean;
   onClose: () => void;
+  shortcutConfig?: ShortcutConfig;
 }
 
-export const CheatSheetModal: FC<CheatSheetModalProps> = ({ isOpen, onClose }) => {
+export const CheatSheetModal: FC<CheatSheetModalProps> = ({
+  isOpen,
+  onClose,
+  shortcutConfig,
+}) => {
   const [activeTab, setActiveTab] = useState<CheatSheetTab>("shortcuts");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -52,9 +58,18 @@ export const CheatSheetModal: FC<CheatSheetModalProps> = ({ isOpen, onClose }) =
     }
   };
 
-  // フィルタリング処理
+  // フィルタリング処理（動的ショートカット設定を考慮）
   const filteredShortcuts = useMemo(() => {
-    return SHORTCUT_ITEMS.filter((item) => {
+    return SHORTCUT_ITEMS.map((item) => {
+      const activeKeys =
+        shortcutConfig && shortcutConfig[item.id] !== undefined
+          ? shortcutConfig[item.id]
+          : item.keys;
+      return {
+        ...item,
+        keys: activeKeys,
+      };
+    }).filter((item) => {
       const matchCategory =
         selectedCategory === "all" || item.category === selectedCategory;
       const q = searchQuery.toLowerCase().trim();
@@ -65,7 +80,7 @@ export const CheatSheetModal: FC<CheatSheetModalProps> = ({ isOpen, onClose }) =
         item.keys.some((k) => k.toLowerCase().includes(q));
       return matchCategory && matchQuery;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, shortcutConfig]);
 
   const filteredMarkdown = useMemo(() => {
     return MARKDOWN_SYNTAX_ITEMS.filter((item) => {
@@ -280,18 +295,24 @@ export const CheatSheetModal: FC<CheatSheetModalProps> = ({ isOpen, onClose }) =
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {item.keys.map((k, idx) => (
-                        <span key={idx} className="flex items-center gap-1">
-                          {idx > 0 && (
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                              +
-                            </span>
-                          )}
-                          <kbd className="inline-block px-1.5 py-0.5 text-[11px] font-mono font-medium rounded-sm border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 shadow-2xs">
-                            {k}
-                          </kbd>
+                      {item.keys.length === 0 ? (
+                        <span className="text-[11px] text-zinc-400 dark:text-zinc-500 italic">
+                          未設定
                         </span>
-                      ))}
+                      ) : (
+                        item.keys.map((k, idx) => (
+                          <span key={idx} className="flex items-center gap-1">
+                            {idx > 0 && (
+                              <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                +
+                              </span>
+                            )}
+                            <kbd className="inline-block px-1.5 py-0.5 text-[11px] font-mono font-medium rounded-sm border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 shadow-2xs">
+                              {k}
+                            </kbd>
+                          </span>
+                        ))
+                      )}
                     </div>
                   </div>
                 ))}

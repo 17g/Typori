@@ -85,6 +85,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-09-30: OSネイティブメニュー（表示メニュー）への「タブ機能の有効/無効 (CmdOrCtrl+Shift+T)」「ソース直接編集モードの切替 (CmdOrCtrl+/)」項目の追加と、フロントエンド双方向イベント連携（menu:toggle_tabs, menu:toggle_source_mode）の実装仕様を追記
 - 2026-09-30: Markdown記法およびショートカットキーのチートシートモーダルUI（CheatSheetModal、タブ切替・検索・カテゴリ絞り込み・コードコピー機能）、ヘッダー呼び出しボタン、ショートカットキー (F1 / Ctrl+Shift+?)、およびTauriネイティブヘルプメニュー連携（menu:open_cheatsheet）の実装仕様を追記
 - 2026-09-30: ショートカットキーカスタマイズ設定画面モーダルUI（ShortcutSettingsModal、キー入力検知・記録、重複/競合警告、カテゴリ別検索・絞り込み、個別/一括デフォルト初期化、ヘッダー設定ボタン、ショートカット Ctrl+,、およびTauriネイティブメニュー連携 menu:open_shortcuts_settings）の実装仕様を追記
+- 2026-09-30: ショートカット設定の永続化管理フック (useShortcutSettings、localStorage連携 typori:shortcuts_config、デフォルト設定との安全マージ) と動的キーバインド反映ロジック (App.tsx での動的ショートカット判定・各ボタンツールチップの動的同期、CheatSheetModal / ShortcutSettingsModal 連携) の仕様を追記
 
 
 

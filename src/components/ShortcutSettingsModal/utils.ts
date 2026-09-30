@@ -170,3 +170,40 @@ export function findAllConflicts(config: ShortcutConfig): ShortcutConflict[] {
 
   return conflicts;
 }
+
+/**
+ * 保存された設定とデフォルト設定を安全にマージする
+ */
+export function mergeWithDefaultConfig(
+  storedConfig?: Partial<ShortcutConfig> | null
+): ShortcutConfig {
+  const defaults = getDefaultShortcutConfig();
+  if (!storedConfig || typeof storedConfig !== "object") {
+    return defaults;
+  }
+
+  const merged: ShortcutConfig = { ...defaults };
+  for (const [key, value] of Object.entries(storedConfig)) {
+    if (Array.isArray(value) && key in defaults) {
+      merged[key] = [...value];
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * KeyboardEvent が指定されたショートカットキー配列と一致するかを判定
+ */
+export function isShortcutEvent(
+  e: KeyboardEvent,
+  targetKeys?: string[]
+): boolean {
+  if (!targetKeys || targetKeys.length === 0) return false;
+
+  const parsed = parseKeyboardEvent(e);
+  if (!parsed.isComplete) return false;
+
+  return areKeysEqual(parsed.keys, targetKeys);
+}
+
