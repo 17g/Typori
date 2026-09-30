@@ -68,6 +68,13 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+\\"),
     )?;
+    let toggle_source_mode = MenuItem::with_id(
+        app,
+        "toggle_source_mode",
+        "ソース直接編集モードの切替",
+        true,
+        Some("CmdOrCtrl+/"),
+    )?;
     let toggle_focus_mode = MenuItem::with_id(
         app,
         "toggle_focus_mode",
@@ -75,13 +82,22 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("F8"),
     )?;
+    let toggle_tabs = MenuItem::with_id(
+        app,
+        "toggle_tabs",
+        "タブ機能の有効/無効",
+        true,
+        Some("CmdOrCtrl+Shift+T"),
+    )?;
     let view_menu = Submenu::with_items(
         app,
         "表示",
         true,
         &[
             &toggle_sidebar,
+            &toggle_source_mode,
             &toggle_focus_mode,
+            &toggle_tabs,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::fullscreen(app, Some("全画面表示の切替"))?,
         ],
@@ -123,6 +139,12 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "toggle_focus_mode" => {
             let _ = app.emit("menu:toggle_focus_mode", ());
         }
+        "toggle_source_mode" => {
+            let _ = app.emit("menu:toggle_source_mode", ());
+        }
+        "toggle_tabs" => {
+            let _ = app.emit("menu:toggle_tabs", ());
+        }
         _ => {}
     }
 }
@@ -140,5 +162,7 @@ mod tests {
         assert_eq!("toggle_blockquote", "toggle_blockquote");
         assert_eq!("insert_table", "insert_table");
         assert_eq!("toggle_focus_mode", "toggle_focus_mode");
+        assert_eq!("toggle_source_mode", "toggle_source_mode");
+        assert_eq!("toggle_tabs", "toggle_tabs");
     }
 }

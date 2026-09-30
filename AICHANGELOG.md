@@ -199,5 +199,22 @@
     - `package.json` & `scripts/verify-tabs-state.mjs`: デフォルト値、localStorage永続化、単一ファイルモード時の置換・未保存ガード、タブ無効化時のタブ破棄・保護、App.tsx統合を検証する自動テストスクリプトを追加し `pnpm test` に登録。
   - **影響範囲**: タブ機能設定管理、タブバー表示制御、単一ファイルモード時のファイルオープン・作成動作、タブ切替UI・ショートカット・イベントリスナー。既存のWYSIWYG/ソースコード編集、画像挿入、フォーカスモード、アウトライン表示に悪影響なし。
 
+- 2026-09-30: タスク28「OS連携: ネイティブメニューに「タブ機能の有効/無効」「ソース直接編集モード切替」を追加しイベント連動の実装」を完了。
+  - **変更理由**: 仕様要件（OSネイティブメニューバーからタブ機能の有効/無効切替およびMarkdownソース直接編集モードへの切替を行えるようにする）を満たし、TauriネイティブメニューとReactフロントエンド状態の双方向イベント連携を完成させるため。
+  - **Before**:
+    - `src-tauri/src/menu.rs`: 表示メニューに「サイドバーの表示切替」と「フォーカスモードの切替」のみが存在し、「ソース直接編集モードの切替」および「タブ機能の有効/無効」のMenuItem項目が未登録であった。また、メニューイベントハンドラ `handle_menu_event` においても該当イベント（`menu:toggle_source_mode`, `menu:toggle_tabs`）の発火処理が存在しなかった。
+  - **After**:
+    - `src-tauri/src/menu.rs`:
+      - OSネイティブ「表示」メニューに「ソース直接編集モードの切替 (CmdOrCtrl+/)」(`toggle_source_mode`) および「タブ機能の有効/無効 (CmdOrCtrl+Shift+T)」(`toggle_tabs`) のMenuItemを追加。
+      - `handle_menu_event` にて `toggle_source_mode` 受信時に `menu:toggle_source_mode` イベントを発行、`toggle_tabs` 受信時に `menu:toggle_tabs` イベントを発行するよう処理を追加。
+      - `test_menu_event_ids` に両IDの検証テストを追加。
+    - `src/App.tsx`:
+      - すでに実装済みの `listen("menu:toggle_source_mode")` および `listen("menu:toggle_tabs")` により、ネイティブメニュークリック時にフロントエンドのモード切替ロジック（`handleToggleSourceMode`, `handleToggleTabsEnabled`）とシームレスに双方向連動。
+    - `scripts/verify-native-menu.mjs` & `package.json`:
+      - Rustメニュー項目定義、アクセラレータ、イベント発火、App.tsxでのイベント購読・ハンドラ呼出、状態遷移シミュレーションを検証する自動テストスクリプトを追加し、`pnpm test` に登録。
+    - `for_agent/architecture.md`: 改訂履歴にネイティブメニュー追加・イベント連携の仕様を追記。
+    - `Plan.md`: タスク28を完了 (`[x]`) に更新。
+  - **影響範囲**: Tauriネイティブメニュー定義、メニューイベントディスパッチ、テストスイート。既存のファイル読み書き、保存、WYSIWYG/ソースコード編集、タブ操作、フォーカスモードに悪影響なし。
+
 
 
