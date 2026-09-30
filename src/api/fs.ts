@@ -57,6 +57,24 @@ export async function getCliArgs(): Promise<string[]> {
   return await invoke<string[]>("get_cli_args");
 }
 
+/**
+ * 指定ディレクトリ配下を再帰的に走査し、ファイル名・フォルダ名にクエリが含まれるエントリを検索します。
+ * @param rootPath 検索起点ディレクトリのパス
+ * @param query 検索クエリ
+ * @param maxResults 最大取得件数（デフォルト200）
+ */
+export async function searchFiles(
+  rootPath: string,
+  query: string,
+  maxResults?: number
+): Promise<FileEntry[]> {
+  return await invoke<FileEntry[]>("search_files", {
+    rootPath,
+    query,
+    maxResults,
+  });
+}
+
 export interface SavedImage {
   file_name: string;
   relative_path: string;

@@ -12,9 +12,51 @@ interface SidebarItemProps {
   loadingPaths?: Set<string>;
   directoryContents?: Record<string, FileEntry[]>;
   selectedPath?: string | null;
+  searchQuery?: string;
   onSelectFile?: (entry: FileEntry) => void;
   onToggleDirectory?: (entry: FileEntry) => void;
 }
+
+const HighlightedText: React.FC<{ text: string; query?: string }> = ({ text, query }) => {
+  const trimmed = query?.trim() ?? "";
+  if (!trimmed) {
+    return <span className="truncate flex-1 font-normal">{text}</span>;
+  }
+
+  const lowerText = text.toLowerCase();
+  const lowerQ = trimmed.toLowerCase();
+  const index = lowerText.indexOf(lowerQ);
+
+  if (index === -1) {
+    return <span className="truncate flex-1 font-normal">{text}</span>;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let curIndex = lowerText.indexOf(lowerQ, lastIndex);
+
+  while (curIndex !== -1) {
+    if (curIndex > lastIndex) {
+      parts.push(text.slice(lastIndex, curIndex));
+    }
+    parts.push(
+      <mark
+        key={curIndex}
+        className="bg-amber-200/90 dark:bg-amber-800/80 text-zinc-900 dark:text-zinc-100 rounded-xs px-0.5 font-semibold"
+      >
+        {text.slice(curIndex, curIndex + trimmed.length)}
+      </mark>
+    );
+    lastIndex = curIndex + trimmed.length;
+    curIndex = lowerText.indexOf(lowerQ, lastIndex);
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <span className="truncate flex-1 font-normal">{parts}</span>;
+};
 
 export const SidebarItem: React.FC<SidebarItemProps> = ({
   entry,
@@ -27,6 +69,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
   loadingPaths,
   directoryContents,
   selectedPath,
+  searchQuery,
   onSelectFile,
   onToggleDirectory,
 }) => {
@@ -180,8 +223,8 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
           )}
         </span>
 
-        {/* ファイル / ディレクトリ名 */}
-        <span className="truncate flex-1 font-normal">{entry.name}</span>
+        {/* ファイル / ディレクトリ名（検索語ハイライト対応） */}
+        <HighlightedText text={entry.name} query={searchQuery} />
       </div>
 
       {/* サブディレクトリの子エントリ（展開時） */}
@@ -208,6 +251,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
                 loadingPaths={loadingPaths}
                 directoryContents={directoryContents}
                 selectedPath={selectedPath}
+                searchQuery={searchQuery}
                 onSelectFile={onSelectFile}
                 onToggleDirectory={onToggleDirectory}
               />

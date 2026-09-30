@@ -109,6 +109,106 @@ pub fn create_file(path: String, initial_content: Option<String>) -> Result<File
     })
 }
 
+const IGNORED_SEARCH_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    ".idea",
+    ".vscode",
+    "dist",
+    "build",
+    ".agent",
+    ".gemini",
+];
+
+fn search_dir_recursive(
+    dir: &std::path::Path,
+    query_lower: &str,
+    results: &mut Vec<FileEntry>,
+    max_results: usize,
+) {
+    if results.len() >= max_results {
+        return;
+    }
+
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    let mut dirs_to_visit = Vec::new();
+
+    for entry in entries.flatten() {
+        if results.len() >= max_results {
+            break;
+        }
+
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+        if is_dir && IGNORED_SEARCH_DIRS.contains(&name.as_str()) {
+            continue;
+        }
+
+        if name.to_lowercase().contains(query_lower) {
+            results.push(FileEntry {
+                name: name.clone(),
+                path: path.to_string_lossy().to_string(),
+                is_dir,
+            });
+        }
+
+        if is_dir {
+            dirs_to_visit.push(path);
+        }
+    }
+
+    for sub_dir in dirs_to_visit {
+        if results.len() >= max_results {
+            break;
+        }
+        search_dir_recursive(&sub_dir, query_lower, results, max_results);
+    }
+}
+
+/// 指定されたディレクトリ配下を再帰的に走査し、名前に query が含まれるファイルおよびディレクトリを検索します。
+/// 大文字小文字は区別しません（case-insensitive）。
+/// .git, node_modules, target などの除外対象ディレクトリはスキップされます。
+#[tauri::command]
+pub fn search_files(
+    root_path: String,
+    query: String,
+    max_results: Option<usize>,
+) -> Result<Vec<FileEntry>, String> {
+    let trimmed_query = query.trim();
+    if trimmed_query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let root = std::path::Path::new(&root_path);
+    if !root.exists() {
+        return Err(format!("Directory '{}' does not exist", root_path));
+    }
+    if !root.is_dir() {
+        return Err(format!("Path '{}' is not a directory", root_path));
+    }
+
+    let max_count = max_results.unwrap_or(200);
+    let mut results = Vec::new();
+    let query_lower = trimmed_query.to_lowercase();
+
+    search_dir_recursive(root, &query_lower, &mut results, max_count);
+
+    results.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+
+    Ok(results)
+}
+
 /// 保存された画像の情報
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SavedImage {
@@ -618,5 +718,61 @@ mod tests {
 
         let _ = fs::remove_dir_all(base_dir);
     }
+
+    #[test]
+    fn test_search_files() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = std::env::temp_dir().join(format!("typori_test_search_{}", timestamp));
+        fs::create_dir_all(base_dir.join("sub1").join("nested")).unwrap();
+        fs::create_dir_all(base_dir.join("sub2")).unwrap();
+        fs::create_dir_all(base_dir.join("target")).unwrap(); // should be ignored
+
+        fs::write(base_dir.join("Hello_World.md"), "# Hello").unwrap();
+        fs::write(base_dir.join("sub1").join("hello_note.txt"), "hello").unwrap();
+        fs::write(base_dir.join("sub1").join("nested").join("deep_hello.md"), "deep").unwrap();
+        fs::write(base_dir.join("sub2").join("other.md"), "other").unwrap();
+        fs::write(base_dir.join("target").join("hello_in_target.md"), "target").unwrap();
+
+        // 1. 空のクエリ
+        let empty_res = search_files(base_dir.to_str().unwrap().to_string(), "".to_string(), None);
+        assert!(empty_res.is_ok());
+        assert_eq!(empty_res.unwrap().len(), 0);
+
+        // 2. 大文字小文字を区別しない検索 ("hello")
+        let res = search_files(
+            base_dir.to_str().unwrap().to_string(),
+            "HELLO".to_string(),
+            None,
+        );
+        assert!(res.is_ok());
+        let entries = res.unwrap();
+        let names: Vec<String> = entries.into_iter().map(|e| e.name).collect();
+        assert!(names.contains(&"Hello_World.md".to_string()));
+        assert!(names.contains(&"hello_note.txt".to_string()));
+        assert!(names.contains(&"deep_hello.md".to_string()));
+        // target ディレクトリ配下は除外されること
+        assert!(!names.contains(&"hello_in_target.md".to_string()));
+        // other.md はマッチしないこと
+        assert!(!names.contains(&"other.md".to_string()));
+
+        // 3. 件数上限 (max_results)
+        let limited_res = search_files(
+            base_dir.to_str().unwrap().to_string(),
+            "hello".to_string(),
+            Some(2),
+        );
+        assert!(limited_res.is_ok());
+        assert_eq!(limited_res.unwrap().len(), 2);
+
+        // 4. 存在しないディレクトリ
+        let not_found_res = search_files("non_existent_dir_12345".to_string(), "hello".to_string(), None);
+        assert!(not_found_res.is_err());
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
 }
+
 
