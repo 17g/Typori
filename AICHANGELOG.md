@@ -116,3 +116,36 @@
       - US / JIS / macOS / 欧州レイアウト / テンキー等の入力検知判定、ネガティブテスト、モード切替状態遷移とMarkdown同期、静的コード構造検査を包含したテストスクリプトを新規作成し、`pnpm test` に登録。
   - **影響範囲**: エディタコンポーネント群、メイン画面のキーボードショートカット処理、クイックツールバー、テストスクリプト。既存のテキスト・テーブル・画像編集やファイル保存等に悪影響なし。
 
+- 2026-09-30: タスク24「エディタ: フォーカスモード（カーソル行以外を暗くする）機能の実装とデフォルトショートカット (F8) の登録」を完了。
+  - **変更理由**: 執筆に没頭できるよう、Typora同様に現在カーソルがあるブロックや行のみを鮮明に保ち、それ以外のドキュメント全体を薄暗くフェードさせる「フォーカスモード」を実装し、キーボードショートカット（`F8`）やUIボタン、OSネイティブメニューからトグル可能にするため。
+  - **Before**: エディタ（WYSIWYGおよびソースコードモード）にはフォーカスモードの概念がなく、常に全ドキュメントが同一の不透明度で表示されていた。またショートカットキー `F8` やOSメニュー項目、フォーカス用の状態管理やスタイリングが存在しなかった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - ProseMirror プラグイン `focusModePlugin` を実装。`$from.depth` を辿り、現在カーソルが位置する最上位およびネストされたブロックノード（paragraph, heading, list_item, table, blockquote, code_block等）に `focus-mode-active` クラスを自動付与する DecorationSet を生成。
+      - `EditorProps` に `isFocusMode` および `onToggleFocusMode` を追加。
+      - エディタコンテナに `.focus-mode` クラスを連動付与。
+      - エディタ入力中の `F8` キーダウンハンドリングを追加。
+    - `src/components/Editor/EditorToolbar.tsx`:
+      - クイックツールバーにフォーカスモード切替ボタン（ターゲットアイコン、アクティブ時ハイライト、ツールチップ `(F8)`）を追加。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - CodeMirror 6 におけるフォーカスモード（コンテナへの `.cm-focus-mode` 付与）を実装。現在行（`.cm-activeLine`）以外をフェードアウト。
+      - CodeMirror keymap に `F8` を登録し、エディタ編集中でも即座にモード切替可能に。
+      - ヘッダーバナーにフォーカスモード切替ボタン（バッジ付き）を追加。
+    - `src/index.css`:
+      - ProseMirror 向けスタイル: `.focus-mode .ProseMirror > *` の薄暗化（opacity: 0.28, blur）、`.focus-mode-active` の通常表示（opacity: 1）、およびリストアイテム・テーブル行・引用ブロックの個別フェード制御を定義。
+      - CodeMirror 向けスタイル: `.cm-focus-mode .cm-line`（opacity: 0.28）と `.cm-activeLine`（opacity: 1 !important）を定義。
+    - `src/App.tsx`:
+      - `isFocusMode` の状態管理と `handleToggleFocusMode` を実装。
+      - グローバルキーボードショートカット `F8` を登録。
+      - Tauriネイティブメニューイベント `menu:toggle_focus_mode` をリッスン。
+      - トップバー（ヘッダー）にフォーカスモード切替ボタンを追加。
+      - ステータスバー（フッター）にフォーカスモード状態バッジ・ボタン（`◎ フォーカス中` / `フォーカス`）を追加。
+      - `TyporiEditor` および `SourceEditor` に `isFocusMode` と `onToggleFocusMode` を伝播。
+    - `src-tauri/src/menu.rs`:
+      - OSネイティブ「表示」メニューに「フォーカスモードの切替 (F8)」を追加。
+      - `toggle_focus_mode` イベントハンドラおよび単体テストを登録。
+    - `scripts/verify-focus-mode.mjs`:
+      - F8キー検知ロジック、ProseMirror DecorationSet生成、CSSスタイル定義、各コンポーネント連携、Rustメニュー連携の自動テストスクリプトを新規作成し、`pnpm test` に登録。
+  - **影響範囲**: エディタコンポーネント群、CSSスタイル、ショートカット処理、OSメニュー連携、テストスクリプト。既存のWYSIWYG/ソース編集、ファイル保存・読み込み等に悪影響なし。
+
+

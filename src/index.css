@@ -333,3 +333,70 @@
   padding-top: 1em;
 }
 
+/* ==========================================================================
+   Typora-like Focus Mode (フォーカスモード)
+   カーソルがあるブロック・行のみを強調し、それ以外を薄暗くする
+   ========================================================================== */
+
+/* WYSIWYG Mode (ProseMirror / Milkdown) */
+.focus-mode .ProseMirror > * {
+  opacity: 0.28;
+  filter: blur(0.15px);
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-mode .ProseMirror > *.focus-mode-active {
+  opacity: 1;
+  filter: none;
+}
+
+/* リストアイテム */
+.focus-mode .ProseMirror li {
+  opacity: 0.45;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-mode .ProseMirror li.focus-mode-active {
+  opacity: 1;
+}
+
+/* テーブル行 */
+.focus-mode .ProseMirror tr {
+  opacity: 0.45;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-mode .ProseMirror tr.focus-mode-active {
+  opacity: 1;
+}
+
+/* 引用ブロック内の要素 */
+.focus-mode .ProseMirror blockquote > * {
+  opacity: 0.45;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-mode .ProseMirror blockquote > *.focus-mode-active {
+  opacity: 1;
+}
+
+/* ソースコード直接編集モード (CodeMirror 6) */
+.cm-focus-mode .cm-line {
+  opacity: 0.28;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cm-focus-mode .cm-activeLine {
+  opacity: 1 !important;
+}
+
+.cm-focus-mode .cm-gutterElement {
+  opacity: 0.35;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cm-focus-mode .cm-activeLineGutter {
+  opacity: 1 !important;
+}
+
+

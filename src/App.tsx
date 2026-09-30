@@ -23,6 +23,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -183,6 +184,12 @@ function App() {
     setIsRightSidebarOpen((prev) => !prev);
   }, []);
 
+  const handleToggleFocusMode = useCallback(() => {
+    setIsFocusMode((prev) => !prev);
+  }, []);
+  const handleToggleFocusModeRef = useRef(handleToggleFocusMode);
+  handleToggleFocusModeRef.current = handleToggleFocusMode;
+
   const handleToggleSourceMode = useCallback(() => {
     setIsSourceMode((prev) => {
       const next = !prev;
@@ -206,6 +213,12 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // フォーカスモード切替 (F8)
+      if (e.key === "F8") {
+        e.preventDefault();
+        handleToggleFocusModeRef.current();
+        return;
+      }
       // 新規作成 (Ctrl+N / Cmd+N)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
@@ -486,6 +499,12 @@ function App() {
         if (isMounted) unlistens.push(uToggleSource);
         else uToggleSource();
 
+        const uToggleFocus = await listen("menu:toggle_focus_mode", () => {
+          handleToggleFocusModeRef.current();
+        });
+        if (isMounted) unlistens.push(uToggleFocus);
+        else uToggleFocus();
+
         const uFileDrop = await listen("tauri://drag-drop", async (e) => {
           const payload = e.payload as any;
           const paths: string[] = payload.paths || [];
@@ -627,6 +646,20 @@ function App() {
               onSelectTheme={setTheme}
             />
             <button
+              onClick={handleToggleFocusMode}
+              className={`p-1 rounded transition-colors ${
+                isFocusMode
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title={isFocusMode ? "フォーカスモードを解除 (F8)" : "フォーカスモードに切り替え (F8)"}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <circle cx="12" cy="12" r="3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3m0 12v3m9-9h-3M6 12H3" />
+              </svg>
+            </button>
+            <button
               onClick={handleToggleSourceMode}
               className={`p-1 rounded transition-colors ${
                 isSourceMode
@@ -760,6 +793,8 @@ function App() {
               onSave={handleSave}
               onExitSourceMode={() => setIsSourceMode(false)}
               onToggleSourceMode={handleToggleSourceMode}
+              isFocusMode={isFocusMode}
+              onToggleFocusMode={handleToggleFocusMode}
               filePath={selectedPath}
             />
           ) : (
@@ -773,6 +808,8 @@ function App() {
                 setFileContent(markdown);
               }}
               onToggleSourceMode={handleToggleSourceMode}
+              isFocusMode={isFocusMode}
+              onToggleFocusMode={handleToggleFocusMode}
             />
           )}
         </div>
@@ -787,6 +824,17 @@ function App() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleFocusMode}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+                isFocusMode
+                  ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold"
+                  : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50"
+              }`}
+              title="フォーカスモードの切替 (カーソル行以外を暗くする) (F8)"
+            >
+              {isFocusMode ? "◎ フォーカス中" : "フォーカス"}
+            </button>
             <button
               onClick={handleToggleSourceMode}
               className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${

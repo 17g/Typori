@@ -68,12 +68,20 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+\\"),
     )?;
+    let toggle_focus_mode = MenuItem::with_id(
+        app,
+        "toggle_focus_mode",
+        "フォーカスモードの切替",
+        true,
+        Some("F8"),
+    )?;
     let view_menu = Submenu::with_items(
         app,
         "表示",
         true,
         &[
             &toggle_sidebar,
+            &toggle_focus_mode,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::fullscreen(app, Some("全画面表示の切替"))?,
         ],
@@ -112,6 +120,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "insert_table" => {
             let _ = app.emit("menu:insert_table", ());
         }
+        "toggle_focus_mode" => {
+            let _ = app.emit("menu:toggle_focus_mode", ());
+        }
         _ => {}
     }
 }
@@ -128,5 +139,6 @@ mod tests {
         assert_eq!("insert_link", "insert_link");
         assert_eq!("toggle_blockquote", "toggle_blockquote");
         assert_eq!("insert_table", "insert_table");
+        assert_eq!("toggle_focus_mode", "toggle_focus_mode");
     }
 }

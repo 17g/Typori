@@ -9,6 +9,8 @@ export interface SourceEditorProps {
   onSave?: () => void;
   onExitSourceMode?: () => void;
   onToggleSourceMode?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
   filePath?: string | null;
   placeholder?: string;
 }
@@ -20,6 +22,8 @@ export function SourceEditor({
   onSave,
   onExitSourceMode,
   onToggleSourceMode,
+  isFocusMode = false,
+  onToggleFocusMode,
   placeholder = "Markdownを入力...",
 }: SourceEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
@@ -37,8 +41,18 @@ export function SourceEditor({
           return false;
         },
       },
+      {
+        key: "F8",
+        run: () => {
+          if (onToggleFocusMode) {
+            onToggleFocusMode();
+            return true;
+          }
+          return false;
+        },
+      },
     ]);
-  }, [onSave]);
+  }, [onSave, onToggleFocusMode]);
 
   // Typori向けのエディタカスタムスタイル
   const customTheme = useMemo(() => {
@@ -121,25 +135,48 @@ export function SourceEditor({
           </span>
         </div>
 
-        {(onExitSourceMode || onToggleSourceMode) && (
-          <button
-            onClick={onExitSourceMode || onToggleSourceMode}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700 rounded shadow-2xs transition-colors cursor-pointer"
-            title="WYSIWYGエディタに戻る (Ctrl + /)"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-            <span>WYSIWYG表示に戻る</span>
-            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-700/60 rounded border border-zinc-200 dark:border-zinc-600 ml-1">
-              Ctrl + /
-            </kbd>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onToggleFocusMode && (
+            <button
+              onClick={onToggleFocusMode}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border shadow-2xs transition-colors cursor-pointer ${
+                isFocusMode
+                  ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 font-semibold"
+                  : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-700/80"
+              }`}
+              title={isFocusMode ? "フォーカスモードを解除 (F8)" : "フォーカスモードに切り替え (F8)"}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                <circle cx="12" cy="12" r="3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3m0 12v3m9-9h-3M6 12H3" />
+              </svg>
+              <span>{isFocusMode ? "フォーカス中" : "フォーカス"}</span>
+              <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-700/60 rounded border border-zinc-200 dark:border-zinc-600 ml-0.5">
+                F8
+              </kbd>
+            </button>
+          )}
+
+          {(onExitSourceMode || onToggleSourceMode) && (
+            <button
+              onClick={onExitSourceMode || onToggleSourceMode}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700 rounded shadow-2xs transition-colors cursor-pointer"
+              title="WYSIWYGエディタに戻る (Ctrl + /)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>WYSIWYG表示に戻る</span>
+              <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-700/60 rounded border border-zinc-200 dark:border-zinc-600 ml-1">
+                Ctrl + /
+              </kbd>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* CodeMirror エディタ本体 */}
-      <div className="flex-1 w-full h-full overflow-hidden">
+      <div className={`flex-1 w-full h-full overflow-hidden ${isFocusMode ? "cm-focus-mode" : ""}`}>
         <CodeMirror
           ref={editorRef}
           value={content}

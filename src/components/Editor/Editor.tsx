@@ -16,13 +16,47 @@ import "@milkdown/kit/prose/tables/style/tables.css";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
 import { wrapIn, lift } from "@milkdown/kit/prose/commands";
-import { callCommand, replaceAll } from "@milkdown/kit/utils";
+import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
+import { $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
+
+export const focusModePluginKey = new PluginKey("focusModePlugin");
+
+export const focusModePlugin = $prose(() => {
+  return new Plugin({
+    key: focusModePluginKey,
+    props: {
+      decorations(state) {
+        const { doc, selection } = state;
+        const { $from } = selection;
+        if ($from.depth >= 1) {
+          const decs: Decoration[] = [];
+          for (let d = 1; d <= $from.depth; d++) {
+            const node = $from.node(d);
+            if (node.isBlock) {
+              const start = $from.before(d);
+              decs.push(
+                Decoration.node(start, start + node.nodeSize, {
+                  class: "focus-mode-active",
+                })
+              );
+            }
+          }
+          if (decs.length > 0) {
+            return DecorationSet.create(doc, decs);
+          }
+        }
+        return DecorationSet.empty;
+      },
+    },
+  });
+});
 
 export interface EditorRef {
   undo: () => boolean;
@@ -52,6 +86,8 @@ export interface EditorProps {
   workspaceDir?: string | null;
   onChange?: (markdown: string) => void;
   onToggleSourceMode?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
 }
 
 export const defaultContent = `# ようこそ Typori へ
@@ -113,7 +149,19 @@ function getMimeType(filePath: string): string {
 }
 
 const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
-  ({ defaultValue, content, filePath, workspaceDir, onChange, onToggleSourceMode }, ref) => {
+  (
+    {
+      defaultValue,
+      content,
+      filePath,
+      workspaceDir,
+      onChange,
+      onToggleSourceMode,
+      isFocusMode = false,
+      onToggleFocusMode,
+    },
+    ref
+  ) => {
     const initialValue = content ?? defaultValue ?? defaultContent;
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
@@ -262,6 +310,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           .use(gfm)
           .use(columnResizingPlugin)
           .use(history)
+          .use(focusModePlugin)
           .use(listener);
       },
       []
@@ -702,6 +751,13 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         insertTable(3, 3);
         return;
       }
+
+      // F8: フォーカスモード切替
+      if (e.key === "F8") {
+        e.preventDefault();
+        onToggleFocusMode?.();
+        return;
+      }
     };
 
     useImperativeHandle(
@@ -795,6 +851,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       <div
         ref={containerRef}
         className={`typori-editor-wrapper relative w-full h-full flex-1 overflow-y-auto px-8 py-6 transition-colors ${
+          isFocusMode ? "focus-mode" : ""
+        } ${
           isDraggingOver ? "bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 inset-ring" : ""
         }`}
         onClick={handleContainerClick}
@@ -849,6 +907,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onInsertTable={() => insertTable(3, 3)}
           onInsertImage={() => fileInputRef.current?.click()}
           onToggleSourceMode={onToggleSourceMode}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={onToggleFocusMode}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));

@@ -6,6 +6,8 @@ export interface EditorToolbarProps {
   onInsertTable?: () => void;
   onInsertImage?: () => void;
   onToggleSourceMode?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
   onUndo: () => void;
   onRedo: () => void;
 }
@@ -16,11 +18,30 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onInsertTable,
   onInsertImage,
   onToggleSourceMode,
+  isFocusMode,
+  onToggleFocusMode,
   onUndo,
   onRedo,
 }) => {
   return (
     <div className="typori-quick-toolbar absolute top-3 right-6 z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
+      {onToggleFocusMode && (
+        <button
+          type="button"
+          onClick={onToggleFocusMode}
+          title={isFocusMode ? "フォーカスモードを解除 (F8)" : "フォーカスモードに切り替え (F8)"}
+          className={`p-1.5 rounded transition-colors ${
+            isFocusMode
+              ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-medium"
+              : "text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/60"
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+            <circle cx="12" cy="12" r="3" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3m0 12v3m9-9h-3M6 12H3" />
+          </svg>
+        </button>
+      )}
       {onToggleSourceMode && (
         <button
           type="button"
