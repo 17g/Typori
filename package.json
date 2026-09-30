@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "node scripts/verify-history.mjs && node scripts/verify-link-blockquote.mjs && node scripts/verify-table.mjs && node scripts/verify-image-dnd.mjs && node scripts/verify-source-editor.mjs && node scripts/verify-source-toggle.mjs && node scripts/verify-focus-mode.mjs && node scripts/verify-tabs-ui.mjs && node scripts/verify-tabs-state.mjs && node scripts/verify-native-menu.mjs && node scripts/verify-cheatsheet.mjs"
+    "test": "node scripts/verify-history.mjs && node scripts/verify-link-blockquote.mjs && node scripts/verify-table.mjs && node scripts/verify-image-dnd.mjs && node scripts/verify-source-editor.mjs && node scripts/verify-source-toggle.mjs && node scripts/verify-focus-mode.mjs && node scripts/verify-tabs-ui.mjs && node scripts/verify-tabs-state.mjs && node scripts/verify-native-menu.mjs && node scripts/verify-cheatsheet.mjs && node scripts/verify-shortcuts-settings.mjs"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",

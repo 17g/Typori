@@ -111,12 +111,24 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("F1"),
     )?;
+    let shortcuts_settings = MenuItem::with_id(
+        app,
+        "open_shortcuts_settings",
+        "ショートカット設定...",
+        true,
+        Some("CmdOrCtrl+,"),
+    )?;
     let about = PredefinedMenuItem::about(app, Some("Typori について"), None)?;
     let help_menu = Submenu::with_items(
         app,
         "ヘルプ",
         true,
-        &[&cheatsheet, &PredefinedMenuItem::separator(app)?, &about],
+        &[
+            &cheatsheet,
+            &shortcuts_settings,
+            &PredefinedMenuItem::separator(app)?,
+            &about,
+        ],
     )?;
 
     Menu::with_items(app, &[&file_menu, &edit_menu, &view_menu, &help_menu])
@@ -160,6 +172,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "open_cheatsheet" => {
             let _ = app.emit("menu:open_cheatsheet", ());
         }
+        "open_shortcuts_settings" => {
+            let _ = app.emit("menu:open_shortcuts_settings", ());
+        }
         _ => {}
     }
 }
@@ -180,5 +195,6 @@ mod tests {
         assert_eq!("toggle_source_mode", "toggle_source_mode");
         assert_eq!("toggle_tabs", "toggle_tabs");
         assert_eq!("open_cheatsheet", "open_cheatsheet");
+        assert_eq!("open_shortcuts_settings", "open_shortcuts_settings");
     }
 }

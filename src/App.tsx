@@ -19,6 +19,7 @@ import { useTabSettings } from "./hooks/useTabSettings";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
 import { CheatSheetModal } from "./components/CheatSheetModal";
+import { ShortcutSettingsModal } from "./components/ShortcutSettingsModal";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -29,6 +30,7 @@ function App() {
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
+  const [isShortcutSettingsOpen, setIsShortcutSettingsOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -445,10 +447,22 @@ function App() {
   const handleToggleCheatSheetRef = useRef(handleToggleCheatSheet);
   handleToggleCheatSheetRef.current = handleToggleCheatSheet;
 
+  const handleToggleShortcutSettings = useCallback(() => {
+    setIsShortcutSettingsOpen((prev) => !prev);
+  }, []);
+  const handleToggleShortcutSettingsRef = useRef(handleToggleShortcutSettings);
+  handleToggleShortcutSettingsRef.current = handleToggleShortcutSettings;
+
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // ショートカット設定画面 (Ctrl+, / Cmd+,)
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        handleToggleShortcutSettingsRef.current();
+        return;
+      }
       // チートシート表示切替 (F1 または Ctrl+Shift+? / Cmd+Shift+?)
       if (
         e.key === "F1" ||
@@ -960,6 +974,12 @@ function App() {
         if (isMounted) unlistens.push(uCheatSheet);
         else uCheatSheet();
 
+        const uShortcutSettings = await listen("menu:open_shortcuts_settings", () => {
+          setIsShortcutSettingsOpen(true);
+        });
+        if (isMounted) unlistens.push(uShortcutSettings);
+        else uShortcutSettings();
+
         const uFileDrop = await listen("tauri://drag-drop", async (e) => {
           const payload = e.payload as any;
           const paths: string[] = payload.paths || [];
@@ -1174,6 +1194,21 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01" />
               </svg>
             </button>
+            <button
+              onClick={handleToggleShortcutSettings}
+              className={`p-1 rounded transition-colors ${
+                isShortcutSettingsOpen
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title="ショートカットキー設定 (Ctrl+,)"
+              aria-label="ショートカットキー設定を開く"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
 
             {currentFileName && (
               <button
@@ -1360,6 +1395,12 @@ function App() {
       <CheatSheetModal
         isOpen={isCheatSheetOpen}
         onClose={() => setIsCheatSheetOpen(false)}
+      />
+
+      {/* ショートカットキー設定モーダル */}
+      <ShortcutSettingsModal
+        isOpen={isShortcutSettingsOpen}
+        onClose={() => setIsShortcutSettingsOpen(false)}
       />
     </div>
   );
