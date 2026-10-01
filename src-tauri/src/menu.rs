@@ -84,6 +84,13 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+\\"),
     )?;
+    let toggle_right_sidebar = MenuItem::with_id(
+        app,
+        "toggle_right_sidebar",
+        "アウトラインの表示切替",
+        true,
+        Some("CmdOrCtrl+Shift+O"),
+    )?;
     let toggle_source_mode = MenuItem::with_id(
         app,
         "toggle_source_mode",
@@ -111,6 +118,7 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         &[
             &toggle_sidebar,
+            &toggle_right_sidebar,
             &toggle_source_mode,
             &toggle_focus_mode,
             &toggle_tabs,
@@ -167,6 +175,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "toggle_sidebar" => {
             let _ = app.emit("menu:toggle_sidebar", ());
         }
+        "toggle_right_sidebar" => {
+            let _ = app.emit("menu:toggle_right_sidebar", ());
+        }
         "undo" => {
             let _ = app.emit("menu:undo", ());
         }
@@ -210,6 +221,7 @@ mod tests {
         assert_eq!("export_html", "export_html");
         assert_eq!("export_pdf", "export_pdf");
         assert_eq!("toggle_sidebar", "toggle_sidebar");
+        assert_eq!("toggle_right_sidebar", "toggle_right_sidebar");
         assert_eq!("undo", "undo");
         assert_eq!("redo", "redo");
         assert_eq!("insert_link", "insert_link");

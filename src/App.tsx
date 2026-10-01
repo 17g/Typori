@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import TyporiEditor, { EditorRef, SourceEditor } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
-import OutlineSidebar from "./components/OutlineSidebar";
+import OutlineSidebar, { OutlineItem } from "./components/OutlineSidebar";
 import {
   getCurrentDir,
   getParentDir,
@@ -235,6 +235,57 @@ function App() {
   }, []);
   const handleToggleRightSidebarRef = useRef(handleToggleRightSidebar);
   handleToggleRightSidebarRef.current = handleToggleRightSidebar;
+
+  // アウトラインの見出しクリック時に該当位置へスクロール
+  const handleSelectHeading = useCallback(
+    (item: OutlineItem) => {
+      if (!isSourceMode) {
+        // 1. WYSIWYGモード: .ProseMirror 内の h1-h6 要素を検索
+        const editorElement = document.querySelector(".ProseMirror");
+        if (editorElement) {
+          const headings = editorElement.querySelectorAll("h1, h2, h3, h4, h5, h6");
+          for (const heading of headings) {
+            if (heading.textContent?.trim() === item.text) {
+              heading.scrollIntoView({ behavior: "smooth", block: "center" });
+              heading.classList.add("outline-target-highlight");
+              setTimeout(() => {
+                heading.classList.remove("outline-target-highlight");
+              }, 1400);
+              return;
+            }
+          }
+        }
+      } else {
+        // 2. ソースコード直接編集モード (CodeMirror 6)
+        const cmContent = document.querySelector(".cm-content");
+        if (cmContent) {
+          const lines = cmContent.querySelectorAll(".cm-line");
+          if (lines[item.line]) {
+            lines[item.line].scrollIntoView({ behavior: "smooth", block: "center" });
+            lines[item.line].classList.add("outline-target-highlight");
+            setTimeout(() => {
+              lines[item.line]?.classList.remove("outline-target-highlight");
+            }, 1400);
+            return;
+          }
+          for (const line of lines) {
+            if (line.textContent?.includes(item.text)) {
+              line.scrollIntoView({ behavior: "smooth", block: "center" });
+              line.classList.add("outline-target-highlight");
+              setTimeout(() => {
+                line.classList.remove("outline-target-highlight");
+              }, 1400);
+              return;
+            }
+          }
+        }
+      }
+    },
+    [isSourceMode]
+  );
+  const handleSelectHeadingRef = useRef(handleSelectHeading);
+  handleSelectHeadingRef.current = handleSelectHeading;
+
 
   const handleToggleFocusMode = useCallback(() => {
     setIsFocusMode((prev) => !prev);
@@ -1031,6 +1082,13 @@ function App() {
         if (isMounted) unlistens.push(uToggle);
         else uToggle();
 
+        const uToggleRight = await listen("menu:toggle_right_sidebar", () => {
+          handleToggleRightSidebarRef.current();
+        });
+        if (isMounted) unlistens.push(uToggleRight);
+        else uToggleRight();
+
+
         const uUndo = await listen("menu:undo", () => {
           editorRef.current?.undo();
         });
@@ -1554,7 +1612,12 @@ function App() {
       </div>
       
       {/* 右サイドバー（アウトライン） */}
-      <OutlineSidebar content={fileContent} isOpen={isRightSidebarOpen} />
+      <OutlineSidebar
+        content={fileContent}
+        isOpen={isRightSidebarOpen}
+        onSelectHeading={handleSelectHeading}
+      />
+
 
       {/* チートシートモーダル */}
       <CheatSheetModal

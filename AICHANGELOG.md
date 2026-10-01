@@ -1,4 +1,37 @@
+- 2026-10-01: タスク36「全体テスト: 追加された全機能の結合テストとビルド検証 (`pnpm tauri dev` / `cargo check`)」を完了。
+  - **変更理由**: 本プロジェクトで追加された全機能（Markdown WYSIWYG/ソース直接編集、フォーカスモード、タブUIと状態管理、ファイルツリー検索、画像D&D、HTML/PDFエクスポート、チートシート、ショートカットカスタマイズと永続化、アウトライン右サイドバーなど）が相互に矛盾なく正常に動作し、バックエンド（Rust）およびフロントエンド（TypeScript/React）のビルド・単体テスト・静的解析（Clippy）・IPCコマンド連携・OSネイティブメニューイベント連携が完全であることを客観的に検証（Exit Code 0）するため。
+  - **Before**: 各機能個別の単体検証スクリプトは分散して存在していたが、システム全体の完全性を一括で検証する総合結合テストスイートが存在せず、アウトライン右サイドバーの見出しクリックによる該当箇所へのスクロール連携やOSネイティブメニューからのアウトライン表示切替（`menu:toggle_right_sidebar`）が未完であった。
+  - **After**:
+    - `src/components/OutlineSidebar/OutlineSidebar.tsx` & `src/components/OutlineSidebar/index.ts`:
+      - `OutlineItem` 型および `extractOutline` 関数をエクスポート。
+      - `onSelectHeading?: (item: OutlineItem) => void;` prop および見出しクリック・Enter/Spaceキー操作対応を追加。
+    - `src/App.tsx`:
+      - `handleSelectHeading` スクロールハンドラーを実装（WYSIWYG ProseMirror DOM および CodeMirror 6 ソースモード双方で該当見出しまでスムーズスクロールし、ターゲット要素に一時的なパルスハイライトアニメーションを付与）。
+      - OSネイティブメニューイベント `menu:toggle_right_sidebar` のリッスン処理を追加。
+      - `OutlineSidebar` に `onSelectHeading={handleSelectHeading}` を伝播。
+    - `src-tauri/src/menu.rs`:
+      - 表示メニューに「アウトラインの表示切替 (CmdOrCtrl+Shift+O)」(`toggle_right_sidebar`) を追加。
+      - `menu:toggle_right_sidebar` イベント送出処理と単体テストを追加。
+    - `src/index.css`:
+      - アウトライン見出し選択時の要素パルスハイライトアニメーション（`outline-target-highlight` / `@keyframes outline-highlight-pulse`）を追加。
+    - `scripts/verify-outline.mjs`:
+      - 見出し抽出ロジック（`extractOutline`）、コンポーネント構造、App.tsx スクロール連携、Rust menu.rs 連携、CSS ハイライトスタイルを検証する単体・結合テストスクリプトを新規作成。
+    - `scripts/verify-all.mjs`:
+      - 全17機能の検証スクリプト実行、Tauri IPC 14コマンド登録・フロントエンド呼び出し双方向整合性、OSネイティブメニュー16イベント完全双方向連携、ショートカット定義競合なしを包括検証する総合結合テストスイートを新規作成。
+    - `package.json`:
+      - `"test"` スクリプトを `node scripts/verify-all.mjs` に更新。
+    - 検証コマンドの全件パス確認:
+      - `pnpm test`: 全17個別テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット整合性（Exit Code 0）
+      - `pnpm run build`: TypeScript型チェック (`tsc`) + Vite production bundle（Exit Code 0）
+      - `cargo test`: 24 tests passed（Exit Code 0）
+      - `cargo check`: Rustバックエンド正常終了（Exit Code 0）
+      - `cargo clippy`: Rustバックエンド静的解析 警告ゼロ（Exit Code 0）
+    - `for_agent/architecture.md`:
+      - アウトライン機能、総合結合テストスイート、および改訂履歴を同期更新。
+  - **影響範囲**: アプリケーション全体（エディタ、アウトライン、OSメニュー、テストスイート、ビルドパイプライン）。既存機能への破壊的変更や回帰バグは一切なく、全機能が堅牢に結合動作。
+
 - 2026-10-01: タスク34「エクスポート: MarkdownファイルをPDF形式へエクスポート（印刷ダイアログ連携やバックエンド変換）する機能の実装」を完了。
+
   - **変更理由**: 編集中のMarkdownドキュメントを印刷や提出・配布用としてPDFファイルに書き出せるよう、OSの印刷ダイアログ（「PDFに保存」対応）と連携し、最適化された印刷スタイル（改ページ制御、A4マージン、白背景・黒文字）で高品質なPDFエクスポートを行う機能を提供するため。
   - **Before**: HTMLエクスポート（.html）のみ対応しており、PDF形式への出力機能や印刷ダイアログ連携UI、OSネイティブメニュー項目・ショートカットが存在しなかった。
   - **After**:

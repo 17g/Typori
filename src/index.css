@@ -399,4 +399,19 @@
   opacity: 1 !important;
 }
 
+/* アウトライン選択時のターゲット要素ハイライト */
+@keyframes outline-highlight-pulse {
+  0% {
+    background-color: rgba(99, 102, 241, 0.25);
+    border-radius: 4px;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.outline-target-highlight {
+  animation: outline-highlight-pulse 1.4s ease-out;
+}
+
 

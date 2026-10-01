@@ -64,6 +64,8 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - ファイル名検索・ツリーフィルタリング: サイドバーの検索入力欄に入力されたクエリに対し、フロントエンド側でロード済みツリーの即時フィルタリングを行うとともに、`search_files` コマンド(Rust)によりカレントディレクトリ配下を再帰的に走査（除外フォルダ対応・大文字小文字無視）。ヒットしたファイルまでの親フォルダ階層を自動展開してツリー表示し、マッチ箇所のテキストをハイライト描画。
 - HTMLエクスポート: Rust側コマンド `convert_markdown_to_html` / `export_to_html` (pulldown-cmark利用) により、CommonMark/GFM（テーブル・タスクリスト・打ち消し線など）に完全準拠したスタンドアロンHTML文書（ドキュメントタイトル、レスポンシブタイポグラフィ、ライト/ダークテーマCSSスタイル内蔵、印刷最適化）を高速・安全に生成・保存。UI側の `ExportModal`、ヘッダーのエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+E)、およびOSネイティブメニュー連携 (`menu:export_html`) と連動。
 - PDFエクスポート: Rust側コマンド `export_to_pdf_html` および `convert_markdown_to_html` による印刷最適化スタイル内蔵HTML（`@page` ページマージン・A4サイズ自動調整、背景白・文字黒のハイコントラスト印刷カラー、見出し直後の改ページ回避、テーブル・画像・コードブロックの途中分割防止）の生成と、フロントエンド側の非表示iframe・印刷API連携（`printHtmlContent` / `printMarkdownDocument`）により、OS標準の印刷ダイアログ（「PDFに保存」対応）をシームレスに起動。UI側の `ExportModal`（HTML/PDF形式タブ切替）、ヘッダーのPDFエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+P / Ctrl+P)、およびOSネイティブメニュー連携 (`menu:export_pdf`) と連動。
+- アウトライン（右サイドバー）機能: 開いているMarkdownドキュメントの見出し（`#`〜`######`）をリアルタイムに抽出し、インデント付きツリーで表示。見出しクリック時にはWYSIWYG（ProseMirror DOM）およびソース直接編集モード（CodeMirror 6）の該当見出し位置へスムーズスクロールし、ターゲット要素を一時的にパルスハイライト描画。右サイドバーの開閉はヘッダーボタン、ショートカット (Ctrl+Shift+O)、およびOSネイティブメニュー (`menu:toggle_right_sidebar`) と双方向連動。
+- 全体結合テスト・品質保証: 全17項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性、OSネイティブメニューイベント双方向整合性、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
 
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
@@ -92,6 +94,9 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-09-30: サイドバーのフォルダツリーにおけるファイル名検索（フィルタリング）機能（検索入力バー、デバウンス検索、Rust側再帰検索コマンド search_files、未展開親フォルダの自動階層展開、マッチ文字列ハイライト表示、0件空状態UI、Ctrl+Fショートカット連携）の実装仕様を追記
 - 2026-09-30: HTMLエクスポート機能（pulldown-cmarkによるスタンドアロンHTML生成、ライト/ダークCSSテーマ内蔵、ExportModal UI、ヘッダーエクスポートボタン、ショートカット Ctrl+Shift+E、Tauriメニュー連携 menu:export_html）の実装仕様を追記
 - 2026-10-01: PDFエクスポート機能（印刷ダイアログ連携、@page・@media print印刷CSS最適化、Rust側コマンド export_to_pdf_html、ExportModal形式切替タブ、ヘッダーPDFボタン、ショートカット Ctrl+Shift+P / Ctrl+P、Tauriメニュー連携 menu:export_pdf）の実装仕様を追記
+- 2026-10-01: アウトライン（右サイドバー）機能（見出し抽出・インデント表示・クリック時の該当見出しスムーズスクロール & パルスハイライト・OSメニュー menu:toggle_right_sidebar 連携）の仕様を追記
+- 2026-10-01: 全体テストおよび結合検証の完了（総合結合テストスイート verify-all.mjs、IPCコマンド・ネイティブメニュー完全双方向検証、cargo/pnpm総合品質保証）を記録
+
 
 
 
