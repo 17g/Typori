@@ -603,10 +603,24 @@ pub fn convert_markdown_to_html(
       box-sizing: content-box;
       border-radius: 4px;
     }}
+    @page {{
+      margin: 15mm 20mm;
+      size: auto;
+    }}
     @media print {{
       body {{
         background-color: #ffffff !important;
         color: #000000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }}
+      h1, h2, h3, h4, h5, h6 {{
+        page-break-after: avoid;
+        break-after: avoid;
+      }}
+      img, tr {{
+        break-inside: avoid;
+        page-break-inside: avoid;
       }}
       .markdown-container {{
         max-width: 100% !important;
@@ -614,6 +628,7 @@ pub fn convert_markdown_to_html(
       }}
       pre, blockquote, table {{
         page-break-inside: avoid;
+        break-inside: avoid;
       }}
     }}
   </style>
@@ -652,6 +667,17 @@ pub fn export_to_html(
 
     fs::write(&path, html_content)
         .map_err(|e| format!("Failed to export HTML to '{}': {}", path, e))
+}
+
+/// 指定パスにPDF印刷用としてMarkdownをHTMLファイルとして書き出します。親ディレクトリが存在しない場合は作成します。
+#[tauri::command]
+pub fn export_to_pdf_html(
+    path: String,
+    markdown: String,
+    title: Option<String>,
+    theme: Option<String>,
+) -> Result<(), String> {
+    export_to_html(path, markdown, title, theme)
 }
 
 #[cfg(test)]
@@ -1091,6 +1117,8 @@ mod tests {
         assert!(html.contains("<table>"));
         assert!(html.contains("<th>Col1</th>"));
         assert!(html.contains("type=\"checkbox\""));
+        assert!(html.contains("@page"));
+        assert!(html.contains("@media print"));
     }
 
     #[test]
@@ -1116,6 +1144,34 @@ mod tests {
         assert!(read_html.contains("<title>Custom Export Title</title>"));
         assert!(read_html.contains("<h1>Export Test</h1>"));
         assert!(read_html.contains("--bg-color: #0d1117"));
+
+        let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_export_to_pdf_html() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let file_path = std::env::temp_dir().join(format!("typori_test_pdf_export_{}.html", timestamp));
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let md = "# PDF Export Test\nPDF printable content.";
+        let res = export_to_pdf_html(
+            path_str.clone(),
+            md.to_string(),
+            Some("PDF Test Document".to_string()),
+            Some("light".to_string()),
+        );
+        assert!(res.is_ok());
+        assert!(file_path.exists());
+
+        let read_html = fs::read_to_string(&file_path).unwrap();
+        assert!(read_html.contains("<title>PDF Test Document</title>"));
+        assert!(read_html.contains("<h1>PDF Export Test</h1>"));
+        assert!(read_html.contains("@page"));
+        assert!(read_html.contains("@media print"));
 
         let _ = fs::remove_file(file_path);
     }

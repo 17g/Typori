@@ -1,3 +1,35 @@
+- 2026-10-01: タスク34「エクスポート: MarkdownファイルをPDF形式へエクスポート（印刷ダイアログ連携やバックエンド変換）する機能の実装」を完了。
+  - **変更理由**: 編集中のMarkdownドキュメントを印刷や提出・配布用としてPDFファイルに書き出せるよう、OSの印刷ダイアログ（「PDFに保存」対応）と連携し、最適化された印刷スタイル（改ページ制御、A4マージン、白背景・黒文字）で高品質なPDFエクスポートを行う機能を提供するため。
+  - **Before**: HTMLエクスポート（.html）のみ対応しており、PDF形式への出力機能や印刷ダイアログ連携UI、OSネイティブメニュー項目・ショートカットが存在しなかった。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - `@page` ルール（A4適応、マージン設定）および印刷用CSS（`-webkit-print-color-adjust: exact`、見出し直後の改ページ回避 `break-after: avoid`、テーブル・画像・コードブロックの途中分割防止 `break-inside: avoid`）を強化。
+      - PDF印刷用HTML出力コマンド `export_to_pdf_html` を追加。
+      - 単体テスト `test_export_to_pdf_html` および印刷CSS検証アサーションを追加し、`cargo test` で検証。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `fs::export_to_pdf_html` を登録。
+    - `src-tauri/src/menu.rs`:
+      - ファイルメニューに「PDF形式でエクスポート (印刷)... (CmdOrCtrl+Shift+P)」項目を追加。
+      - `menu:export_pdf` イベント送出処理およびメニューテストを追加。
+    - `src/api/fs.ts`:
+      - バックエンドコマンドを呼び出す `exportToPdfHtml` API関数を追加。
+      - 非表示iframeを用いてアプリUIを巻き込まずに印刷ダイアログを起動する `printHtmlContent`、およびMarkdownからスタイル付きHTMLを生成して印刷する `printMarkdownDocument` を実装。
+    - `src/components/ExportModal/ExportModal.tsx`:
+      - HTML形式とPDF形式（印刷連携）を切り替え可能なタブUIを追加。
+      - `initialFormat?: "html" | "pdf"` props に対応し、呼び出し元に応じた初期タブ選択を実現。
+      - PDF選択時のガイダンス表示（「PDFに保存」の案内）および印刷ダイアログ起動アクションを実装。
+    - `src/components/ShortcutSettingsModal/types.ts` & `src/components/CheatSheetModal/data.ts`:
+      - `export_pdf`（デフォルト: `Ctrl+Shift+P`）をショートカット定義およびチートシートに追加し、カスタマイズに対応。
+    - `src/App.tsx`:
+      - ヘッダーバーに「PDF形式でエクスポート (印刷)」ツールボタンを追加（ショートカットキー設定とツールチップ連動）。
+      - OSネイティブメニューイベント `menu:export_pdf` のリッスンおよび `handleKeyDown` でのショートカット（`Ctrl+Shift+P` / `Ctrl+P`）検知を実装。
+      - `ExportModal` に `initialFormat={exportModalFormat}` を渡し、HTML・PDF両方のスムーズな呼び出しを実現。
+    - `scripts/verify-export-pdf.mjs`:
+      - タイトル・パス算出、ExportModal構造、API定義、ショートカット定義、Rustバックエンド実装、App.tsx連携を検証する自動テストスクリプトを追加し、`package.json` の `pnpm test` に統合。
+    - `for_agent/architecture.md`:
+      - PDFエクスポート機能のデータフローおよび改訂履歴を同期更新。
+  - **影響範囲**: エクスポート機能（PDF/印刷）、OSネイティブファイルメニュー、ショートカット設定、チートシート、ヘッダーバー。既存のHTMLエクスポートや編集等の動作への悪影響なし。
+
 - 2026-09-30: タスク33「エクスポート: MarkdownファイルをHTML形式へエクスポートする機能の実装」を完了。
   - **変更理由**: 編集中のMarkdownファイルをブラウザや他の環境で容易に閲覧・配布・共有できるよう、CommonMark/GFMに完全準拠し、美しいタイポグラフィとCSSスタイル（ライト・ダーク対応）を内蔵したスタンドアロンHTMLファイルとしてエクスポートする機能を提供するため。
   - **Before**: Markdownファイルの保存（.md）のみ対応しており、HTML形式への書き出し機能やエクスポート用UI・OSネイティブメニュー項目が存在しなかった。

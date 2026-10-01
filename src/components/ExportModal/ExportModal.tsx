@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { exportToHtml } from "../../api/fs";
+import { exportToHtml, printMarkdownDocument } from "../../api/fs";
+
+export type ExportFormat = "html" | "pdf";
 
 export interface ExportModalProps {
   isOpen: boolean;
@@ -7,6 +9,7 @@ export interface ExportModalProps {
   currentFilePath: string | null;
   currentDirectory: string | null;
   markdownContent: string;
+  initialFormat?: ExportFormat;
   onExportSuccess?: (exportedPath: string) => void;
 }
 
@@ -29,7 +32,8 @@ export function extractInitialTitle(content: string, filePath: string | null): s
 export function getInitialOutputPath(
   filePath: string | null,
   directory: string | null,
-  title: string
+  title: string,
+  extension = "html"
 ): string {
   const sanitize = (name: string) => name.replace(/[\\/:*?"<>|]/g, "_");
   const cleanTitle = sanitize(title) || "Untitled";
@@ -37,9 +41,9 @@ export function getInitialOutputPath(
   if (filePath) {
     const lastDotIndex = filePath.lastIndexOf(".");
     if (lastDotIndex > 0) {
-      return filePath.substring(0, lastDotIndex) + ".html";
+      return filePath.substring(0, lastDotIndex) + "." + extension;
     }
-    return filePath + ".html";
+    return filePath + "." + extension;
   }
 
   const baseDir = directory || ".";
@@ -48,7 +52,7 @@ export function getInitialOutputPath(
     ? baseDir.slice(0, -1)
     : baseDir;
 
-  return `${normalizedDir}${separator}${cleanTitle}.html`;
+  return `${normalizedDir}${separator}${cleanTitle}.${extension}`;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -57,8 +61,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   currentFilePath,
   currentDirectory,
   markdownContent,
+  initialFormat = "html",
   onExportSuccess,
 }) => {
+  const [exportFormat, setExportFormat] = useState<ExportFormat>(initialFormat);
   const [title, setTitle] = useState("");
   const [outputPath, setOutputPath] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -70,9 +76,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const format = initialFormat || "html";
+      setExportFormat(format);
       const initTitle = extractInitialTitle(markdownContent, currentFilePath);
       setTitle(initTitle);
-      const initPath = getInitialOutputPath(currentFilePath, currentDirectory, initTitle);
+      const initPath = getInitialOutputPath(
+        currentFilePath,
+        currentDirectory,
+        initTitle,
+        format === "pdf" ? "html" : "html"
+      );
       setOutputPath(initPath);
       setErrorMessage(null);
       setSuccessPath(null);
@@ -84,7 +97,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         initialFocusRef.current?.select();
       }, 50);
     }
-  }, [isOpen, currentFilePath, currentDirectory, markdownContent]);
+  }, [isOpen, currentFilePath, currentDirectory, markdownContent, initialFormat]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -100,21 +113,41 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleFormatChange = (newFormat: ExportFormat) => {
+    setExportFormat(newFormat);
+    setErrorMessage(null);
+    setSuccessPath(null);
+  };
+
   const handleExport = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!outputPath.trim()) {
-      setErrorMessage("エクスポート先のファイルパスを入力してください。");
-      return;
-    }
 
     setIsExporting(true);
     setErrorMessage(null);
 
     try {
-      await exportToHtml(outputPath.trim(), markdownContent, title.trim() || undefined, theme);
-      setSuccessPath(outputPath.trim());
-      if (onExportSuccess) {
-        onExportSuccess(outputPath.trim());
+      if (exportFormat === "html") {
+        if (!outputPath.trim()) {
+          setErrorMessage("エクスポート先のファイルパスを入力してください。");
+          setIsExporting(false);
+          return;
+        }
+        await exportToHtml(outputPath.trim(), markdownContent, title.trim() || undefined, theme);
+        setSuccessPath(outputPath.trim());
+        if (onExportSuccess) {
+          onExportSuccess(outputPath.trim());
+        }
+      } else {
+        // PDF形式: 印刷ダイアログ連携
+        await printMarkdownDocument({
+          markdown: markdownContent,
+          title: title.trim() || undefined,
+          theme,
+        });
+        setSuccessPath("印刷ダイアログを開きました。「PDFに保存」を選択してPDFファイルを作成できます。");
+        if (onExportSuccess) {
+          onExportSuccess("print_pdf_dialog");
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -154,10 +187,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 id="export-modal-title"
                 className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
               >
-                HTML形式でエクスポート
+                {exportFormat === "html" ? "HTML形式でエクスポート" : "PDF形式でエクスポート (印刷)"}
               </h2>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Markdownドキュメントをスタイル付きHTMLファイルとして書き出します
+                {exportFormat === "html"
+                  ? "Markdownドキュメントをスタイル付きHTMLファイルとして書き出します"
+                  : "Markdownドキュメントを印刷ダイアログと連携してPDF形式でエクスポートします"}
               </p>
             </div>
           </div>
@@ -173,6 +208,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
         </div>
 
+        {/* 形式選択タブ */}
+        <div className="flex border-b border-zinc-100 dark:border-zinc-800 px-6 pt-3 bg-zinc-50/50 dark:bg-zinc-900/50">
+          <button
+            type="button"
+            onClick={() => handleFormatChange("html")}
+            className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-medium border-b-2 transition-colors ${
+              exportFormat === "html"
+                ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 font-semibold"
+                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            <span>HTML (.html)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFormatChange("pdf")}
+            className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-medium border-b-2 transition-colors ${
+              exportFormat === "pdf"
+                ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 font-semibold"
+                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span>PDF (印刷 / .pdf)</span>
+          </button>
+        </div>
+
         {/* コンテンツ本体 */}
         <form onSubmit={handleExport} className="p-6 space-y-4">
           {successPath ? (
@@ -181,7 +248,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                <span>エクスポートが正常に完了しました！</span>
+                <span>{exportFormat === "html" ? "エクスポートが正常に完了しました！" : "印刷ダイアログを起動しました！"}</span>
               </div>
               <p className="text-xs text-emerald-700 dark:text-emerald-300 font-mono break-all bg-white/60 dark:bg-black/30 p-2 rounded border border-emerald-100 dark:border-emerald-900/50">
                 {successPath}
@@ -213,24 +280,41 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 />
               </div>
 
-              {/* 出力先ファイルパス */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  出力先ファイルパス (.html)
-                </label>
-                <input
-                  type="text"
-                  value={outputPath}
-                  onChange={(e) => setOutputPath(e.target.value)}
-                  placeholder="C:/path/to/exported.html"
-                  className="w-full px-3 py-2 text-sm font-mono bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-zinc-900 dark:text-zinc-100 transition-colors"
-                />
-              </div>
+              {/* HTML形式の場合のみ: 出力先ファイルパス */}
+              {exportFormat === "html" && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    出力先ファイルパス (.html)
+                  </label>
+                  <input
+                    type="text"
+                    value={outputPath}
+                    onChange={(e) => setOutputPath(e.target.value)}
+                    placeholder="C:/path/to/exported.html"
+                    className="w-full px-3 py-2 text-sm font-mono bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-zinc-900 dark:text-zinc-100 transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* PDF形式の場合: 案内ボックス */}
+              {exportFormat === "pdf" && (
+                <div className="p-3 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 text-xs text-indigo-900 dark:text-indigo-200 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>PDF出力について</span>
+                  </div>
+                  <p className="leading-relaxed text-zinc-600 dark:text-zinc-300">
+                    「PDFとしてエクスポート (印刷)」ボタンを押すと、OSのネイティブ印刷ダイアログが開きます。送信先プリンタ一覧から<strong>「PDFに保存」</strong>または<strong>「Microsoft Print to PDF」</strong>を選択してPDFファイルとして保存してください。
+                  </p>
+                </div>
+              )}
 
               {/* テーマ選択 */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  スタイリングテーマ
+                  スタイリングテーマ {exportFormat === "pdf" && "(印刷時は自動で高コントラスト白背景に最適化されます)"}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -246,7 +330,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       <circle cx="12" cy="12" r="5" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                     </svg>
-                    <span>ライト (GitHub標準)</span>
+                    <span>ライト (標準スタイル)</span>
                   </button>
 
                   <button
@@ -290,9 +374,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isExporting || !outputPath.trim()}
+                  disabled={isExporting || (exportFormat === "html" && !outputPath.trim())}
                   className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-xs transition-all ${
-                    isExporting || !outputPath.trim()
+                    isExporting || (exportFormat === "html" && !outputPath.trim())
                       ? "bg-zinc-400 dark:bg-zinc-700 cursor-not-allowed"
                       : "bg-indigo-600 hover:bg-indigo-700"
                   }`}
@@ -303,14 +387,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      <span>エクスポート中...</span>
+                      <span>{exportFormat === "html" ? "エクスポート中..." : "印刷準備中..."}</span>
                     </>
                   ) : (
                     <>
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      <span>エクスポート</span>
+                      {exportFormat === "html" ? (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                      )}
+                      <span>{exportFormat === "html" ? "HTMLとしてエクスポート" : "PDFとしてエクスポート (印刷)"}</span>
                     </>
                   )}
                 </button>

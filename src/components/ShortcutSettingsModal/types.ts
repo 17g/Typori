@@ -40,6 +40,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     defaultKeys: ["Ctrl", "Shift", "E"],
   },
   {
+    id: "export_pdf",
+    name: "PDF形式でエクスポート (印刷)",
+    description: "編集中のMarkdownファイルを印刷ダイアログ連携によりPDF形式でエクスポートします",
+    category: "file",
+    defaultKeys: ["Ctrl", "Shift", "P"],
+  },
+  {
     id: "close_tab",
     name: "タブを閉じる",
     description: "現在アクティブなタブを閉じます",

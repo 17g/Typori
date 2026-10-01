@@ -176,4 +176,99 @@ export async function exportToHtml(
   });
 }
 
+/**
+ * 指定パスにPDF印刷用としてMarkdownをHTMLファイルとして書き出します。
+ */
+export async function exportToPdfHtml(
+  path: string,
+  markdown: string,
+  title?: string | null,
+  theme?: string | null
+): Promise<void> {
+  await invoke<void>("export_to_pdf_html", {
+    path,
+    markdown,
+    title: title ?? null,
+    theme: theme ?? null,
+  });
+}
+
+/**
+ * HTML文字列を非表示iframeにレンダリングし、ブラウザ/OSの印刷ダイアログ（PDF出力対応）を呼び出します。
+ */
+export function printHtmlContent(htmlContent: string): Promise<void> {
+  return new Promise((resolve) => {
+    // 既存の印刷用iframeがあれば削除
+    const existing = document.getElementById("typori-print-frame");
+    if (existing) {
+      existing.remove();
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.id = "typori-print-frame";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.visibility = "hidden";
+    iframe.setAttribute("aria-hidden", "true");
+
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      iframe.remove();
+      resolve();
+      return;
+    }
+
+    let isPrinted = false;
+    const triggerPrint = () => {
+      if (isPrinted) return;
+      isPrinted = true;
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error("Print invocation failed:", e);
+        } finally {
+          setTimeout(() => {
+            iframe.remove();
+            resolve();
+          }, 1000);
+        }
+      }, 100);
+    };
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    if (iframe.contentWindow) {
+      iframe.contentWindow.onload = triggerPrint;
+    }
+    // 万一 onload が発火しない場合のフォールバック
+    setTimeout(triggerPrint, 400);
+  });
+}
+
+/**
+ * Markdown文字列から完全なスタイル付きHTMLを生成し、OS印刷ダイアログ（PDF保存）を呼び出します。
+ */
+export async function printMarkdownDocument(options: {
+  markdown: string;
+  title?: string | null;
+  theme?: string | null;
+}): Promise<void> {
+  const htmlContent = await convertMarkdownToHtml(
+    options.markdown,
+    options.title,
+    options.theme
+  );
+  await printHtmlContent(htmlContent);
+}
+
 

@@ -63,6 +63,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 画像プレビュー表示: ローカル相対パスの画像をエディタ内で確実に表示するため、`resolve_image_path` および `read_file_binary` を介してBlob URLへ自動解決・キャッシュしてプレビュー描画。
 - ファイル名検索・ツリーフィルタリング: サイドバーの検索入力欄に入力されたクエリに対し、フロントエンド側でロード済みツリーの即時フィルタリングを行うとともに、`search_files` コマンド(Rust)によりカレントディレクトリ配下を再帰的に走査（除外フォルダ対応・大文字小文字無視）。ヒットしたファイルまでの親フォルダ階層を自動展開してツリー表示し、マッチ箇所のテキストをハイライト描画。
 - HTMLエクスポート: Rust側コマンド `convert_markdown_to_html` / `export_to_html` (pulldown-cmark利用) により、CommonMark/GFM（テーブル・タスクリスト・打ち消し線など）に完全準拠したスタンドアロンHTML文書（ドキュメントタイトル、レスポンシブタイポグラフィ、ライト/ダークテーマCSSスタイル内蔵、印刷最適化）を高速・安全に生成・保存。UI側の `ExportModal`、ヘッダーのエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+E)、およびOSネイティブメニュー連携 (`menu:export_html`) と連動。
+- PDFエクスポート: Rust側コマンド `export_to_pdf_html` および `convert_markdown_to_html` による印刷最適化スタイル内蔵HTML（`@page` ページマージン・A4サイズ自動調整、背景白・文字黒のハイコントラスト印刷カラー、見出し直後の改ページ回避、テーブル・画像・コードブロックの途中分割防止）の生成と、フロントエンド側の非表示iframe・印刷API連携（`printHtmlContent` / `printMarkdownDocument`）により、OS標準の印刷ダイアログ（「PDFに保存」対応）をシームレスに起動。UI側の `ExportModal`（HTML/PDF形式タブ切替）、ヘッダーのPDFエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+P / Ctrl+P)、およびOSネイティブメニュー連携 (`menu:export_pdf`) と連動。
 
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
@@ -90,6 +91,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-09-30: ショートカット設定の永続化管理フック (useShortcutSettings、localStorage連携 typori:shortcuts_config、デフォルト設定との安全マージ) と動的キーバインド反映ロジック (App.tsx での動的ショートカット判定・各ボタンツールチップの動的同期、CheatSheetModal / ShortcutSettingsModal 連携) の仕様を追記
 - 2026-09-30: サイドバーのフォルダツリーにおけるファイル名検索（フィルタリング）機能（検索入力バー、デバウンス検索、Rust側再帰検索コマンド search_files、未展開親フォルダの自動階層展開、マッチ文字列ハイライト表示、0件空状態UI、Ctrl+Fショートカット連携）の実装仕様を追記
 - 2026-09-30: HTMLエクスポート機能（pulldown-cmarkによるスタンドアロンHTML生成、ライト/ダークCSSテーマ内蔵、ExportModal UI、ヘッダーエクスポートボタン、ショートカット Ctrl+Shift+E、Tauriメニュー連携 menu:export_html）の実装仕様を追記
+- 2026-10-01: PDFエクスポート機能（印刷ダイアログ連携、@page・@media print印刷CSS最適化、Rust側コマンド export_to_pdf_html、ExportModal形式切替タブ、ヘッダーPDFボタン、ショートカット Ctrl+Shift+P / Ctrl+P、Tauriメニュー連携 menu:export_pdf）の実装仕様を追記
 
 
 

@@ -14,6 +14,13 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+Shift+E"),
     )?;
+    let export_pdf = MenuItem::with_id(
+        app,
+        "export_pdf",
+        "PDF形式でエクスポート (印刷)...",
+        true,
+        Some("CmdOrCtrl+Shift+P"),
+    )?;
     let file_menu = Submenu::with_items(
         app,
         "ファイル",
@@ -22,6 +29,7 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &new_file,
             &save_file,
             &export_html,
+            &export_pdf,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::quit(app, Some("終了"))?,
         ],
@@ -153,6 +161,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "export_html" => {
             let _ = app.emit("menu:export_html", ());
         }
+        "export_pdf" => {
+            let _ = app.emit("menu:export_pdf", ());
+        }
         "toggle_sidebar" => {
             let _ = app.emit("menu:toggle_sidebar", ());
         }
@@ -197,6 +208,7 @@ mod tests {
         assert_eq!("new_file", "new_file");
         assert_eq!("save_file", "save_file");
         assert_eq!("export_html", "export_html");
+        assert_eq!("export_pdf", "export_pdf");
         assert_eq!("toggle_sidebar", "toggle_sidebar");
         assert_eq!("undo", "undo");
         assert_eq!("redo", "redo");

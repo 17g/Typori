@@ -26,7 +26,7 @@ import {
   formatKeys,
   areKeysEqual,
 } from "./components/ShortcutSettingsModal";
-import { ExportModal } from "./components/ExportModal";
+import { ExportModal, ExportFormat } from "./components/ExportModal";
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -40,6 +40,7 @@ function App() {
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
   const [isShortcutSettingsOpen, setIsShortcutSettingsOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportModalFormat, setExportModalFormat] = useState<ExportFormat>("html");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string | null>(null);
@@ -467,7 +468,8 @@ function App() {
   const handleToggleShortcutSettingsRef = useRef(handleToggleShortcutSettings);
   handleToggleShortcutSettingsRef.current = handleToggleShortcutSettings;
 
-  const handleOpenExportModal = useCallback(() => {
+  const handleOpenExportModal = useCallback((format: ExportFormat = "html") => {
+    setExportModalFormat(format);
     setIsExportModalOpen(true);
   }, []);
   const handleCloseExportModal = useCallback(() => {
@@ -505,7 +507,21 @@ function App() {
           e.key.toLowerCase() === "e")
       ) {
         e.preventDefault();
-        handleOpenExportModalRef.current();
+        handleOpenExportModalRef.current("html");
+        return;
+      }
+
+      // PDFエクスポート (デフォルト: Ctrl+Shift+P または Ctrl+P)
+      if (
+        isShortcutEvent(e, config.export_pdf || ["Ctrl", "Shift", "P"]) ||
+        (areKeysEqual(config.export_pdf || ["Ctrl", "Shift", "P"], ["Ctrl", "Shift", "P"]) &&
+          (e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          e.key.toLowerCase() === "p") ||
+        ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "p")
+      ) {
+        e.preventDefault();
+        handleOpenExportModalRef.current("pdf");
         return;
       }
 
@@ -992,10 +1008,16 @@ function App() {
         else uSave();
 
         const uExport = await listen("menu:export_html", () => {
-          handleOpenExportModalRef.current();
+          handleOpenExportModalRef.current("html");
         });
         if (isMounted) unlistens.push(uExport);
         else uExport();
+
+        const uExportPdf = await listen("menu:export_pdf", () => {
+          handleOpenExportModalRef.current("pdf");
+        });
+        if (isMounted) unlistens.push(uExportPdf);
+        else uExportPdf();
 
         const uNew = await listen("menu:new_file", () => {
           handleMenuNewFileRef.current();
@@ -1319,7 +1341,7 @@ function App() {
 
             {/* HTMLエクスポートボタン */}
             <button
-              onClick={handleOpenExportModal}
+              onClick={() => handleOpenExportModal("html")}
               className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               title={
                 areKeysEqual(shortcutConfig.export_html, ["Ctrl", "Shift", "E"])
@@ -1330,6 +1352,22 @@ function App() {
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </button>
+
+            {/* PDFエクスポートボタン */}
+            <button
+              onClick={() => handleOpenExportModal("pdf")}
+              className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title={
+                areKeysEqual(shortcutConfig.export_pdf, ["Ctrl", "Shift", "P"])
+                  ? "PDF形式でエクスポート (Ctrl+Shift+P)"
+                  : `PDF形式でエクスポート (${formatKeys(shortcutConfig.export_pdf)})`
+              }
+              aria-label="PDF形式でエクスポート (印刷)"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
             </button>
 
@@ -1533,13 +1571,14 @@ function App() {
         onSave={saveShortcutConfig}
       />
 
-      {/* HTMLエクスポートモーダル */}
+      {/* エクスポートモーダル (HTML / PDF) */}
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={handleCloseExportModal}
         currentFilePath={selectedPath}
         currentDirectory={currentDirectory}
         markdownContent={getCurrentMarkdown()}
+        initialFormat={exportModalFormat}
       />
     </div>
   );

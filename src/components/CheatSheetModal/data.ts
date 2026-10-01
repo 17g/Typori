@@ -24,6 +24,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     category: "file",
   },
   {
+    id: "export_pdf",
+    name: "PDF形式でエクスポート (印刷)",
+    keys: ["Ctrl", "Shift", "P"],
+    description: "編集中のMarkdownファイルを印刷ダイアログ連携によりPDF形式でエクスポートします",
+    category: "file",
+  },
+  {
     id: "close_tab",
     name: "タブを閉じる",
     keys: ["Ctrl", "W"],
