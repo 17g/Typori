@@ -1,4 +1,24 @@
+- 2026-10-01: 「リリースビルドの準備」を完了。
+  - **変更理由**: アプリケーションの正式配布に向けて、Tauriのバンドル設定（メタデータ、アプリアイコン、ウィンドウサイズ・センタリング）の最適化、macOS競合警告を解消する識別子の調整、全自動テスト連携リリースビルドスクリプト（`pnpm run build:release`）の追加、およびNSIS/WiX MSIインストーラ・スタンドアロン実行ファイルの生成検証を行うため。
+  - **Before**: リリース用ビルドスクリプトが存在せず、`tauri.conf.json` の識別子が `.app` で終了する警告対象となっており、バンドルメタデータ（著作権、カテゴリ、説明文）やウィンドウの初期適正サイズ・センタリング設定が未設定であった。
+  - **After**:
+    - `src-tauri/tauri.conf.json`:
+      - アプリ識別子を推奨形式 `com.typori.editor` に更新。
+      - 初期ウィンドウサイズを 1100x750、最小サイズ 650x450、画面中央配置 (`center: true`) に設定。
+      - `bundle` 設定に `copyright`、`category` ("Productivity")、`shortDescription`、`longDescription` を追加。
+    - `package.json`:
+      - リリース用ワンコマンドスクリプト `"build:release": "pnpm test && pnpm tauri build"` を追加。
+    - リリースビルドの生成検証:
+      - `pnpm tauri build` を実行し、全自動で以下のバイナリおよびインストーラが正常生成されることを確認（Exit Code 0）：
+        - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_0.1.0_x64-setup.exe` (約 1.87 MB)
+        - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_0.1.0_x64_en-US.msi` (約 2.55 MB)
+        - スタンドアロン実行ファイル: `src-tauri/target/release/typori.exe` (約 4.94 MB)
+    - `RELEASE.md`:
+      - 成果物一覧、ファイルサイズ、用途、ワンコマンド実行手順、最適化設定、品質チェックリストをまとめたドキュメントを新規作成。
+  - **影響範囲**: パッケージング・配布設定、ビルドスクリプト。エディタの既存コードベースへの悪影響なし。
+
 - 2026-10-01: タスク36「全体テスト: 追加された全機能の結合テストとビルド検証 (`pnpm tauri dev` / `cargo check`)」を完了。
+
   - **変更理由**: 本プロジェクトで追加された全機能（Markdown WYSIWYG/ソース直接編集、フォーカスモード、タブUIと状態管理、ファイルツリー検索、画像D&D、HTML/PDFエクスポート、チートシート、ショートカットカスタマイズと永続化、アウトライン右サイドバーなど）が相互に矛盾なく正常に動作し、バックエンド（Rust）およびフロントエンド（TypeScript/React）のビルド・単体テスト・静的解析（Clippy）・IPCコマンド連携・OSネイティブメニューイベント連携が完全であることを客観的に検証（Exit Code 0）するため。
   - **Before**: 各機能個別の単体検証スクリプトは分散して存在していたが、システム全体の完全性を一括で検証する総合結合テストスイートが存在せず、アウトライン右サイドバーの見出しクリックによる該当箇所へのスクロール連携やOSネイティブメニューからのアウトライン表示切替（`menu:toggle_right_sidebar`）が未完であった。
   - **After**:

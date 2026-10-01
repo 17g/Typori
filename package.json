@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:release": "pnpm test && pnpm tauri build",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "node scripts/verify-all.mjs"
+
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
