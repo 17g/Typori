@@ -15,6 +15,7 @@ import {
 import "@milkdown/kit/prose/tables/style/tables.css";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
+import { trailing } from "@milkdown/kit/plugin/trailing";
 import { wrapIn, lift } from "@milkdown/kit/prose/commands";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
@@ -310,6 +311,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           .use(gfm)
           .use(columnResizingPlugin)
           .use(history)
+          .use(trailing)
           .use(focusModePlugin)
           .use(listener);
       },

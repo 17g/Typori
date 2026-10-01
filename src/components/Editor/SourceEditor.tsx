@@ -42,6 +42,16 @@ export function SourceEditor({
         },
       },
       {
+        key: "Mod-/",
+        run: () => {
+          if (onToggleSourceMode) {
+            onToggleSourceMode();
+            return true;
+          }
+          return false;
+        },
+      },
+      {
         key: "F8",
         run: () => {
           if (onToggleFocusMode) {

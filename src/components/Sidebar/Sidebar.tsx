@@ -637,11 +637,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isCreatingFile && (
         <div className="px-3 py-2 border-b border-indigo-200/80 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs">
           <form onSubmit={handleCreateFileSubmit} className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-indigo-700 dark:text-indigo-300">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span>新規Markdownファイル作成</span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-indigo-700 dark:text-indigo-300">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>新規Markdownファイル作成</span>
+              </div>
+              {currentDirectory && (
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 pl-5 break-all leading-tight" title={currentDirectory}>
+                  保存先: {currentDirectory.split(/[/\\]/).pop() || currentDirectory}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <input
@@ -779,6 +786,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               searchQuery={displayTree.isFiltering ? searchQuery : undefined}
               onSelectFile={onSelectFile}
               onToggleDirectory={handleToggleDirectoryItem}
+              onDoubleClickDirectory={(entry) => onOpenDirectory?.(entry.path)}
             />
           ))
         )}

@@ -15,6 +15,7 @@ interface SidebarItemProps {
   searchQuery?: string;
   onSelectFile?: (entry: FileEntry) => void;
   onToggleDirectory?: (entry: FileEntry) => void;
+  onDoubleClickDirectory?: (entry: FileEntry) => void;
 }
 
 const HighlightedText: React.FC<{ text: string; query?: string }> = ({ text, query }) => {
@@ -72,6 +73,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
   searchQuery,
   onSelectFile,
   onToggleDirectory,
+  onDoubleClickDirectory,
 }) => {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,6 +81,13 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
       onToggleDirectory?.(entry);
     } else {
       onSelectFile?.(entry);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (entry.is_dir) {
+      onDoubleClickDirectory?.(entry);
     }
   };
 
@@ -91,6 +100,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
     <div>
       <div
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -254,6 +264,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
                 searchQuery={searchQuery}
                 onSelectFile={onSelectFile}
                 onToggleDirectory={onToggleDirectory}
+                onDoubleClickDirectory={onDoubleClickDirectory}
               />
             ))
           ) : childrenEntries && childrenEntries.length === 0 ? (

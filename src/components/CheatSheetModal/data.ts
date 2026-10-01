@@ -239,7 +239,7 @@ export const MARKDOWN_SYNTAX_ITEMS: MarkdownSyntaxItem[] = [
     id: "table",
     name: "表（テーブル）",
     syntax: "| ヘッダー 1 | ヘッダー 2 |\n| :--- | :---: |\n| 左揃えセル | 中央揃えセル |",
-    description: "行と列による表組み（GFM仕様）を作成します",
+    description: "行と列による表組み（GFM仕様）を作成します。（WYSIWYGモードでは ショートカット Ctrl+Alt+T またはツールバーから挿入してください）",
     category: "advanced",
   },
 ];

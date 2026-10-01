@@ -10,11 +10,11 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "node scripts/verify-all.mjs"
-
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
     "@milkdown/kit": "^7.22.2",
+    "@milkdown/plugin-trailing": "7.22.2",
     "@milkdown/react": "^7.22.2",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
