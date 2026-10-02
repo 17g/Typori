@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { TabBarProps } from "./types";
+import { isContentDirty } from "../../utils/text";
 
 export const TabBar: React.FC<TabBarProps> = ({
   tabs,
@@ -39,7 +40,7 @@ export const TabBar: React.FC<TabBarProps> = ({
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
-          const isDirty = tab.isDirty ?? (tab.content !== tab.savedContent);
+          const isDirty = tab.isDirty ?? isContentDirty(tab.content, tab.savedContent);
 
           return (
             <div

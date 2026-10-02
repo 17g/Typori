@@ -1,3 +1,33 @@
+- 2026-10-02: タスク47「UI/状態管理: タブ切り替え・新規ファイルオープン時のRef参照即時同期と未保存状態の独立性担保の実装」を完了。
+  - **変更理由**: React のステート更新は非同期・再レンダリング待ちとなるため、タブ切り替え直後やファイルオープン直後にショートカット（保存、クローズ、タブ切り替え、ウィンドウ終了）が実行された際、stale closure や未更新の Ref 参照によるレースコンディションや他タブの未保存状態が波及・誤反映されるリスクを排除するため。また、タブごとに未保存状態（Dirty state）を完全に独立して算出し、TabBar の未保存インジケータ（●）を `isContentDirty` に統一して改行コード差分による誤爆を完全に防止するため。
+  - **Before**:
+    - `src/App.tsx` の `tabsRef`、`activeTabIdRef`、`selectedPathRef`、`fileContentRef`、`savedContentRef` などの更新が React のレンダリングサイクル（`.current = state`）に依存しており、`handleSelectTab`、`handleSelectFile`、`handleCreateFile`、`handleCloseTab`、`handleSave`、`handleContentChange` の実行直後には古い Ref 値が残存する可能性があった。
+    - タブ切り替え時に切り替え先タブの未保存状態が切り替え元の Dirty 判定の影響を受ける余地があり、未保存状態の独立性が完全に担保されていなかった。
+    - `src/components/TabBar/TabBar.tsx` において、未保存判定が生の文字列比較（`tab.content !== tab.savedContent`）となっていたため、改行コードの相違による不要な未保存マーク（●）が表示される可能性があった。
+    - `SourceEditor` に `key` プロパティが設定されておらず、ファイル切り替え時に CodeMirror の内部状態（Undoスタックやカーソル）が別ファイルと混交する懸念があった。
+  - **After**:
+    - `src/App.tsx`:
+      - `handleContentChange`: コンテンツ正規化後、直ちに `fileContentRef.current` および `tabsRef.current` を同期的即時更新。
+      - `handleSave`: ソースモード外では `editorRef.current.getMarkdown()` から最新コンテンツを取得して保存し、保存完了直後に `fileContentRef.current`, `savedContentRef.current`, `tabsRef.current` を即座に同期更新。
+      - `handleSelectTab`: 切り替え元タブのコンテンツ・Dirty状態を確実に `tabsRef.current` に退避し、切り替え先タブの `isDirty` を `isContentDirty` により完全に独立して再評価。`tabsRef`, `activeTabIdRef`, `selectedPathRef`, `fileContentRef`, `savedContentRef` をハンドラ内で即時同期。
+      - `handleSelectFile`: 単一ファイルモード・タブ有効モード双方で、新規ファイル読み込み完了時に `isDirty: false` で独立初期化し、全関連 Ref を即時同期。
+      - `handleCreateFile`: 新規ファイル作成時、新ファイルタブを `isDirty: false` で追加・初期化し、全関連 Ref を即時同期。
+      - `handleCloseTab`: アクティブタブ終了時に隣接タブへフォーカスを移し、全関連 Ref を即時同期。全タブ終了時は全 Ref を null / 空配列に即時初期化。
+      - `handleToggleTabsEnabled`: タブ機能の有効/無効切り替え時に `isTabsEnabledRef.current` およびタブ配列 Ref を即時同期。
+      - `SourceEditor`: `key={selectedPath ?? "__source__"}` を付与し、ファイル・タブ切り替え時にエディタを完全クリーンリセット。
+    - `src/components/TabBar/TabBar.tsx`:
+      - `isContentDirty` をインポートし、未保存判定を `tab.isDirty ?? isContentDirty(tab.content, tab.savedContent)` に統一。
+    - `scripts/verify-tabs-ref-sync.mjs`:
+      - ファイルオープン、タブ切り替え、新規作成、保存、タブクローズにおける即時 Ref 同期と未保存状態の完全独立性を網羅検証するテストスクリプトを新規作成。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に `verify-tabs-ref-sync.mjs` を統合（全25件）。
+    - 検証結果:
+      - `pnpm test`: 全25/25件の個別機能テスト、IPCコマンド登録整合性、OSネイティブメニューイベント整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+      - `cargo check`: Exit Code 0 でパス。
+  - **影響範囲**: `src/App.tsx`, `src/components/TabBar/TabBar.tsx`, `scripts/verify-tabs-ref-sync.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-02: タスク46「エディタ/ファイル管理: 改行コード正規化とファイルロード時の未保存誤爆防止の実装（LF統一 / ベースライン同期）」を完了。
   - **変更理由**: Windows 環境においてディスク上に保存されたファイルの改行コードが CRLF (`\r\n`) である場合、Milkdown や CodeMirror が内部で LF (`\n`) に正規化して保持するため、ファイルを開いた直後に文字列比較で不一致となり、未編集のファイルに未保存マーク（●）が表示されたり未保存警告が誤爆する問題を解消するため。また、ファイル読み込み・保存・エディタ内部の全データフローで改行コードを LF に統一し、未保存判定（Dirty state）のベースライン同期を担保するため。
   - **Before**:

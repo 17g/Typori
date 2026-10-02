@@ -152,10 +152,14 @@ function App() {
 
           if (targetFilePath) {
             setSelectedPath(targetFilePath);
+            selectedPathRef.current = targetFilePath;
             setIsFileLoading(true);
             try {
               const rawContent = await openFile(targetFilePath);
               const content = normalizeLineEndings(rawContent);
+              selectedPathRef.current = targetFilePath;
+              fileContentRef.current = content;
+              savedContentRef.current = content;
               setFileContent(content);
               setSavedContent(content);
               const fileName =
@@ -168,6 +172,8 @@ function App() {
                 savedContent: content,
                 isDirty: false,
               };
+              tabsRef.current = [initialTab];
+              activeTabIdRef.current = initialTab.id;
               setTabs([initialTab]);
               setActiveTabId(initialTab.id);
             } catch (err) {
@@ -203,36 +209,57 @@ function App() {
 
   // ファイル保存
   const handleSave = useCallback(async () => {
-    if (!selectedPath || fileContent === null || isSaving) return;
+    const currentActivePath = selectedPathRef.current;
+    if (!currentActivePath || isSaving) return;
+
+    let contentToSave = fileContentRef.current;
+    if (!isSourceModeRef.current && editorRef.current) {
+      try {
+        const md = editorRef.current.getMarkdown();
+        if (md !== undefined && md !== null) {
+          contentToSave = md;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (contentToSave === null) return;
 
     setIsSaving(true);
     setSaveError(null);
 
     try {
-      const normalizedContent = normalizeLineEndings(fileContent);
-      await saveFile(selectedPath, normalizedContent);
+      const normalizedContent = normalizeLineEndings(contentToSave);
+      await saveFile(currentActivePath, normalizedContent);
+
+      // 即時Ref同期
+      fileContentRef.current = normalizedContent;
+      savedContentRef.current = normalizedContent;
+
       setFileContent(normalizedContent);
       setSavedContent(normalizedContent);
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.id === activeTabIdRef.current || t.path === selectedPath
+      setTabs((prev) => {
+        const nextTabs = prev.map((t) =>
+          t.id === activeTabIdRef.current || t.path === currentActivePath
             ? { ...t, content: normalizedContent, savedContent: normalizedContent, isDirty: false }
             : t
-        )
-      );
+        );
+        tabsRef.current = nextTabs;
+        return nextTabs;
+      });
       setSaveStatus("saved");
       setTimeout(() => {
         setSaveStatus(null);
       }, 2500);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to save file '${selectedPath}':`, err);
+      console.error(`Failed to save file '${currentActivePath}':`, err);
       setSaveError(`保存に失敗しました: ${errMsg}`);
       setSaveStatus("error");
     } finally {
       setIsSaving(false);
     }
-  }, [selectedPath, fileContent, isSaving]);
+  }, [isSaving]);
 
   // ショートカット (Ctrl+S / Cmd+S で保存, Ctrl+\ / Cmd+\ でサイドバー開閉)
   const handleSaveRef = useRef(handleSave);
@@ -310,11 +337,14 @@ function App() {
   const handleToggleSourceMode = useCallback(() => {
     setIsSourceMode((prev) => {
       const next = !prev;
+      isSourceModeRef.current = next;
       if (!prev && editorRef.current) {
         try {
           const md = editorRef.current.getMarkdown();
           if (md !== undefined && md !== null) {
-            setFileContent(md);
+            const normalized = normalizeLineEndings(md);
+            fileContentRef.current = normalized;
+            setFileContent(normalized);
           }
         } catch (e) {
           console.warn("Could not get markdown from editorRef:", e);
@@ -328,8 +358,8 @@ function App() {
 
   // タブ機能の有効/無効切り替え
   const handleToggleTabsEnabled = useCallback(() => {
-    let currentContent = fileContent;
-    if (!isSourceMode && editorRef.current) {
+    let currentContent = fileContentRef.current;
+    if (!isSourceModeRef.current && editorRef.current) {
       try {
         const md = editorRef.current.getMarkdown();
         if (md !== undefined && md !== null) {
@@ -339,6 +369,10 @@ function App() {
         // ignore
       }
     }
+    if (currentContent !== null) {
+      currentContent = normalizeLineEndings(currentContent);
+      fileContentRef.current = currentContent;
+    }
 
     if (isTabsEnabledRef.current) {
       // 有効 -> 無効への切り替え時
@@ -347,11 +381,10 @@ function App() {
 
       const syncedTabs = currentTabs.map((t) => {
         if (t.id === currentActiveId && currentContent !== null) {
-          const normContent = normalizeLineEndings(currentContent);
           return {
             ...t,
-            content: normContent,
-            isDirty: isContentDirty(normContent, t.savedContent),
+            content: currentContent,
+            isDirty: isContentDirty(currentContent, t.savedContent),
           };
         }
         return t;
@@ -371,11 +404,10 @@ function App() {
       }
 
       const activeTab = syncedTabs.find((t) => t.id === currentActiveId);
-      if (activeTab) {
-        setTabs([activeTab]);
-      } else {
-        setTabs([]);
-      }
+      const nextTabs = activeTab ? [activeTab] : [];
+      tabsRef.current = nextTabs;
+      isTabsEnabledRef.current = false;
+      setTabs(nextTabs);
       setIsTabsEnabled(false);
     } else {
       // 無効 -> 有効への切り替え時
@@ -383,36 +415,43 @@ function App() {
         const curPath = selectedPathRef.current;
         const curFileName =
           curPath.split(/[/\\]/).filter(Boolean).pop() || curPath;
-        const normContent = normalizeLineEndings(currentContent);
-        const normSaved = normalizeLineEndings(savedContent ?? currentContent);
+        const normSaved = normalizeLineEndings(savedContentRef.current ?? currentContent);
         const currentTab: TabItem = {
           id: curPath,
           path: curPath,
           title: curFileName,
-          content: normContent,
+          content: currentContent,
           savedContent: normSaved,
-          isDirty: isContentDirty(normContent, normSaved),
+          isDirty: isContentDirty(currentContent, normSaved),
         };
+        tabsRef.current = [currentTab];
+        activeTabIdRef.current = currentTab.id;
+        isTabsEnabledRef.current = true;
         setTabs([currentTab]);
         setActiveTabId(currentTab.id);
+      } else {
+        isTabsEnabledRef.current = true;
       }
       setIsTabsEnabled(true);
     }
-  }, [fileContent, isSourceMode, savedContent, setIsTabsEnabled]);
+  }, [setIsTabsEnabled]);
   const handleToggleTabsEnabledRef = useRef(handleToggleTabsEnabled);
   handleToggleTabsEnabledRef.current = handleToggleTabsEnabled;
 
   // コンテンツ更新時にアクティブタブの content も同期
   const handleContentChange = useCallback((markdown: string) => {
     const normalized = normalizeLineEndings(markdown);
+    fileContentRef.current = normalized;
     setFileContent(normalized);
-    setTabs((prev) =>
-      prev.map((t) =>
+    setTabs((prev) => {
+      const nextTabs = prev.map((t) =>
         t.id === activeTabIdRef.current
           ? { ...t, content: normalized, isDirty: isContentDirty(normalized, t.savedContent) }
           : t
-      )
-    );
+      );
+      tabsRef.current = nextTabs;
+      return nextTabs;
+    });
   }, []);
 
   // タブ選択（切り替え）
@@ -421,8 +460,8 @@ function App() {
       if (tabId === activeTabIdRef.current) return;
 
       // 現在のエディタの変更内容を取得し、切り替え前のタブに保存
-      let currentContent = fileContent;
-      if (!isSourceMode && editorRef.current) {
+      let currentContent = fileContentRef.current;
+      if (!isSourceModeRef.current && editorRef.current) {
         try {
           const md = editorRef.current.getMarkdown();
           if (md !== undefined && md !== null) {
@@ -451,8 +490,22 @@ function App() {
 
       const normTargetContent = normalizeLineEndings(targetTab.content);
       const normTargetSavedContent = normalizeLineEndings(targetTab.savedContent);
+      const targetIsDirty = isContentDirty(normTargetContent, normTargetSavedContent);
 
-      setTabs(updatedTabs);
+      const syncedTabs = updatedTabs.map((t) =>
+        t.id === tabId
+          ? { ...t, content: normTargetContent, savedContent: normTargetSavedContent, isDirty: targetIsDirty }
+          : t
+      );
+
+      // 即時Ref同期（切り替え後のタブ状態と完全同期）
+      tabsRef.current = syncedTabs;
+      activeTabIdRef.current = tabId;
+      selectedPathRef.current = targetTab.path;
+      fileContentRef.current = normTargetContent;
+      savedContentRef.current = normTargetSavedContent;
+
+      setTabs(syncedTabs);
       setActiveTabId(tabId);
       setSelectedPath(targetTab.path);
       setFileContent(normTargetContent);
@@ -461,7 +514,7 @@ function App() {
       setSaveError(null);
       setFileError(null);
     },
-    [fileContent, isSourceMode]
+    []
   );
   const handleSelectTabRef = useRef(handleSelectTab);
   handleSelectTabRef.current = handleSelectTab;
@@ -470,8 +523,8 @@ function App() {
   const handleCloseTab = useCallback(
     (tabId: string) => {
       const currentActiveId = activeTabIdRef.current;
-      let currentContent = fileContent;
-      if (tabId === currentActiveId && !isSourceMode && editorRef.current) {
+      let currentContent = fileContentRef.current;
+      if (tabId === currentActiveId && !isSourceModeRef.current && editorRef.current) {
         try {
           const md = editorRef.current.getMarkdown();
           if (md !== undefined && md !== null) {
@@ -483,6 +536,7 @@ function App() {
       }
       if (currentContent !== null) {
         currentContent = normalizeLineEndings(currentContent);
+        fileContentRef.current = currentContent;
       }
 
       const currentTabs = tabsRef.current;
@@ -503,20 +557,45 @@ function App() {
 
       const targetIndex = currentTabs.findIndex((t) => t.id === tabId);
       const newTabs = currentTabs.filter((t) => t.id !== tabId);
-      setTabs(newTabs);
 
       if (tabId === currentActiveId) {
         if (newTabs.length > 0) {
           const nextIndex = Math.min(targetIndex, newTabs.length - 1);
           const nextTab = newTabs[nextIndex];
+          const normNextContent = normalizeLineEndings(nextTab.content);
+          const normNextSavedContent = normalizeLineEndings(nextTab.savedContent);
+          const nextIsDirty = isContentDirty(normNextContent, normNextSavedContent);
+
+          const syncedNewTabs = newTabs.map((t, idx) =>
+            idx === nextIndex
+              ? { ...t, content: normNextContent, savedContent: normNextSavedContent, isDirty: nextIsDirty }
+              : t
+          );
+
+          // 即時Ref同期
+          tabsRef.current = syncedNewTabs;
+          activeTabIdRef.current = nextTab.id;
+          selectedPathRef.current = nextTab.path;
+          fileContentRef.current = normNextContent;
+          savedContentRef.current = normNextSavedContent;
+
+          setTabs(syncedNewTabs);
           setActiveTabId(nextTab.id);
           setSelectedPath(nextTab.path);
-          setFileContent(nextTab.content);
-          setSavedContent(nextTab.savedContent);
+          setFileContent(normNextContent);
+          setSavedContent(normNextSavedContent);
           setSaveStatus(null);
           setSaveError(null);
           setFileError(null);
         } else {
+          // 即時Ref同期
+          tabsRef.current = [];
+          activeTabIdRef.current = null;
+          selectedPathRef.current = null;
+          fileContentRef.current = null;
+          savedContentRef.current = null;
+
+          setTabs([]);
           setActiveTabId(null);
           setSelectedPath(null);
           setFileContent(null);
@@ -525,9 +604,12 @@ function App() {
           setSaveError(null);
           setFileError(null);
         }
+      } else {
+        tabsRef.current = newTabs;
+        setTabs(newTabs);
       }
     },
-    [fileContent, isSourceMode]
+    []
   );
   const handleCloseTabRef = useRef(handleCloseTab);
   handleCloseTabRef.current = handleCloseTab;
@@ -860,8 +942,8 @@ function App() {
     if (entry.is_dir) return;
 
     // 現在のエディタの最新内容を取得
-    let currentContent = fileContent;
-    if (!isSourceMode && editorRef.current) {
+    let currentContent = fileContentRef.current;
+    if (!isSourceModeRef.current && editorRef.current) {
       try {
         const md = editorRef.current.getMarkdown();
         if (md !== undefined && md !== null) {
@@ -870,6 +952,10 @@ function App() {
       } catch (e) {
         // ignore
       }
+    }
+    if (currentContent !== null) {
+      currentContent = normalizeLineEndings(currentContent);
+      fileContentRef.current = currentContent;
     }
 
     // タブ機能が無効（単一ファイルモード）の場合
@@ -881,8 +967,8 @@ function App() {
       const isCurrentDirty = Boolean(
         selectedPathRef.current !== null &&
         currentContent !== null &&
-        savedContent !== null &&
-        isContentDirty(currentContent, savedContent)
+        savedContentRef.current !== null &&
+        isContentDirty(currentContent, savedContentRef.current)
       );
 
       if (isCurrentDirty) {
@@ -894,6 +980,7 @@ function App() {
         if (!ok) return;
       }
 
+      selectedPathRef.current = entry.path;
       setSelectedPath(entry.path);
       setIsFileLoading(true);
       setFileError(null);
@@ -913,6 +1000,13 @@ function App() {
           savedContent: content,
           isDirty: false,
         };
+
+        // 即時Ref同期（単一ファイルモード）
+        tabsRef.current = [newTab];
+        activeTabIdRef.current = newTab.id;
+        selectedPathRef.current = entry.path;
+        fileContentRef.current = content;
+        savedContentRef.current = content;
 
         setTabs([newTab]);
         setActiveTabId(newTab.id);
@@ -940,16 +1034,18 @@ function App() {
     const currentActiveId = activeTabIdRef.current;
     const updatedTabs = tabsRef.current.map((t) => {
       if (t.id === currentActiveId && currentContent !== null) {
-        const normContent = normalizeLineEndings(currentContent);
         return {
           ...t,
-          content: normContent,
-          isDirty: isContentDirty(normContent, t.savedContent),
+          content: currentContent,
+          isDirty: isContentDirty(currentContent, t.savedContent),
         };
       }
       return t;
     });
+    tabsRef.current = updatedTabs;
+    setTabs(updatedTabs);
 
+    selectedPathRef.current = entry.path;
     setSelectedPath(entry.path);
     setIsFileLoading(true);
     setFileError(null);
@@ -970,7 +1066,16 @@ function App() {
         isDirty: false,
       };
 
-      setTabs([...updatedTabs, newTab]);
+      const newTabs = [...updatedTabs, newTab];
+
+      // 即時Ref同期（複数タブモード）
+      tabsRef.current = newTabs;
+      activeTabIdRef.current = newTab.id;
+      selectedPathRef.current = entry.path;
+      fileContentRef.current = content;
+      savedContentRef.current = content;
+
+      setTabs(newTabs);
       setActiveTabId(newTab.id);
       setFileContent(content);
       setSavedContent(content);
@@ -981,7 +1086,7 @@ function App() {
     } finally {
       setIsFileLoading(false);
     }
-  }, [fileContent, isSourceMode, savedContent]);
+  }, []);
 
   const handleSelectFileRef = useRef(handleSelectFile);
   handleSelectFileRef.current = handleSelectFile;
@@ -1050,8 +1155,8 @@ function App() {
 
     // タブ機能が無効（単一ファイルモード）の場合
     if (!isTabsEnabledRef.current) {
-      let currentContent = fileContent;
-      if (!isSourceMode && editorRef.current) {
+      let currentContent = fileContentRef.current;
+      if (!isSourceModeRef.current && editorRef.current) {
         try {
           const md = editorRef.current.getMarkdown();
           if (md !== undefined && md !== null) currentContent = md;
@@ -1059,11 +1164,15 @@ function App() {
           // ignore
         }
       }
+      if (currentContent !== null) {
+        currentContent = normalizeLineEndings(currentContent);
+        fileContentRef.current = currentContent;
+      }
       const isCurrentDirty = Boolean(
         selectedPathRef.current !== null &&
         currentContent !== null &&
-        savedContent !== null &&
-        isContentDirty(currentContent, savedContent)
+        savedContentRef.current !== null &&
+        isContentDirty(currentContent, savedContentRef.current)
       );
 
       if (isCurrentDirty) {
@@ -1081,20 +1190,28 @@ function App() {
 
         const newTabName =
           newEntry.name || newEntry.path.split(/[/\\]/).filter(Boolean).pop() || fileName;
+        const normalizedInitial = normalizeLineEndings(initialContent);
         const newTab: TabItem = {
           id: newEntry.path,
           path: newEntry.path,
           title: newTabName,
-          content: initialContent,
-          savedContent: initialContent,
+          content: normalizedInitial,
+          savedContent: normalizedInitial,
           isDirty: false,
         };
+
+        // 即時Ref同期（単一ファイルモード）
+        tabsRef.current = [newTab];
+        activeTabIdRef.current = newTab.id;
+        selectedPathRef.current = newEntry.path;
+        fileContentRef.current = normalizedInitial;
+        savedContentRef.current = normalizedInitial;
 
         setTabs([newTab]);
         setActiveTabId(newTab.id);
         setSelectedPath(newEntry.path);
-        setFileContent(initialContent);
-        setSavedContent(initialContent);
+        setFileContent(normalizedInitial);
+        setSavedContent(normalizedInitial);
         setSaveStatus(null);
         setSaveError(null);
         setFileError(null);
@@ -1107,12 +1224,9 @@ function App() {
     }
 
     try {
-      const newEntry = await createFile(fullPath, initialContent);
-      await loadDirectory(currentDirectory, true);
-
       // 現在のアクティブタブの内容を同期
-      let currentContent = fileContent;
-      if (!isSourceMode && editorRef.current) {
+      let currentContent = fileContentRef.current;
+      if (!isSourceModeRef.current && editorRef.current) {
         try {
           const md = editorRef.current.getMarkdown();
           if (md !== undefined && md !== null) currentContent = md;
@@ -1122,6 +1236,7 @@ function App() {
       }
       if (currentContent !== null) {
         currentContent = normalizeLineEndings(currentContent);
+        fileContentRef.current = currentContent;
       }
       const currentActiveId = activeTabIdRef.current;
       const updatedTabs = tabsRef.current.map((t) => {
@@ -1134,23 +1249,37 @@ function App() {
         }
         return t;
       });
+      tabsRef.current = updatedTabs;
+
+      const newEntry = await createFile(fullPath, initialContent);
+      await loadDirectory(currentDirectory, true);
 
       const newTabName =
         newEntry.name || newEntry.path.split(/[/\\]/).filter(Boolean).pop() || fileName;
+      const normalizedInitial = normalizeLineEndings(initialContent);
       const newTab: TabItem = {
         id: newEntry.path,
         path: newEntry.path,
         title: newTabName,
-        content: initialContent,
-        savedContent: initialContent,
+        content: normalizedInitial,
+        savedContent: normalizedInitial,
         isDirty: false,
       };
 
-      setTabs([...updatedTabs, newTab]);
+      const newTabs = [...updatedTabs, newTab];
+
+      // 即時Ref同期（複数タブモード）
+      tabsRef.current = newTabs;
+      activeTabIdRef.current = newTab.id;
+      selectedPathRef.current = newEntry.path;
+      fileContentRef.current = normalizedInitial;
+      savedContentRef.current = normalizedInitial;
+
+      setTabs(newTabs);
       setActiveTabId(newTab.id);
       setSelectedPath(newEntry.path);
-      setFileContent(initialContent);
-      setSavedContent(initialContent);
+      setFileContent(normalizedInitial);
+      setSavedContent(normalizedInitial);
       setSaveStatus(null);
       setSaveError(null);
       setFileError(null);
@@ -1677,6 +1806,7 @@ function App() {
             </div>
           ) : isSourceMode ? (
             <SourceEditor
+              key={selectedPath ?? "__source__"}
               content={fileContent ?? ""}
               theme={resolvedTheme}
               onChange={handleContentChange}

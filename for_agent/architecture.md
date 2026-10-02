@@ -111,6 +111,12 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
   - **未保存誤爆防止（isContentDirty）**: Milkdown（ProseMirror）および CodeMirror 6 は内部で LF でテキストを保持するため、ファイル読み込み直後のベースライン（`savedContent`, `TabItem.savedContent`）も同一の正規化後テキストで同期。未保存判定（`isContentDirty`）では改行コードの違いのみ（CRLF vs LF）による不一致を検知して誤爆することを防止し、実質的な編集内容の変更のみを正確に未保存状態（●印および未保存アラート）として判定。
   - **全データフローでの一貫同期**: 初期起動時、ファイル選択時、新規作成時、タブ切り替え時、およびファイル保存時において、コンテンツとベースライン双方で `normalizeLineEndings` および `isContentDirty` を適用し、レースコンディションや改行コード差分による状態不整合を根絶。
 
+- タブ切り替え・ファイルオープン時のRef参照即時同期と未保存状態の独立性担保仕様:
+  - **即時Ref同期（Immediate Ref Synchronization）**: Reactの再レンダリング待ちによるステート参照遅延（stale closure / race conditions）を根絶するため、`handleSelectTab`、`handleSelectFile`、`handleCreateFile`、`handleCloseTab`、`handleSave`、`handleContentChange` において、`tabsRef.current`、`activeTabIdRef.current`、`selectedPathRef.current`、`fileContentRef.current`、`savedContentRef.current` をイベントハンドラ内で即座に同期更新。
+  - **未保存状態のタブ間完全独立性（Tab Dirty State Isolation）**: タブ切り替え時、切り替え元タブの編集内容は `tabsRef` に正確に退避・保持され、切り替え先タブの未保存状態は切り替え元と一切干渉せず、対象タブ自身の `content` と `savedContent` から `isContentDirty` により完全に独立して再計算・反映。新規ファイルオープン時および新規作成時も、必ず `isDirty: false` で独立初期化。
+  - **TabBar未保存判定統一**: `TabBar.tsx` における未保存判定を生の `!==` から `isContentDirty` に統一し、改行コードの相違による誤爆を根絶。
+  - **エディタコンポーネントのキー分離**: `TyporiEditor`（`key={selectedPath}`）に加え、ソース直接編集モード `SourceEditor` にも `key={selectedPath ?? "__source__"}` を付与し、ファイル・タブ切り替え時にエディタ内部状態（CodeMirrorの履歴やカーソル位置等）が混交しないよう完全独立化。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -149,6 +155,8 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: Markdownシリアライズの一般化と不具合修正に関する仕様策定（①番号付きリストの常に「数字.」維持、②連続箇条書きの「-」維持、③URL同一リンクの「[URL](URL)」リソースリンク維持）を追記
 - 2026-10-02: OS連携/ウィンドウ管理: ウィンドウクローズ（CloseRequested）時の未保存警告フックと権限設定（src-tauri/capabilities/default.json の core:window / core:event 権限追加、App.tsx での appWindow.onCloseRequested 購読・未保存検出・確認ダイアログ・destroy 実行、verify-window-close-requested.mjs 整備）を追記
 - 2026-10-02: エディタ/ファイル管理: 改行コード正規化とファイルロード時の未保存誤爆防止の実装（LF統一 / ベースライン同期、src/utils/text.ts の normalizeLineEndings / isContentDirty 導入、App.tsx / Editor.tsx / fs.ts 連携、verify-line-endings-normalization.mjs 整備）を追記
+- 2026-10-02: UI/状態管理: タブ切り替え・新規ファイルオープン時のRef参照即時同期と未保存状態の独立性担保の実装（App.tsx での tabsRef/activeTabIdRef/selectedPathRef/fileContentRef/savedContentRef 即時更新、TabBar.tsx の isContentDirty 統一、SourceEditor の key 分離、verify-tabs-ref-sync.mjs 整備）を追記
+
 
 
 
