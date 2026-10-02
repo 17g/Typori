@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（22件以上）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（16イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（25件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（16イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -90,14 +90,18 @@
   1. ファイル読み込み時（`open_file`）またはエディタへのセット時に、コンテンツの改行コードを LF に統一正規化（`.replace(/\r\n/g, '\n')`）すること。
   2. 未保存判定のベースラインコンテンツ（`initialContentRef` / `originalContent`）も同一の正規化後テキストで同期すること。
 
-### 3.5. タブ切り替え・ファイルロード時の非同期レースコンディション防止
+### 3.5. タブ切り替え・ファイルロード時の非同期レースコンディション防止と未保存状態の独立性担保
 - **事象・ミス**:
   - タブ A からタブ B へ素早く切り替えた際、タブ B の内容でタブ A が上書き保存されたり、エディタ内部の参照（Ref）が古いファイルを指したままになる。
+  - タブ A で編集した未保存フラグが、新しく開いたタブや無編集の別タブに誤って伝播・表示される。
 - **原因**:
-  - React のステート更新は非同期であるため、`filePath` や `activeTabId` の更新前にエディタの保存処理や自動同期処理が走ると、クロージャ内の古いステートが参照される。
+  - React のステート更新は非同期（レンダリング待ち）であるため、ハンドラ実行中に即時更新されない `tabsRef`, `activeTabIdRef`, `selectedPathRef`, `fileContentRef` を参照するショートカットやイベントリスナーが古いクロージャの値を参照してしまうため。
+  - `SourceEditor` に `key` が設定されていない場合、エディタ内部の Undo 履歴やカーソル位置がタブ間で混交する。
 - **対策**:
-  1. 保存処理やファイルロード処理では、ステートだけに依存せず、最新のファイルパス・アクティブタブ ID を保持する `useRef` を併用すること。
-  2. タブ切り替え時は、切り替え元の変更内容の保存・同期を確定させてから、新しいタブのコンテンツをロードすること。
+  1. `handleSelectTab`, `handleSelectFile`, `handleCreateFile`, `handleCloseTab`, `handleSave`, `handleContentChange` において、`tabsRef.current`, `activeTabIdRef.current`, `selectedPathRef.current`, `fileContentRef.current`, `savedContentRef.current` をイベントハンドラ内で即座に同期的更新すること。
+  2. タブ切り替え時は、切り替え元の変更内容を `tabsRef` に退避した上で、切り替え先タブの `isDirty` を該当タブ固有の `content` と `savedContent` から `isContentDirty` により完全に独立して再評価すること。新規ファイルオープン・作成時は必ず `isDirty: false` で初期化すること。
+  3. `SourceEditor` には `key={selectedPath ?? "__source__"}` を付与し、ファイル切り替え時にエディタ内部状態を確実にクリーンリセットすること。
+  4. Node.js ESM 検証スクリプト（`.mjs`）から TypeScript ファイル（`.ts`）は直接静的 import できないため、ユーティリティロジックはスクリプト内に同等実装するか、ファイル内容の静的検証を行うこと。
 
 ### 3.6. ウィンドウクローズ時の未保存保護と Tauri Capabilities 設定
 - **事象・ミス**:
