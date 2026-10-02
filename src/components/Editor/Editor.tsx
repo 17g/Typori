@@ -292,9 +292,31 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
               ...prev,
               bullet: "-" as const,
               bulletOther: "*" as const,
+              bulletOrdered: "." as const,
+              incrementListMarker: true,
+              resourceLink: true,
               rule: "-" as const,
               ruleRepetition: 3,
               ruleSpaces: false,
+              handlers: {
+                ...(prev.handlers || {}),
+                list: (node: any, _parent: any, state: any, info: any) => {
+                  const exit = state.enter("list");
+                  const bulletCurrent = state.bulletCurrent;
+                  // node.ordered の場合は常にピリオド '.' を維持
+                  // 箇条書きの場合は常にハイフン '-' を維持し、連続リスト時のマーカー交代を防止
+                  const bullet = node.ordered
+                    ? (state.options.bulletOrdered || ".")
+                    : (state.options.bullet || "-");
+
+                  state.bulletCurrent = bullet;
+                  const value = state.containerFlow(node, info);
+                  state.bulletLastUsed = bullet;
+                  state.bulletCurrent = bulletCurrent;
+                  exit();
+                  return value;
+                },
+              },
             }));
             ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
               prevContentRef.current = markdown;

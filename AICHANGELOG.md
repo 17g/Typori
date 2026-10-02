@@ -1,3 +1,17 @@
+- 2026-10-02: タスク43「エディタ実装: Editor.tsx の remarkStringifyOptionsCtx にカスタム list ハンドラーおよび resourceLink: true を設定し、上記3項目の一般的記法への統一・保存処理を実装する」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）に策定された Markdown シリアライズフォーマットの一般化と記法統一仕様に基づき、番号付きリストのピリオド区切り連番「数字.」の維持、連続箇条書きブロック間でのマーカー交代（`*` 等へのフォールバック）を抑止したハイフン「-」の維持、およびURL同一リンクにおける `<URL>` への短縮抑止と「[URL](URL)」リソースリンク形式の維持を、Milkdown（`remarkStringifyOptionsCtx`）に実装するため。
+  - **Before**:
+    - `Editor.tsx` の `remarkStringifyOptionsCtx` では、箇条書き記号 `bullet: "-"` と水平線 `rule: "-"` のみが設定されており、`bulletOther` が `"*"` のままであったため、連続する2つの箇条書きリストブロックが存在する場合に後続のリストマーカーが `*` に自動交代していた。
+    - 番号付きリスト（ordered list）のデリミタ `bulletOrdered` や連番インクリメント設定 `incrementListMarker` が明示されていなかった。
+    - `resourceLink` が未指定（デフォルト `false`）であったため、リンクのURLとテキストが同一の場合に `<URL>` 形式へ自動短縮変換されていた。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `Editor.make().config((ctx) => { ... })` 内の `ctx.update(remarkStringifyOptionsCtx, ...)` を更新。
+      - `bulletOrdered: "." as const` および `incrementListMarker: true` を明示設定し、番号付きリストの「数字.」連番形式を維持。
+      - `resourceLink: true` を設定し、URL同一リンクの `[URL](URL)` リソースリンク形式を維持。
+      - `handlers` にカスタム `list` ハンドラーを実装・設定。連続箇条書きリストブロックが存在する場合でも、`mdast-util-to-markdown` のデフォルトのマーカー交代（`bulletOther` へのフォールバック）を抑止し、すべての箇条書き項目で一貫して `-` 記号を維持するよう制御。
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `AICHANGELOG.md`。既存のMarkdown編集・保存機能への悪影響なし。
+
 - 2026-10-02: タスク42「仕様策定: 要修正3項目（①番号付きリストの常に「数字.」維持、②連続箇条書きの「-」維持、③URL同一リンクの「[URL](URL)」維持）のシリアライズ仕様を for_agent/architecture.md に追記・改訂する」を完了。
   - **変更理由**: Markdown保存・出力時における記法の一般化およびフォーマット崩れ・不具合を防止するため、要修正3項目（番号付きリストのインクリメント連番「数字.」維持、連続箇条書きリスト間のマーカー交代防止と「-」維持、URL同一リンクのリソースリンク形式「[URL](URL)」維持）の技術仕様を `for_agent/architecture.md` に明文化・策定し、後続の実装（タスク43）およびテスト整備（タスク44）の基準を確立するため。
   - **Before**:
