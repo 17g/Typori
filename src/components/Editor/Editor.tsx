@@ -194,6 +194,15 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       position: null,
     });
 
+    // スクロール量に応じたパレット自動非表示（オートハイド）の状態管理
+    const SCROLL_TOP_THRESHOLD = 20;
+    const [isScrolled, setIsScrolled] = useState(false);
+
+    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+      const scrollTop = e.currentTarget.scrollTop;
+      setIsScrolled(scrollTop > SCROLL_TOP_THRESHOLD);
+    }, []);
+
     // DOM内のローカル画像パスを読み込みBlob URLとして解決・表示する
     const resolveImagesInDOM = useCallback(async () => {
       if (!containerRef.current) return;
@@ -851,6 +860,13 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       }
     }, [content, loading, getEditor]);
 
+    // ファイル切り替え時にスクロール状態をリセット・同期
+    useEffect(() => {
+      if (containerRef.current) {
+        setIsScrolled(containerRef.current.scrollTop > SCROLL_TOP_THRESHOLD);
+      }
+    }, [filePath]);
+
     return (
       <div className="typori-editor-root relative w-full h-full flex-1 flex flex-col overflow-hidden">
         {/* スクロールに影響されない固定/独立配置のクイックアクションツールバー */}
@@ -863,6 +879,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           isFocusMode={isFocusMode}
           onToggleFocusMode={onToggleFocusMode}
           isRightSidebarOpen={isRightSidebarOpen}
+          isScrolled={isScrolled}
+          visible={!isScrolled}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));
@@ -883,6 +901,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           } ${
             isDraggingOver ? "bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 inset-ring" : ""
           }`}
+          onScroll={handleScroll}
           onClick={handleContainerClick}
           onKeyDown={handleKeyDown}
           onDragEnter={handleDragEnter}

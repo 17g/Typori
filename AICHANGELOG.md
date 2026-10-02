@@ -1,3 +1,25 @@
+- 2026-10-02: タスク39「UI/UX: スクロール量に応じたパレットの自動非表示（オートハイド）および最上部での再表示ロジックの実装」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）に策定された「スクロール時オートハイド＆最上部再表示」仕様に基づき、本文スクロール時にはパレットを自動的にフェードアウト（非表示化: `opacity-0 pointer-events-none`）して執筆・閲覧空間の視覚的ノイズを極小化し、最上部へスクロールバックした際には即座に通常表示（`opacity-60 hover:opacity-100 pointer-events-auto`）へ復帰するロジックを実装するため。
+  - **Before**:
+    - `EditorToolbar` はスクロールコンテナ外部に独立配置されていたものの、スクロール量に応じた表示/非表示（オートハイド）制御ロジックがなく、スクロール中も右上に表示されたままであった。
+    - `EditorToolbarProps` に `visible` や `isScrolled` プロパティがなく、`Editor.tsx` 側にもスクロール監視ハンドラーおよびオートハイド状態管理が存在しなかった。
+  - **After**:
+    - `src/components/Editor/EditorToolbar.tsx`:
+      - `EditorToolbarProps` に `visible?: boolean;`, `isScrolled?: boolean;`, `onMouseEnter?: () => void;`, `onMouseLeave?: () => void;` を追加。
+      - `isVisible` 算出ロジック（`visible !== undefined ? visible : !isScrolled`）を導入。
+      - 最上部表示時（`opacity-60 hover:opacity-100 pointer-events-auto translate-y-0`）とオートハイド非表示時（`opacity-0 pointer-events-none -translate-y-1`）の切り替えスタイルおよび 200ms イージングトランジション（`transition-all duration-200 ease-out`）を適用。
+      - テスト・デバッグ用の `data-visible` および `data-scrolled` 属性を付与。
+    - `src/components/Editor/Editor.tsx`:
+      - スクロール閾値定数 `SCROLL_TOP_THRESHOLD = 20;` および `isScrolled` 状態管理（`useState`）を追加。
+      - スクロールイベントハンドラー `handleScroll`（`scrollTop > SCROLL_TOP_THRESHOLD` 判定）を実装し、スクロールコンテナ `typori-editor-wrapper` の `onScroll` に設定。
+      - ファイル切り替え時（`filePath` 変更時）にコンテナのスクロール状態を自動同期・リセットする `useEffect` を追加。
+      - `EditorToolbar` に `isScrolled={isScrolled}` および `visible={!isScrolled}` を渡すよう連携。
+    - `scripts/verify-palette-scroll.mjs` & `scripts/verify-all.mjs`:
+      - パレットのスクロールオートハイド、最上部再表示、状態管理、イベント連携を網羅する個別テストスクリプトを新規作成し、総合結合テストスイートに登録。全19テスト合格（Exit Code 0）。
+    - `for_agent/architecture.md`:
+      - 改訂履歴を同期更新。
+  - **影響範囲**: `EditorToolbar.tsx`, `Editor.tsx`, `scripts/verify-palette-scroll.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`。既存機能への悪影響なし。
+
 - 2026-10-01: タスク37「仕様策定: クイックアクションパレット（フォーカスモード/ソース編集ボタン等）のスクロール挙動・ホバー再表示仕様の整理と仕様書追記」を完了。
   - **変更理由**: エディタ本文を下にスクロールした際に、フォーカスモード切替やソース直接編集モード切替等のボタンが配置されたクイックアクションパレット（`EditorToolbar`）が画面外へ流れて消失してしまう課題に対し、「常時固定表示」と「マウスホバー再表示」の両案を整理・比較し、Typoriの設計理念（思考を邪魔しないミニマルデザイン）と操作アクセシビリティを両立する正式仕様を策定・仕様書に反映するため。
   - **Before**: 仕様書（`for_agent/architecture.md`）にクイックアクションパレットのスクロール追従やホバー再表示に関する要件・振る舞い・DOM配置設計の規定が存在せず、スクロールコンテナ内に固定されたままであった。

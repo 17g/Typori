@@ -11,7 +11,11 @@ export interface EditorToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   isRightSidebarOpen?: boolean;
+  visible?: boolean;
+  isScrolled?: boolean;
   className?: string;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -25,16 +29,32 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onUndo,
   onRedo,
   isRightSidebarOpen = false,
+  visible,
+  isScrolled = false,
   className = "",
+  onMouseEnter,
+  onMouseLeave,
 }) => {
   // 右サイドバー（アウトライン）展開時のオフセット自動調整
   const rightOffsetClass = isRightSidebarOpen ? "right-5" : "right-6";
+
+  // スクロール量に応じた可視状態の判定（明示的な visible が無ければ !isScrolled）
+  const isVisible = visible !== undefined ? visible : !isScrolled;
+
+  // 表示・非表示スタイル（最上部では通常表示、スクロール時は自動非表示）
+  const visibilityClass = isVisible
+    ? "opacity-60 hover:opacity-100 pointer-events-auto translate-y-0"
+    : "opacity-0 pointer-events-none -translate-y-1";
 
   return (
     <div
       data-testid="editor-toolbar"
       data-right-sidebar-open={isRightSidebarOpen}
-      className={`typori-quick-toolbar absolute top-3 ${rightOffsetClass} z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm opacity-60 hover:opacity-100 transition-all duration-200 ${className}`}
+      data-visible={isVisible}
+      data-scrolled={isScrolled}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={`typori-quick-toolbar absolute top-3 ${rightOffsetClass} z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm transition-all duration-200 ease-out ${visibilityClass} ${className}`}
     >
       {onToggleFocusMode && (
         <button
