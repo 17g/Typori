@@ -1,3 +1,25 @@
+- 2026-10-02: タスク44「検証スイート整備: 要修正3項目（番号付きリスト「数字.」、連続箇条書き「-」、URL同一リンク「[URL](URL)」）のシリアライズを網羅検証する自動テストスクリプト（scripts/verify-markdown-general-serialization.mjs）を作成し、scripts/verify-all.mjs に統合して全パスを確認する」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）およびタスク43で実装した Markdown シリアライズ一般化仕様（①番号付きリストの常に「数字.」連番形式維持、②連続箇条書きブロック間のハイフン「-」維持とマーカー交代防止、③URL同一リンクの `<URL>` 自動短縮抑止と「[URL](URL)」リソースリンク維持、および水平線の「---」統一）が客観的かつ永続的に保証されるよう、網羅的な自動テストスクリプトを作成し、プロジェクト全体の総合結合テストスイートに統合するため。
+  - **Before**:
+    - 要修正3項目（番号付きリスト連番ピリオド形式、連続箇条書きマーカー交代抑止、URL同一リンクのリソースリンク形式）のシリアライズ動作を検証する自動テストが存在しなかった。
+    - 総合結合テストスイート（`scripts/verify-all.mjs`）の個別テストスクリプト数は21件であった。
+  - **After**:
+    - `scripts/verify-markdown-general-serialization.mjs`:
+      - `Editor.tsx` の静的設定（`bulletOrdered: "."`, `incrementListMarker: true`, `resourceLink: true`, カスタム `list` ハンドラー, `bullet: "-"`, `rule: "-"` 等）の網羅的解析・検証処理を実装。
+      - `unified` + `remark-parse` + `remark-stringify` を用いたシリアライズ動作検証を実装。
+        - 検証①: 番号付きリストの連番インクリメント「数字.」維持検証（カッコ形式等の正規化含む）。
+        - 検証②: 連続箇条書きブロック間のハイフン「-」維持検証、およびカスタムハンドラーなしの場合（デフォルトでは連続リストで `*` に自動交代する）との対比検証。
+        - 検証③: URL同一リンクの `[URL](URL)` リソースリンク形式維持検証、および `resourceLink: false` の場合（デフォルトでは `<URL>` に自動短縮される）との対比検証。
+        - 検証④: 水平線の `---` 統一シリアライズ検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に `verify-markdown-general-serialization.mjs` を追加し、全22件の個別テストスイートとして統合。
+    - 検証結果:
+      - `pnpm test`: 全22/22件の個別テスト、IPC 14コマンド登録整合性、ネイティブメニュー 16イベント整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+      - `cargo check`: Rustバックエンドが Exit Code 0 でパス。
+  - **影響範囲**: `scripts/verify-markdown-general-serialization.mjs`, `scripts/verify-all.mjs`, `AICHANGELOG.md`, `Plan.md`。アプリケーションの既存コードベースへの悪影響なし。
+
 - 2026-10-02: タスク43「エディタ実装: Editor.tsx の remarkStringifyOptionsCtx にカスタム list ハンドラーおよび resourceLink: true を設定し、上記3項目の一般的記法への統一・保存処理を実装する」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）に策定された Markdown シリアライズフォーマットの一般化と記法統一仕様に基づき、番号付きリストのピリオド区切り連番「数字.」の維持、連続箇条書きブロック間でのマーカー交代（`*` 等へのフォールバック）を抑止したハイフン「-」の維持、およびURL同一リンクにおける `<URL>` への短縮抑止と「[URL](URL)」リソースリンク形式の維持を、Milkdown（`remarkStringifyOptionsCtx`）に実装するため。
   - **Before**:

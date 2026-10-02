@@ -35,6 +35,7 @@ const testScripts = [
   { name: "クイックアクションパレット スクロール時オートハイド & 最上部再表示", file: "verify-palette-scroll.mjs" },
   { name: "クイックアクションパレット マウスホバー再表示 (Hover Reveal) & トランジション", file: "verify-palette-hover.mjs" },
   { name: "Markdown シリアライズフォーマット統一 (- / ---)", file: "verify-markdown-serialization.mjs" },
+  { name: "Markdown 一般化シリアライズ検証 (番号付き/連続箇条書き/同一URLリンク)", file: "verify-markdown-general-serialization.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

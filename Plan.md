@@ -77,4 +77,4 @@
 ## Phase 15: Markdownシリアライズの一般化と番号付きリスト等の不具合修正
 - [x] 42. 仕様策定: 要修正3項目（①番号付きリストの常に「数字.」維持、②連続箇条書きの「-」維持、③URL同一リンクの「[URL](URL)」維持）のシリアライズ仕様を `for_agent/architecture.md` に追記・改訂する
 - [x] 43. エディタ実装: `Editor.tsx` の `remarkStringifyOptionsCtx` にカスタム `list` ハンドラーおよび `resourceLink: true` を設定し、上記3項目の一般的記法への統一・保存処理を実装する
-- [ ] 44. 検証スイート整備: 要修正3項目（番号付きリスト「数字.」、連続箇条書き「-」、URL同一リンク「[URL](URL)」）のシリアライズを網羅検証する自動テストスクリプト（`scripts/verify-markdown-general-serialization.mjs`）を作成し、`scripts/verify-all.mjs` に統合して全パスを確認する
+- [x] 44. 検証スイート整備: 要修正3項目（番号付きリスト「数字.」、連続箇条書き「-」、URL同一リンク「[URL](URL)」）のシリアライズを網羅検証する自動テストスクリプト（`scripts/verify-markdown-general-serialization.mjs`）を作成し、`scripts/verify-all.mjs` に統合して全パスを確認する
