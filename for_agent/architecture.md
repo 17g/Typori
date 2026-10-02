@@ -117,6 +117,13 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
   - **TabBar未保存判定統一**: `TabBar.tsx` における未保存判定を生の `!==` から `isContentDirty` に統一し、改行コードの相違による誤爆を根絶。
   - **エディタコンポーネントのキー分離**: `TyporiEditor`（`key={selectedPath}`）に加え、ソース直接編集モード `SourceEditor` にも `key={selectedPath ?? "__source__"}` を付与し、ファイル・タブ切り替え時にエディタ内部状態（CodeMirrorの履歴やカーソル位置等）が混交しないよう完全独立化。
 
+- ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替競合解消仕様:
+  - **根本原因の完全解明**: CodeMirror 6 の `basicSetup` に含まれる `defaultKeymap` は `Mod-/`（Ctrl+/ / Cmd+/）に対して行コメントコマンド `toggleComment` をバインドしており、Markdown モード下では `<!-- -->` を挿入する挙動を持つ。また、React コンポーネント内の通常のキーマップ拡張は `defaultKeymap` より後に評価されるため、`toggleComment` が優先実行されて本文が汚染され、さらに `window` へのバブリングにより親コンポーネント（`App.tsx`）でもモード切替が二重検知される競合が発生していた。
+  - **二重最高優先度インターセプト（Prec.highest）**:
+    1. **DOMレベル（EditorView.domEventHandlers）**: `Prec.highest` で登録された DOM `keydown` リスナーにより、CodeMirror 内部のキーマップ処理より先に `(Ctrl/Cmd) + /`（スラッシュキー、テンキー除算記号 `NumpadDivide`、JISキー等を含む）を捕捉。`event.preventDefault()` および `event.stopPropagation()` を即時実行して親ウィンドウへのバブリングと CodeMirror のデフォルトコメント処理を完全に遮断し、最新のモード切替ハンドラを直接呼び出す。
+    2. **CodeMirror キーマップレベル（keymap.of）**: 念のため `keymapExtension` にも `Prec.highest` を適用し、`Mod-/` ハンドラ（`preventDefault: true`, `stopPropagation: true`）を `defaultKeymap` より先に評価・消費（handled: true）させ、`toggleComment` の発火可能性を根本的に根絶。
+  - **最新コールバック参照の同期（Callback Refs）**: `onSaveRef`, `onToggleSourceModeRef`, `onExitSourceModeRef`, `onToggleFocusModeRef` を常に最新のプロップ値で同期し、`onToggleSourceMode` と `onExitSourceMode` のいずれが渡された場合でもシームレスに WYSIWYG モードへの復旧・切替を保証。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -156,6 +163,8 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: OS連携/ウィンドウ管理: ウィンドウクローズ（CloseRequested）時の未保存警告フックと権限設定（src-tauri/capabilities/default.json の core:window / core:event 権限追加、App.tsx での appWindow.onCloseRequested 購読・未保存検出・確認ダイアログ・destroy 実行、verify-window-close-requested.mjs 整備）を追記
 - 2026-10-02: エディタ/ファイル管理: 改行コード正規化とファイルロード時の未保存誤爆防止の実装（LF統一 / ベースライン同期、src/utils/text.ts の normalizeLineEndings / isContentDirty 導入、App.tsx / Editor.tsx / fs.ts 連携、verify-line-endings-normalization.mjs 整備）を追記
 - 2026-10-02: UI/状態管理: タブ切り替え・新規ファイルオープン時のRef参照即時同期と未保存状態の独立性担保の実装（App.tsx での tabsRef/activeTabIdRef/selectedPathRef/fileContentRef/savedContentRef 即時更新、TabBar.tsx の isContentDirty 統一、SourceEditor の key 分離、verify-tabs-ref-sync.mjs 整備）を追記
+- 2026-10-02: エディタ/ショートカット: ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替競合解消の実装（SourceEditor.tsx での Prec.highest 適用、domEventHandlers による先行捕捉・preventDefault / stopPropagation 実行、コールバック Ref 同期）を追記
+
 
 
 

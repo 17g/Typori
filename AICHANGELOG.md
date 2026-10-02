@@ -1,3 +1,23 @@
+- 2026-10-02: タスク48「エディタ/ショートカット: ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替の競合解消（SourceEditor.tsx）」を完了。
+  - **変更理由**: ソースコード直接編集モード（CodeMirror 6）で `Ctrl + /` を押した際、CodeMirror の `basicSetup` に含まれる `defaultKeymap` の `toggleComment` コマンドが先に発火し、カーソル行や選択範囲に HTML コメント記号 `<!-- -->` が意図せず挿入されてドキュメントが汚染される不具合を解消するため。また、イベントが親ウィンドウ（`App.tsx`）へバブリングしてモード切替処理が競合・二重実行されるリスクを防止し、`SourceEditor` から安全かつクリーンに WYSIWYG モードへ復帰できるようにするため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx` の `saveExtension` は `keymap.of` を標準の優先順位（`Prec.default`）で定義しており、`basicSetup` で組み込まれる `defaultKeymap`（`Mod-/` -> `toggleComment`）の後に評価されていたため、`Mod-/` 押下時に `toggleComment` が優先実行されて `<!-- -->` が本文に挿入されていた。
+    - `onToggleSourceMode` が `saveExtension` の `useMemo` 依存配列から欠落しており、最新の関数参照がキーマップ内に反映されない可能性があった。また、`onExitSourceMode` のみの指定時にフォールバックしなかった。
+    - キーイベントの伝播制御（`preventDefault` / `stopPropagation`）が不十分で、親コンポーネント（`App.tsx`）のグローバル `keydown` リスナーとの間で二重処理の競合が生じていた。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `@uiw/react-codemirror` から `Prec` をインポート。
+      - コールバック参照用の Ref（`onSaveRef`, `onToggleSourceModeRef`, `onExitSourceModeRef`, `onToggleFocusModeRef`）を導入し、エディタ拡張の再構築を行わずに常に最新のハンドラを実行できるように改善。`handleToggleOrExit` により `onToggleSourceMode` と `onExitSourceMode` の双方を確実にサポート。
+      - DOMレベルイベントハンドラ `domEventExtension` を `Prec.highest(EditorView.domEventHandlers(...))` として新設。US配列のスラッシュ、JIS配列のスラッシュ、テンキー除算記号（`NumpadDivide`）を含む `(Ctrl/Cmd) + /` を最優先で捕捉し、`event.preventDefault()` および `event.stopPropagation()` を実行して CodeMirror 内部のコメント処理および親ウィンドウへのバブリングを完全遮断。
+      - キーマップ拡張 `keymapExtension` にも `Prec.highest` を適用し、`Mod-s`, `Mod-/`, `F8` を `preventDefault: true`, `stopPropagation: true` で登録。CodeMirror の `defaultKeymap` よりも先に評価・消費（handled: true）させ、`toggleComment` の発火可能性を根絶。
+      - `extensions` 配列に `domEventExtension` と `keymapExtension` を組み込み。
+    - 検証結果:
+      - `pnpm test`: 全25/25件の個別機能テスト、IPCコマンド登録整合性、OSネイティブメニューイベント整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+      - `cargo check`: Exit Code 0 でパス。
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-02: タスク47「UI/状態管理: タブ切り替え・新規ファイルオープン時のRef参照即時同期と未保存状態の独立性担保の実装」を完了。
   - **変更理由**: React のステート更新は非同期・再レンダリング待ちとなるため、タブ切り替え直後やファイルオープン直後にショートカット（保存、クローズ、タブ切り替え、ウィンドウ終了）が実行された際、stale closure や未更新の Ref 参照によるレースコンディションや他タブの未保存状態が波及・誤反映されるリスクを排除するため。また、タブごとに未保存状態（Dirty state）を完全に独立して算出し、TabBar の未保存インジケータ（●）を `isContentDirty` に統一して改行コード差分による誤爆を完全に防止するため。
   - **Before**:

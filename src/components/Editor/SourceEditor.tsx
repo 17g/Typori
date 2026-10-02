@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useRef } from "react";
-import CodeMirror, { ReactCodeMirrorRef, EditorView, keymap, oneDark } from "@uiw/react-codemirror";
+import CodeMirror, { ReactCodeMirrorRef, EditorView, keymap, oneDark, Prec } from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 
 export interface SourceEditorProps {
@@ -28,41 +28,87 @@ export function SourceEditor({
 }: SourceEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
-  // Ctrl+S / Cmd+S による保存キーマップ
-  const saveExtension = useMemo(() => {
-    return keymap.of([
-      {
-        key: "Mod-s",
-        run: () => {
-          if (onSave) {
-            onSave();
+  // コールバックの最新参照を保持（CodeMirror拡張を不要に再構築せず常に最新のハンドラを実行）
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  const onToggleSourceModeRef = useRef(onToggleSourceMode);
+  onToggleSourceModeRef.current = onToggleSourceMode;
+  const onExitSourceModeRef = useRef(onExitSourceMode);
+  onExitSourceModeRef.current = onExitSourceMode;
+  const onToggleFocusModeRef = useRef(onToggleFocusMode);
+  onToggleFocusModeRef.current = onToggleFocusMode;
+
+  const handleToggleOrExit = useCallback(() => {
+    const toggle = onToggleSourceModeRef.current || onExitSourceModeRef.current;
+    if (toggle) {
+      toggle();
+      return true;
+    }
+    return false;
+  }, []);
+
+  // DOMレベルでのショートカット制御
+  // CodeMirrorデフォルトのコメントトグル (Mod-/ -> toggleComment '<!-- -->') やウィンドウへの不要な伝播を確実に抑止
+  const domEventExtension = useMemo(() => {
+    return Prec.highest(
+      EditorView.domEventHandlers({
+        keydown(event, _view) {
+          const isSlashKey =
+            event.key === "/" ||
+            (event.code === "Slash" && !event.shiftKey) ||
+            event.code === "NumpadDivide";
+          if ((event.ctrlKey || event.metaKey) && isSlashKey && !event.altKey) {
+            event.preventDefault();
+            event.stopPropagation();
+            handleToggleOrExit();
             return true;
           }
           return false;
         },
-      },
-      {
-        key: "Mod-/",
-        run: () => {
-          if (onToggleSourceMode) {
-            onToggleSourceMode();
-            return true;
-          }
-          return false;
+      })
+    );
+  }, [handleToggleOrExit]);
+
+  // Ctrl+S / Cmd+S による保存、Ctrl+/ によるモード切替、F8 によるフォーカス切替
+  // CodeMirror の defaultKeymap (Mod-/ -> toggleComment '<!-- -->') よりも確実に優先するため Prec.highest を適用
+  const keymapExtension = useMemo(() => {
+    return Prec.highest(
+      keymap.of([
+        {
+          key: "Mod-s",
+          run: () => {
+            if (onSaveRef.current) {
+              onSaveRef.current();
+              return true;
+            }
+            return false;
+          },
+          preventDefault: true,
+          stopPropagation: true,
         },
-      },
-      {
-        key: "F8",
-        run: () => {
-          if (onToggleFocusMode) {
-            onToggleFocusMode();
-            return true;
-          }
-          return false;
+        {
+          key: "Mod-/",
+          run: () => {
+            return handleToggleOrExit();
+          },
+          preventDefault: true,
+          stopPropagation: true,
         },
-      },
-    ]);
-  }, [onSave, onToggleFocusMode]);
+        {
+          key: "F8",
+          run: () => {
+            if (onToggleFocusModeRef.current) {
+              onToggleFocusModeRef.current();
+              return true;
+            }
+            return false;
+          },
+          preventDefault: true,
+          stopPropagation: true,
+        },
+      ])
+    );
+  }, [handleToggleOrExit]);
 
   // Typori向けのエディタカスタムスタイル
   const customTheme = useMemo(() => {
@@ -117,10 +163,11 @@ export function SourceEditor({
     return [
       markdown(),
       EditorView.lineWrapping,
-      saveExtension,
+      domEventExtension,
+      keymapExtension,
       customTheme,
     ];
-  }, [saveExtension, customTheme]);
+  }, [domEventExtension, keymapExtension, customTheme]);
 
   const handleChange = useCallback(
     (value: string) => {
