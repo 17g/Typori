@@ -611,3 +611,16 @@
       - パレットのDOM独立配置、propsリレー、右サイドバー連動オフセット調整を検証する自動テストスクリプトを新規作成し、`scripts/verify-all.mjs` に統合。
   - **影響範囲**: エディタツールバーのDOM配置、オフセット調整、エディタラッパー構造。既存のWYSIWYG/ソースコード編集、画像挿入、テーブル編集、アウトライン表示に悪影響なし。
 
+- 2026-10-02: リリースビルドの準備とリリースドキュメント・設定の整備を完了。
+  - **変更理由**: 本番リリース（NSISインストーラ、MSIインストーラ、ポータブル実行ファイル）に向けた設定の最適化、ドキュメントの最新化、および事前品質検証（Pre-flight Checks）を実施するため。
+  - **Before**:
+    - `README.md`: 初期テンプレート（Tauri + React + TypeScript テンプレート）のままとなっており、Typoriの機能、ショートカットキー、開発・テスト・リリースビルド手順が記載されていなかった。
+    - `src-tauri/tauri.conf.json`: `bundle.windows` のNSISインストーラ設定（言語やインストールモード等）が明示されていなかった。
+    - リリース作業手順や配布前チェックリストをまとめたドキュメント（`docs/RELEASE.md`）が存在しなかった。
+  - **After**:
+    - `src-tauri/tauri.conf.json`: Windows NSIS設定 (`installMode: "both"`, `languages: ["Japanese", "English"]`) を追記し、インストーラの柔軟性と多言語対応を整備。
+    - `README.md`: プロダクト紹介、主な特徴、デフォルトショートカットキー一覧、技術スタック、開発セットアップ、品質検証コマンド、リリースビルド・成果物出力先を網羅した包括的ドキュメントへ全面刷新。
+    - `docs/RELEASE.md`: リリースビルド手順書を新設。事前検証（`cargo test`, `cargo clippy`, `cargo check --release`, `pnpm run build`, `pnpm test`）、バージョン管理ファイル（3箇所）、ビルド実行コマンド、成果物パス一覧、配布前動作確認チェックリストを明文化。
+    - リリースプロファイル検証: `cargo check --release`、`cargo clippy -- -D warnings`、`cargo test`、`pnpm run build`、総合結合テストスイート（`verify-all.mjs` 22件全パス）を実行し、リリースビルド準備が完全であることを確認。
+  - **影響範囲**: プロジェクトドキュメント、リリース設定、ビルド手順書。既存のアプリケーション機能やエディタ動作に悪影響なし。
+
