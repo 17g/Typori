@@ -474,3 +474,26 @@
     3. サイドバーにおいて、フォルダのシングルクリックで開閉（既存機能）、ダブルクリックでそのフォルダをルートとして表示（onDoubleClickDirectory）するよう修正。また新規ファイル作成時に入力フォーム直下に「保存先: {パス}」を表示するように修正。
     4. CheatSheetModal/data.ts を修正し、表作成はWYSIWYGモードではショートカット（Ctrl+Alt+T）またはツールバーから行うよう注記を追記。
   - **影響範囲**: エディタの挙動、サイドバーのUX、チートシートの文言。既存の機能への悪影響なし。
+
+- 2026-10-02: タスク38「UI/UX: クイックアクションパレットのDOM配置をエディタスクロールから独立させ、右サイドバー展開時の自動オフセット調整を実装する」を完了。
+  - **変更理由**: クイックアクションパレット（EditorToolbar）がエディタ本文のスクロールコンテナ（`typori-editor-wrapper`）の直接の子要素として配置されていたため、本文スクロール時にツールバーが画面外へ流れて消えてしまう問題を解消し、エディタ最上位親要素基準の独立フロート配置と右サイドバー展開時のオフセット自動調整を実現するため。
+  - **Before**:
+    - `Editor.tsx`: `EditorToolbar` が `overflow-y-auto` を持つ `typori-editor-wrapper` の内部に配置されており、本文を下にスクロールするとパレットがスクロールアウトして消えていた。
+    - `EditorToolbar.tsx`: 右サイドバー（アウトライン）の開閉状態（`isRightSidebarOpen`）を受け取る仕組みがなく、常に固定の `right-6` が指定されていた。
+    - `App.tsx`: `TyporiEditor` に `isRightSidebarOpen` が渡されていなかった。
+  - **After**:
+    - `src/components/Editor/EditorToolbar.tsx`:
+      - `EditorToolbarProps` に `isRightSidebarOpen?: boolean;` および `className?: string;` を追加。
+      - `isRightSidebarOpen` に応じたオフセット自動調整（`rightOffsetClass`: `right-5` vs `right-6`）を実装。
+      - `data-testid="editor-toolbar"` および `data-right-sidebar-open` 属性、スムーズなトランジション（`transition-all duration-200`）を付与。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorProps` および `MilkdownEditorContent` に `isRightSidebarOpen` を追加。
+      - コンポーネント最上位に `div.typori-editor-root`（`relative w-full h-full flex-1 flex flex-col overflow-hidden`）を配置。
+      - `EditorToolbar` をスクロールコンテナ `typori-editor-wrapper` の外部（親直下）に移動・独立配置し、スクロールに影響されないフロート固定を実現。
+      - `EditorToolbar` に `isRightSidebarOpen` をリレー伝播。
+    - `src/App.tsx`:
+      - `TyporiEditor` に `isRightSidebarOpen={isRightSidebarOpen}` を渡すよう更新。
+    - `scripts/verify-palette-dom.mjs` & `scripts/verify-all.mjs`:
+      - パレットのDOM独立配置、propsリレー、右サイドバー連動オフセット調整を検証する自動テストスクリプトを新規作成し、`scripts/verify-all.mjs` に統合。
+  - **影響範囲**: エディタツールバーのDOM配置、オフセット調整、エディタラッパー構造。既存のWYSIWYG/ソースコード編集、画像挿入、テーブル編集、アウトライン表示に悪影響なし。
+

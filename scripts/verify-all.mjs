@@ -31,6 +31,7 @@ const testScripts = [
   { name: "Markdown -> HTML エクスポート機能", file: "verify-export-html.mjs" },
   { name: "Markdown -> PDF (印刷連携) エクスポート機能", file: "verify-export-pdf.mjs" },
   { name: "アウトライン (右サイドバー & 見出しジャンプ) 機能", file: "verify-outline.mjs" },
+  { name: "クイックアクションパレット DOM配置独立化 & 右サイドバー連動オフセット", file: "verify-palette-dom.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

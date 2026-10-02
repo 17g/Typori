@@ -10,6 +10,8 @@ export interface EditorToolbarProps {
   onToggleFocusMode?: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  isRightSidebarOpen?: boolean;
+  className?: string;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -22,9 +24,18 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleFocusMode,
   onUndo,
   onRedo,
+  isRightSidebarOpen = false,
+  className = "",
 }) => {
+  // 右サイドバー（アウトライン）展開時のオフセット自動調整
+  const rightOffsetClass = isRightSidebarOpen ? "right-5" : "right-6";
+
   return (
-    <div className="typori-quick-toolbar absolute top-3 right-6 z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
+    <div
+      data-testid="editor-toolbar"
+      data-right-sidebar-open={isRightSidebarOpen}
+      className={`typori-quick-toolbar absolute top-3 ${rightOffsetClass} z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm opacity-60 hover:opacity-100 transition-all duration-200 ${className}`}
+    >
       {onToggleFocusMode && (
         <button
           type="button"

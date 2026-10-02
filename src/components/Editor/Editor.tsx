@@ -89,6 +89,7 @@ export interface EditorProps {
   onToggleSourceMode?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  isRightSidebarOpen?: boolean;
 }
 
 export const defaultContent = `# ようこそ Typori へ
@@ -160,6 +161,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       onToggleSourceMode,
       isFocusMode = false,
       onToggleFocusMode,
+      isRightSidebarOpen = false,
     },
     ref
   ) => {
@@ -850,59 +852,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     }, [content, loading, getEditor]);
 
     return (
-      <div
-        ref={containerRef}
-        className={`typori-editor-wrapper relative w-full h-full flex-1 overflow-y-auto px-8 py-6 transition-colors ${
-          isFocusMode ? "focus-mode" : ""
-        } ${
-          isDraggingOver ? "bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 inset-ring" : ""
-        }`}
-        onClick={handleContainerClick}
-        onKeyDown={handleKeyDown}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={async (e) => {
-            const files = Array.from(e.target.files || []);
-            for (const file of files) {
-              try {
-                const buffer = await file.arrayBuffer();
-                const bytes = Array.from(new Uint8Array(buffer));
-                const saved = await saveImageBinary(file.name, bytes, filePath, workspaceDir);
-                insertImage(saved.relative_path, saved.file_name);
-              } catch (err) {
-                console.error("Failed to insert image:", err);
-                alert(`画像の挿入に失敗しました: ${err}`);
-              }
-            }
-            e.target.value = "";
-          }}
-        />
-
-        {isDraggingOver && (
-          <div className="absolute inset-4 z-30 pointer-events-none flex flex-col items-center justify-center bg-indigo-50/80 dark:bg-zinc-900/85 border-2 border-dashed border-indigo-500 rounded-xl backdrop-blur-xs transition-all shadow-xl">
-            <div className="flex flex-col items-center gap-2.5 p-6 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400">
-              <svg className="w-10 h-10 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.8}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <span className="font-semibold text-sm">画像をドロップして挿入</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">assets フォルダに自動保存されます</span>
-            </div>
-          </div>
-        )}
-
+      <div className="typori-editor-root relative w-full h-full flex-1 flex flex-col overflow-hidden">
+        {/* スクロールに影響されない固定/独立配置のクイックアクションツールバー */}
         <EditorToolbar
           onInsertLink={openLinkModal}
           onToggleBlockquote={toggleBlockquote}
@@ -911,6 +862,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onToggleSourceMode={onToggleSourceMode}
           isFocusMode={isFocusMode}
           onToggleFocusMode={onToggleFocusMode}
+          isRightSidebarOpen={isRightSidebarOpen}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));
@@ -923,33 +875,88 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           }}
         />
 
-        <div className="typori-editor-container w-full min-h-full">
-          <Milkdown />
+        {/* スクロール可能な本文エディタコンテナ */}
+        <div
+          ref={containerRef}
+          className={`typori-editor-wrapper relative w-full h-full flex-1 overflow-y-auto px-8 py-6 transition-colors ${
+            isFocusMode ? "focus-mode" : ""
+          } ${
+            isDraggingOver ? "bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 inset-ring" : ""
+          }`}
+          onClick={handleContainerClick}
+          onKeyDown={handleKeyDown}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const files = Array.from(e.target.files || []);
+              for (const file of files) {
+                try {
+                  const buffer = await file.arrayBuffer();
+                  const bytes = Array.from(new Uint8Array(buffer));
+                  const saved = await saveImageBinary(file.name, bytes, filePath, workspaceDir);
+                  insertImage(saved.relative_path, saved.file_name);
+                } catch (err) {
+                  console.error("Failed to insert image:", err);
+                  alert(`画像の挿入に失敗しました: ${err}`);
+                }
+              }
+              e.target.value = "";
+            }}
+          />
+
+          {isDraggingOver && (
+            <div className="absolute inset-4 z-30 pointer-events-none flex flex-col items-center justify-center bg-indigo-50/80 dark:bg-zinc-900/85 border-2 border-dashed border-indigo-500 rounded-xl backdrop-blur-xs transition-all shadow-xl">
+              <div className="flex flex-col items-center gap-2.5 p-6 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400">
+                <svg className="w-10 h-10 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <span className="font-semibold text-sm">画像をドロップして挿入</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">assets フォルダに自動保存されます</span>
+              </div>
+            </div>
+          )}
+
+          <div className="typori-editor-container w-full min-h-full">
+            <Milkdown />
+          </div>
+
+          <LinkTooltip
+            isOpen={tooltipState.isOpen}
+            position={tooltipState.position}
+            initialHref={tooltipState.initialHref}
+            initialText={tooltipState.initialText}
+            isNewLink={tooltipState.isNewLink}
+            onApply={applyLink}
+            onRemove={removeLink}
+            onOpenUrl={openExternalUrl}
+            onClose={() => setTooltipState((prev) => ({ ...prev, isOpen: false }))}
+          />
+
+          <TableFloatingToolbar
+            isOpen={tableToolbarState.isOpen}
+            position={tableToolbarState.position}
+            onAddRowBefore={addRowBeforeAction}
+            onAddRowAfter={addRowAfterAction}
+            onDeleteRow={deleteRowAction}
+            onAddColBefore={addColBeforeAction}
+            onAddColAfter={addColAfterAction}
+            onDeleteCol={deleteColAction}
+            onDeleteTable={deleteTableAction}
+          />
         </div>
-
-        <LinkTooltip
-          isOpen={tooltipState.isOpen}
-          position={tooltipState.position}
-          initialHref={tooltipState.initialHref}
-          initialText={tooltipState.initialText}
-          isNewLink={tooltipState.isNewLink}
-          onApply={applyLink}
-          onRemove={removeLink}
-          onOpenUrl={openExternalUrl}
-          onClose={() => setTooltipState((prev) => ({ ...prev, isOpen: false }))}
-        />
-
-        <TableFloatingToolbar
-          isOpen={tableToolbarState.isOpen}
-          position={tableToolbarState.position}
-          onAddRowBefore={addRowBeforeAction}
-          onAddRowAfter={addRowAfterAction}
-          onDeleteRow={deleteRowAction}
-          onAddColBefore={addColBeforeAction}
-          onAddColAfter={addColAfterAction}
-          onDeleteCol={deleteColAction}
-          onDeleteTable={deleteTableAction}
-        />
       </div>
     );
   }

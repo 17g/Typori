@@ -1564,6 +1564,7 @@ function App() {
               onToggleSourceMode={handleToggleSourceMode}
               isFocusMode={isFocusMode}
               onToggleFocusMode={handleToggleFocusMode}
+              isRightSidebarOpen={isRightSidebarOpen}
             />
           )}
         </div>
