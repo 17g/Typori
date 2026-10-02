@@ -1,3 +1,18 @@
+- 2026-10-02: タスク41「エディタ: Milkdownのシリアライズ設定を修正し、保存時の箇条書き記号を `-`、水平線を `---` に統一する」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の Markdown シリアライズフォーマット統一要件に基づき、Milkdown から Markdown 保存・出力時に箇条書きリスト記号がアスタリスク（`*`）ではなくハイフン（`-`）、水平線が `***` ではなくハイフン3つ（`---`）に統一されてシリアライズされるよう、`remarkStringifyOptionsCtx` を適切に設定・反映するため。
+  - **Before**:
+    - `Editor.tsx` において `remarkStringifyOptionsCtx` が未設定であり、デフォルトの `remark-stringify` 設定（箇条書き記号 `*`、水平線 `***`）でシリアライズされていた。
+    - シリアライズフォーマットの整合性を検証する自動テストが存在しなかった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `@milkdown/kit/core` より `remarkStringifyOptionsCtx` をインポート。
+      - `Editor.make().config((ctx) => { ... })` 内で `ctx.update(remarkStringifyOptionsCtx, ...)` を呼び出し、`bullet: "-" as const`, `bulletOther: "*" as const`, `rule: "-" as const`, `ruleRepetition: 3`, `ruleSpaces: false` を設定。
+    - `scripts/verify-markdown-serialization.mjs` & `scripts/verify-all.mjs`:
+      - `Editor.tsx` の静的設定および unified + remark-stringify による Markdown 出力フォーマット（箇条書き `-`、水平線 `---`、ネスト階層対応）を網羅する個別テストスクリプトを新規作成し、総合結合テストスイートに登録。全21テスト合格（Exit Code 0）。
+    - `Plan.md`:
+      - タスク41を完了（`- [x]`）に更新。
+  - **影響範囲**: `Editor.tsx`, `scripts/verify-markdown-serialization.mjs`, `scripts/verify-all.mjs`, `Plan.md`。既存機能への悪影響なし。
+
 - 2026-10-02: タスク40「UI/UX: 画面右上のトリガー領域を通じたマウスホバーによるパレット再表示（Hover Reveal）と滑らかなトランジションの実装」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）に策定された「スクロール時オートハイド＆マウスホバー再表示（Hover Reveal）」仕様に基づき、本文スクロールによって非表示（オートハイド）となったクイックアクションパレットを、画面右上（トリガー領域）へのマウスホバーによって即座に滑らかにフェードイン再表示（`opacity-100 pointer-events-auto translate-y-0`）し、マウス離脱時には再び滑らかにフェードアウト（`opacity-0 pointer-events-none -translate-y-1`）するインタラクションを実装するため。
   - **Before**:

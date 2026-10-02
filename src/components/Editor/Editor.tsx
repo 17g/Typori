@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useEffect, useRef, useState, useCallback } from "react";
-import { defaultValueCtx, Editor, editorViewCtx, rootCtx } from "@milkdown/kit/core";
+import { defaultValueCtx, Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx } from "@milkdown/kit/core";
 import { commonmark, linkSchema, blockquoteSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
 import { gfm, columnResizingPlugin, createTable } from "@milkdown/kit/preset/gfm";
 import {
@@ -288,6 +288,14 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           .config((ctx) => {
             ctx.set(rootCtx, root);
             ctx.set(defaultValueCtx, initialValue);
+            ctx.update(remarkStringifyOptionsCtx, (prev) => ({
+              ...prev,
+              bullet: "-" as const,
+              bulletOther: "*" as const,
+              rule: "-" as const,
+              ruleRepetition: 3,
+              ruleSpaces: false,
+            }));
             ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
               prevContentRef.current = markdown;
               onChangeRef.current?.(markdown);

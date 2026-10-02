@@ -34,6 +34,7 @@ const testScripts = [
   { name: "クイックアクションパレット DOM配置独立化 & 右サイドバー連動オフセット", file: "verify-palette-dom.mjs" },
   { name: "クイックアクションパレット スクロール時オートハイド & 最上部再表示", file: "verify-palette-scroll.mjs" },
   { name: "クイックアクションパレット マウスホバー再表示 (Hover Reveal) & トランジション", file: "verify-palette-hover.mjs" },
+  { name: "Markdown シリアライズフォーマット統一 (- / ---)", file: "verify-markdown-serialization.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
