@@ -23,6 +23,7 @@ import { $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
+import { normalizeLineEndings } from "../../utils/text";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
@@ -165,11 +166,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     },
     ref
   ) => {
-    const initialValue = content ?? defaultValue ?? defaultContent;
+    const initialValue = normalizeLineEndings(content ?? defaultValue ?? defaultContent);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
 
-    const prevContentRef = useRef(content ?? initialValue);
+    const prevContentRef = useRef(initialValue);
     const containerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resolvedImageUrlsRef = useRef<Map<string, string>>(new Map());
@@ -319,8 +320,9 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
               },
             }));
             ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
-              prevContentRef.current = markdown;
-              onChangeRef.current?.(markdown);
+              const normalized = normalizeLineEndings(markdown);
+              prevContentRef.current = normalized;
+              onChangeRef.current?.(normalized);
             });
             ctx.get(listenerCtx).selectionUpdated((ctx) => {
               try {
@@ -843,7 +845,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           }
         },
         getMarkdown: () => {
-          return prevContentRef.current ?? "";
+          return normalizeLineEndings(prevContentRef.current ?? "");
         },
         toggleBlockquote,
         openLinkModal,
@@ -885,9 +887,12 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       const editor = getEditor();
       if (!editor) return;
 
-      if (content !== undefined && content !== prevContentRef.current) {
-        prevContentRef.current = content;
-        editor.action(replaceAll(content));
+      if (content !== undefined) {
+        const normalized = normalizeLineEndings(content);
+        if (normalized !== normalizeLineEndings(prevContentRef.current)) {
+          prevContentRef.current = normalized;
+          editor.action(replaceAll(normalized));
+        }
       }
     }, [content, loading, getEditor]);
 

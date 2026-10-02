@@ -1,4 +1,32 @@
-- 2026-10-02: タスク45「OS連携/ウィンドウ管理: ウィンドウクローズ（CloseRequested）時の未保存警告フックと権限設定の実装（Tauri capabilities / App.tsx）」を完了。
+- 2026-10-02: タスク46「エディタ/ファイル管理: 改行コード正規化とファイルロード時の未保存誤爆防止の実装（LF統一 / ベースライン同期）」を完了。
+  - **変更理由**: Windows 環境においてディスク上に保存されたファイルの改行コードが CRLF (`\r\n`) である場合、Milkdown や CodeMirror が内部で LF (`\n`) に正規化して保持するため、ファイルを開いた直後に文字列比較で不一致となり、未編集のファイルに未保存マーク（●）が表示されたり未保存警告が誤爆する問題を解消するため。また、ファイル読み込み・保存・エディタ内部の全データフローで改行コードを LF に統一し、未保存判定（Dirty state）のベースライン同期を担保するため。
+  - **Before**:
+    - `src/api/fs.ts` の `openFile` は Rust から返された文字列をそのまま返却しており、改行コードの正規化が行われていなかった。
+    - `src/App.tsx` では `openFile` で読み込んだ生テキストをそのまま `fileContent` / `savedContent` に格納していた。また、`isDirty` や `getUnsavedDocuments`、タブ切り替え、タブ無効化時の未保存判定において単純な文字列完全一致比較（`!==`）を行っていたため、CRLF と LF の違いだけで未保存状態と誤判定されていた。
+    - `src/components/Editor/Editor.tsx` において、`initialValue` や `getMarkdown()`、`markdownUpdated`、`useEffect` の `content` 同期処理で改行コードの正規化が徹底されていなかった。
+  - **After**:
+    - `src/utils/text.ts`:
+      - テキストユーティリティモジュールを新規作成。
+      - `normalizeLineEndings(text: string): string`: CRLF (`\r\n`) および CR (`\r`) をすべて LF (`\n`) に置換する統一正規化関数を提供。
+      - `isContentDirty(current, baseline): boolean`: 改行コードの差異（CRLF vs LF）を無視し、実質的な編集内容の変更のみを未保存として判定する高精度な Dirty 判定関数を提供。
+    - `src/api/fs.ts`:
+      - `openFile` の戻り値に `normalizeLineEndings` を適用し、ファイル読み込み時点で自動的に LF に統一。
+    - `src/components/Editor/Editor.tsx`:
+      - `initialValue`, `prevContentRef`, `markdownUpdated` リスナー、`getMarkdown()`、および `content` 変更監視 `useEffect` において `normalizeLineEndings` を適用し、エディタ内部および出力の LF 統一を徹底。
+    - `src/App.tsx`:
+      - 初期ファイル読み込み（`initWorkspace`）、ファイル選択（`handleSelectFile`）、新規ファイル作成（`handleCreateFile`）、タブ切り替え（`handleSelectTab`）、タブ有効/無効切り替え（`handleToggleTabsEnabled`）、およびファイル保存（`handleSave`）において、コンテンツと保存済みベースライン（`savedContent`, `TabItem.savedContent`）を常に `normalizeLineEndings` で同期。
+      - `isDirty` ステート計算、タブの `isDirty` 計算、およびウィンドウクローズ時の `getUnsavedDocuments` の判定ロジックに `isContentDirty` を適用し、改行コード差分による未保存誤爆を完全に防止。
+    - `scripts/verify-line-endings-normalization.mjs`:
+      - 改行コード正規化（CRLF/CR/LF/混合）、未保存判定の誤爆防止（CRLF vs LF では false、変更時は true）、`fs.ts` / `Editor.tsx` / `App.tsx` の静的統合検証を網羅するテストスクリプトを新規作成。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に `verify-line-endings-normalization.mjs` を統合し、全24件の個別テストスイートとして自動検証。
+    - 検証結果:
+      - `pnpm test`: 全24/24件の個別機能テスト、IPCコマンド登録整合性、OSネイティブメニューイベント整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+      - `cargo clippy -- -D warnings`: 警告・エラーゼロ（Exit Code 0）。
+  - **影響範囲**: `src/utils/text.ts`, `src/api/fs.ts`, `src/components/Editor/Editor.tsx`, `src/App.tsx`, `scripts/verify-line-endings-normalization.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
   - **変更理由**: ユーザーがドキュメント編集後、未保存のままウィンドウの「×」ボタンを押下してアプリを閉じた際に、変更内容が保存されず直ちに終了してしまうデータ損失リスクを防止するため。Tauri v2 の Capabilities 権限設定および `CloseRequested` イベントインターセプト機構を導入し、未保存ドキュメントが存在する場合は確認ダイアログ（`window.confirm`）を表示して安全に終了できるようにするため。
   - **Before**:
     - `src-tauri/capabilities/default.json` には `core:default` と `opener:default` のみが指定されており、ウィンドウクローズやイベント購読関連のきめ細かな permissions が明示的に定義されていなかった。

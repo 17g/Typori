@@ -18,6 +18,7 @@ import {
 import { useTheme } from "./hooks/useTheme";
 import { useTabSettings } from "./hooks/useTabSettings";
 import { useShortcutSettings } from "./hooks/useShortcutSettings";
+import { normalizeLineEndings, isContentDirty } from "./utils/text";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
 import { CheatSheetModal } from "./components/CheatSheetModal";
@@ -153,7 +154,8 @@ function App() {
             setSelectedPath(targetFilePath);
             setIsFileLoading(true);
             try {
-              const content = await openFile(targetFilePath);
+              const rawContent = await openFile(targetFilePath);
+              const content = normalizeLineEndings(rawContent);
               setFileContent(content);
               setSavedContent(content);
               const fileName =
@@ -196,7 +198,7 @@ function App() {
     selectedPath !== null &&
     fileContent !== null &&
     savedContent !== null &&
-    fileContent !== savedContent
+    isContentDirty(fileContent, savedContent)
   );
 
   // ファイル保存
@@ -207,12 +209,14 @@ function App() {
     setSaveError(null);
 
     try {
-      await saveFile(selectedPath, fileContent);
-      setSavedContent(fileContent);
+      const normalizedContent = normalizeLineEndings(fileContent);
+      await saveFile(selectedPath, normalizedContent);
+      setFileContent(normalizedContent);
+      setSavedContent(normalizedContent);
       setTabs((prev) =>
         prev.map((t) =>
           t.id === activeTabIdRef.current || t.path === selectedPath
-            ? { ...t, content: fileContent, savedContent: fileContent, isDirty: false }
+            ? { ...t, content: normalizedContent, savedContent: normalizedContent, isDirty: false }
             : t
         )
       );
@@ -343,10 +347,11 @@ function App() {
 
       const syncedTabs = currentTabs.map((t) => {
         if (t.id === currentActiveId && currentContent !== null) {
+          const normContent = normalizeLineEndings(currentContent);
           return {
             ...t,
-            content: currentContent,
-            isDirty: currentContent !== t.savedContent,
+            content: normContent,
+            isDirty: isContentDirty(normContent, t.savedContent),
           };
         }
         return t;
@@ -354,7 +359,7 @@ function App() {
 
       // アクティブ以外のタブに未保存の変更があるかチェック
       const otherDirtyTabs = syncedTabs.filter(
-        (t) => t.id !== currentActiveId && (t.isDirty ?? (t.content !== t.savedContent))
+        (t) => t.id !== currentActiveId && (t.isDirty ?? isContentDirty(t.content, t.savedContent))
       );
 
       if (otherDirtyTabs.length > 0) {
@@ -378,13 +383,15 @@ function App() {
         const curPath = selectedPathRef.current;
         const curFileName =
           curPath.split(/[/\\]/).filter(Boolean).pop() || curPath;
+        const normContent = normalizeLineEndings(currentContent);
+        const normSaved = normalizeLineEndings(savedContent ?? currentContent);
         const currentTab: TabItem = {
           id: curPath,
           path: curPath,
           title: curFileName,
-          content: currentContent,
-          savedContent: savedContent ?? currentContent,
-          isDirty: currentContent !== savedContent,
+          content: normContent,
+          savedContent: normSaved,
+          isDirty: isContentDirty(normContent, normSaved),
         };
         setTabs([currentTab]);
         setActiveTabId(currentTab.id);
@@ -397,11 +404,12 @@ function App() {
 
   // コンテンツ更新時にアクティブタブの content も同期
   const handleContentChange = useCallback((markdown: string) => {
-    setFileContent(markdown);
+    const normalized = normalizeLineEndings(markdown);
+    setFileContent(normalized);
     setTabs((prev) =>
       prev.map((t) =>
         t.id === activeTabIdRef.current
-          ? { ...t, content: markdown, isDirty: markdown !== t.savedContent }
+          ? { ...t, content: normalized, isDirty: isContentDirty(normalized, t.savedContent) }
           : t
       )
     );
@@ -428,10 +436,11 @@ function App() {
       const currentActiveId = activeTabIdRef.current;
       const updatedTabs = tabsRef.current.map((t) => {
         if (t.id === currentActiveId && currentContent !== null) {
+          const normContent = normalizeLineEndings(currentContent);
           return {
             ...t,
-            content: currentContent,
-            isDirty: currentContent !== t.savedContent,
+            content: normContent,
+            isDirty: isContentDirty(normContent, t.savedContent),
           };
         }
         return t;
@@ -440,11 +449,14 @@ function App() {
       const targetTab = updatedTabs.find((t) => t.id === tabId);
       if (!targetTab) return;
 
+      const normTargetContent = normalizeLineEndings(targetTab.content);
+      const normTargetSavedContent = normalizeLineEndings(targetTab.savedContent);
+
       setTabs(updatedTabs);
       setActiveTabId(tabId);
       setSelectedPath(targetTab.path);
-      setFileContent(targetTab.content);
-      setSavedContent(targetTab.savedContent);
+      setFileContent(normTargetContent);
+      setSavedContent(normTargetSavedContent);
       setSaveStatus(null);
       setSaveError(null);
       setFileError(null);
@@ -469,6 +481,9 @@ function App() {
           // ignore
         }
       }
+      if (currentContent !== null) {
+        currentContent = normalizeLineEndings(currentContent);
+      }
 
       const currentTabs = tabsRef.current;
       const targetTab = currentTabs.find((t) => t.id === tabId);
@@ -476,8 +491,8 @@ function App() {
 
       const targetIsDirty =
         tabId === currentActiveId && currentContent !== null
-          ? currentContent !== targetTab.savedContent
-          : (targetTab.isDirty ?? (targetTab.content !== targetTab.savedContent));
+          ? isContentDirty(currentContent, targetTab.savedContent)
+          : (targetTab.isDirty ?? isContentDirty(targetTab.content, targetTab.savedContent));
 
       if (targetIsDirty) {
         const ok = window.confirm(
@@ -738,6 +753,10 @@ function App() {
       }
     }
 
+    if (currentContent !== null) {
+      currentContent = normalizeLineEndings(currentContent);
+    }
+
     const unsavedFileNames: string[] = [];
 
     if (isTabsEnabledRef.current) {
@@ -747,11 +766,11 @@ function App() {
         const tabContent =
           tab.id === currentActiveId && currentContent !== null
             ? currentContent
-            : tab.content;
+            : normalizeLineEndings(tab.content);
         const isTabDirty =
           tab.id === currentActiveId && currentContent !== null
-            ? currentContent !== tab.savedContent
-            : (tab.isDirty ?? (tabContent !== tab.savedContent));
+            ? isContentDirty(currentContent, tab.savedContent)
+            : (tab.isDirty ?? isContentDirty(tabContent, tab.savedContent));
         if (isTabDirty) {
           unsavedFileNames.push(tab.title);
         }
@@ -761,7 +780,7 @@ function App() {
         selectedPathRef.current !== null &&
         currentContent !== null &&
         savedContentRef.current !== null &&
-        currentContent !== savedContentRef.current
+        isContentDirty(currentContent, savedContentRef.current)
       );
       if (isCurDirty) {
         const curFileName =
@@ -859,11 +878,12 @@ function App() {
         return;
       }
 
-      const isCurrentDirty =
+      const isCurrentDirty = Boolean(
         selectedPathRef.current !== null &&
         currentContent !== null &&
         savedContent !== null &&
-        currentContent !== savedContent;
+        isContentDirty(currentContent, savedContent)
+      );
 
       if (isCurrentDirty) {
         const curFileName =
@@ -881,7 +901,8 @@ function App() {
       setSaveStatus(null);
 
       try {
-        const content = await openFile(entry.path);
+        const rawContent = await openFile(entry.path);
+        const content = normalizeLineEndings(rawContent);
         const fileName =
           entry.name || entry.path.split(/[/\\]/).filter(Boolean).pop() || entry.path;
         const newTab: TabItem = {
@@ -919,10 +940,11 @@ function App() {
     const currentActiveId = activeTabIdRef.current;
     const updatedTabs = tabsRef.current.map((t) => {
       if (t.id === currentActiveId && currentContent !== null) {
+        const normContent = normalizeLineEndings(currentContent);
         return {
           ...t,
-          content: currentContent,
-          isDirty: currentContent !== t.savedContent,
+          content: normContent,
+          isDirty: isContentDirty(normContent, t.savedContent),
         };
       }
       return t;
@@ -935,7 +957,8 @@ function App() {
     setSaveStatus(null);
 
     try {
-      const content = await openFile(entry.path);
+      const rawContent = await openFile(entry.path);
+      const content = normalizeLineEndings(rawContent);
       const fileName =
         entry.name || entry.path.split(/[/\\]/).filter(Boolean).pop() || entry.path;
       const newTab: TabItem = {
@@ -1036,11 +1059,12 @@ function App() {
           // ignore
         }
       }
-      const isCurrentDirty =
+      const isCurrentDirty = Boolean(
         selectedPathRef.current !== null &&
         currentContent !== null &&
         savedContent !== null &&
-        currentContent !== savedContent;
+        isContentDirty(currentContent, savedContent)
+      );
 
       if (isCurrentDirty) {
         const curFileName =
@@ -1096,13 +1120,16 @@ function App() {
           // ignore
         }
       }
+      if (currentContent !== null) {
+        currentContent = normalizeLineEndings(currentContent);
+      }
       const currentActiveId = activeTabIdRef.current;
       const updatedTabs = tabsRef.current.map((t) => {
         if (t.id === currentActiveId && currentContent !== null) {
           return {
             ...t,
             content: currentContent,
-            isDirty: currentContent !== t.savedContent,
+            isDirty: isContentDirty(currentContent, t.savedContent),
           };
         }
         return t;

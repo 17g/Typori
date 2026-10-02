@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { FileEntry } from "../components/Sidebar/types";
+import { normalizeLineEndings } from "../utils/text";
 
 /**
  * 指定ディレクトリ直下のファイルおよびディレクトリ一覧を取得します。
@@ -25,11 +26,12 @@ export async function getParentDir(path: string): Promise<string | null> {
 }
 
 /**
- * 指定パスのファイルをUTF-8テキストとして読み込みます。
+ * 指定パスのファイルをUTF-8テキストとして読み込み、改行コードをLFに正規化して返します。
  * @param path 対象ファイルのパス
  */
 export async function openFile(path: string): Promise<string> {
-  return await invoke<string>("open_file", { path });
+  const content = await invoke<string>("open_file", { path });
+  return normalizeLineEndings(content);
 }
 
 /**

@@ -37,6 +37,7 @@ const testScripts = [
   { name: "Markdown シリアライズフォーマット統一 (- / ---)", file: "verify-markdown-serialization.mjs" },
   { name: "Markdown 一般化シリアライズ検証 (番号付き/連続箇条書き/同一URLリンク)", file: "verify-markdown-general-serialization.mjs" },
   { name: "ウィンドウクローズ (CloseRequested) 未保存警告フック & 権限設定", file: "verify-window-close-requested.mjs" },
+  { name: "改行コード正規化 & 未保存誤爆防止 (LF統一 / ベースライン同期)", file: "verify-line-endings-normalization.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

@@ -106,6 +106,11 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
   - **未保存判定（単一・タブ両対応）**: `getUnsavedDocuments` により、単一ファイルモードおよびタブ有効モード双方で未保存ファイル（`fileContentRef` / `editorRef.current.getMarkdown()` vs `savedContentRef`、および全タブの `isDirty`）を網羅的に検出。
   - **確認ダイアログ & 安全な終了**: 未保存ファイル名を含む `window.confirm` ダイアログを提示。ユーザーが終了を承認した場合は `appWindow.destroy()` を明示的に呼び出してウィンドウを破棄・終了し、キャンセルの場合はウィンドウを開いたまま作業を継続可能とする。同時にWeb標準の `beforeunload` リスナーも併用しブラウザ/リロード離脱からも保護。
 
+- 改行コード正規化と未保存判定（LF統一 / ベースライン同期）仕様:
+  - **改行コードLF統一**: Windows環境等でディスク上に保存されたファイルが CRLF (`\r\n`) 改行であっても、ファイル読み込み時（`openFile`）およびエディタへのセット時に、コンテンツの改行コードを LF (`\n`) に統一正規化（`normalizeLineEndings`）。
+  - **未保存誤爆防止（isContentDirty）**: Milkdown（ProseMirror）および CodeMirror 6 は内部で LF でテキストを保持するため、ファイル読み込み直後のベースライン（`savedContent`, `TabItem.savedContent`）も同一の正規化後テキストで同期。未保存判定（`isContentDirty`）では改行コードの違いのみ（CRLF vs LF）による不一致を検知して誤爆することを防止し、実質的な編集内容の変更のみを正確に未保存状態（●印および未保存アラート）として判定。
+  - **全データフローでの一貫同期**: 初期起動時、ファイル選択時、新規作成時、タブ切り替え時、およびファイル保存時において、コンテンツとベースライン双方で `normalizeLineEndings` および `isContentDirty` を適用し、レースコンディションや改行コード差分による状態不整合を根絶。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -143,6 +148,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コードの突き合わせ、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド、および総合結合テストスイート（21件）の全自動検証パス（Exit Code 0）を確認し、仕様整合性を確認・更新。
 - 2026-10-02: Markdownシリアライズの一般化と不具合修正に関する仕様策定（①番号付きリストの常に「数字.」維持、②連続箇条書きの「-」維持、③URL同一リンクの「[URL](URL)」リソースリンク維持）を追記
 - 2026-10-02: OS連携/ウィンドウ管理: ウィンドウクローズ（CloseRequested）時の未保存警告フックと権限設定（src-tauri/capabilities/default.json の core:window / core:event 権限追加、App.tsx での appWindow.onCloseRequested 購読・未保存検出・確認ダイアログ・destroy 実行、verify-window-close-requested.mjs 整備）を追記
+- 2026-10-02: エディタ/ファイル管理: 改行コード正規化とファイルロード時の未保存誤爆防止の実装（LF統一 / ベースライン同期、src/utils/text.ts の normalizeLineEndings / isContentDirty 導入、App.tsx / Editor.tsx / fs.ts 連携、verify-line-endings-normalization.mjs 整備）を追記
 
 
 
