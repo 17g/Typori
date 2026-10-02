@@ -99,6 +99,13 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
   4. **水平線記号の統一 (Thematic Break)**:
      - 水平線は常にスペースなしのハイフン3つ `---`（`rule: "-"`, `ruleRepetition: 3`, `ruleSpaces: false`）に統一してシリアライズする。
 
+- ウィンドウクローズ時の未保存保護とTauri Capabilities連携仕様:
+  - ユーザーが未保存の変更を保持した状態でウィンドウの「×」ボタンを押下した際、アプリが即座に強制終了してデータが失われるのを防ぐため、OS連携および未保存保護フックを実装。
+  - **Tauri Capabilities権限設定**: `src-tauri/capabilities/default.json` にウィンドウ制御およびイベント購読に必要な権限（`core:window:default`, `core:window:allow-close`, `core:window:allow-destroy`, `core:event:default`, `core:event:allow-listen`, `core:event:allow-unlisten`）を明示的に付与。
+  - **フロントエンドクローズ購読**: `App.tsx` において `@tauri-apps/api/window` の `getCurrentWindow().onCloseRequested` を購読。未保存ドキュメントが存在する場合は `event.preventDefault()` によりウィンドウの即時破棄を抑止。
+  - **未保存判定（単一・タブ両対応）**: `getUnsavedDocuments` により、単一ファイルモードおよびタブ有効モード双方で未保存ファイル（`fileContentRef` / `editorRef.current.getMarkdown()` vs `savedContentRef`、および全タブの `isDirty`）を網羅的に検出。
+  - **確認ダイアログ & 安全な終了**: 未保存ファイル名を含む `window.confirm` ダイアログを提示。ユーザーが終了を承認した場合は `appWindow.destroy()` を明示的に呼び出してウィンドウを破棄・終了し、キャンセルの場合はウィンドウを開いたまま作業を継続可能とする。同時にWeb標準の `beforeunload` リスナーも併用しブラウザ/リロード離脱からも保護。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -135,6 +142,8 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: 画面右上のトリガー領域を通じたマウスホバーによるパレット再表示（Hover Reveal）および滑らかなトランジション（opacity/transform 200ms イージング、非表示時 pointer-events-none、テストスクリプト verify-palette-hover.mjs）の実装を追記
 - 2026-10-02: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コードの突き合わせ、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド、および総合結合テストスイート（21件）の全自動検証パス（Exit Code 0）を確認し、仕様整合性を確認・更新。
 - 2026-10-02: Markdownシリアライズの一般化と不具合修正に関する仕様策定（①番号付きリストの常に「数字.」維持、②連続箇条書きの「-」維持、③URL同一リンクの「[URL](URL)」リソースリンク維持）を追記
+- 2026-10-02: OS連携/ウィンドウ管理: ウィンドウクローズ（CloseRequested）時の未保存警告フックと権限設定（src-tauri/capabilities/default.json の core:window / core:event 権限追加、App.tsx での appWindow.onCloseRequested 購読・未保存検出・確認ダイアログ・destroy 実行、verify-window-close-requested.mjs 整備）を追記
+
 
 
 

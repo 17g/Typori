@@ -1,3 +1,27 @@
+- 2026-10-02: タスク45「OS連携/ウィンドウ管理: ウィンドウクローズ（CloseRequested）時の未保存警告フックと権限設定の実装（Tauri capabilities / App.tsx）」を完了。
+  - **変更理由**: ユーザーがドキュメント編集後、未保存のままウィンドウの「×」ボタンを押下してアプリを閉じた際に、変更内容が保存されず直ちに終了してしまうデータ損失リスクを防止するため。Tauri v2 の Capabilities 権限設定および `CloseRequested` イベントインターセプト機構を導入し、未保存ドキュメントが存在する場合は確認ダイアログ（`window.confirm`）を表示して安全に終了できるようにするため。
+  - **Before**:
+    - `src-tauri/capabilities/default.json` には `core:default` と `opener:default` のみが指定されており、ウィンドウクローズやイベント購読関連のきめ細かな permissions が明示的に定義されていなかった。
+    - `src/App.tsx` では Web ブラウザ標準の `beforeunload` リスナーのみが登録されており、Tauri デスクトップウィンドウのネイティブクローズ要求（`onCloseRequested`）に対するフック処理が存在しなかった。また、未保存判定も単一ファイルの `isDirty` に限定され、タブ機能有効時の他タブの未保存状態が考慮されていなかった。
+  - **After**:
+    - `src-tauri/capabilities/default.json`:
+      - `core:event:default`, `core:event:allow-listen`, `core:event:allow-unlisten`, `core:window:default`, `core:window:allow-close`, `core:window:allow-destroy` 権限を追加定義。
+    - `src/App.tsx`:
+      - `@tauri-apps/api/window` より `getCurrentWindow` をインポート。
+      - `fileContentRef`, `savedContentRef`, `isSourceModeRef` を定義し、非同期イベントリスナー内から常に最新のエディタ状態を参照可能に改善。
+      - `getUnsavedDocuments` 関数を実装。WYSIWYG モード時の最新コンテンツ（`editorRef.current.getMarkdown()`）取得、単一ファイルモード時の未保存判定、およびタブ機能有効時の全タブの `isDirty` / コンテンツ比較を網羅的に判定。
+      - `appWindow.onCloseRequested` リスナーを登録。未保存ファイルが存在する場合は `event.preventDefault()` でウィンドウの即時終了を防止し、未保存ファイル名を含む `window.confirm` ダイアログを提示。ユーザーが終了を承認した場合は `appWindow.destroy()` を実行し、キャンセルの場合はウィンドウを開いたまま作業を継続可能とした。Web標準の `beforeunload` も同様に保護。
+    - `scripts/verify-window-close-requested.mjs`:
+      - capabilities の permissions 設定、App.tsx の実装、および未保存判定シミュレーション（全5ケース）を網羅検証するテストスクリプトを新規作成。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-window-close-requested.mjs` を統合し、全23件の個別テストスイートとして自動検証。
+    - 検証結果:
+      - `pnpm test`: 全23/23件の個別機能テスト、IPCコマンド登録整合性、OSネイティブメニューイベント整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+      - `cargo clippy -- -D warnings`: 警告・エラーゼロ（Exit Code 0）。
+  - **影響範囲**: `src-tauri/capabilities/default.json`, `src/App.tsx`, `scripts/verify-window-close-requested.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-02: `for_agent/` 配下にガードレールファイル（`for_agent/guardrails.md`）を作成。
   - **変更理由**: グローバル憲章（`GEMINI.md`）およびプロジェクト運用ルールに基づき、Typori プロジェクトにおける AI エージェントのループエンジニアリング・開発作業時のミスやトラブルを未然に防止し、問題解決や再発防止策を迅速に参照・保守するための手順書（ガードレール）を整備するため。
   - **Before**: `for_agent/` 配下に `architecture.md` のみが存在し、プロジェクト固有の注意点、過去のトラブルシューティング（Tauri IPC整合性、Milkdownシリアライズ仕様、CodeMirrorショートカット競合、CRLF未保存誤爆防止、タブ非同期レースコンディション防止等）をまとめたガードレールファイルが存在しなかった。

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import TyporiEditor, { EditorRef, SourceEditor } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import OutlineSidebar, { OutlineItem } from "./components/OutlineSidebar";
@@ -75,6 +76,15 @@ function App() {
 
   const shortcutConfigRef = useRef(shortcutConfig);
   shortcutConfigRef.current = shortcutConfig;
+
+  const fileContentRef = useRef<string | null>(fileContent);
+  fileContentRef.current = fileContent;
+
+  const savedContentRef = useRef<string | null>(savedContent);
+  savedContentRef.current = savedContent;
+
+  const isSourceModeRef = useRef<boolean>(isSourceMode);
+  isSourceModeRef.current = isSourceMode;
 
   // 指定ディレクトリの読み込み
   const loadDirectory = useCallback(async (dirPath: string, isRoot = false) => {
@@ -714,20 +724,117 @@ function App() {
     };
   }, []);
 
-  // 未保存時のページ離脱防止
+  // 未保存ファイルの検出関数
+  const getUnsavedDocuments = useCallback((): { hasUnsaved: boolean; fileNames: string[] } => {
+    let currentContent = fileContentRef.current;
+    if (!isSourceModeRef.current && editorRef.current) {
+      try {
+        const md = editorRef.current.getMarkdown();
+        if (md !== undefined && md !== null) {
+          currentContent = md;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const unsavedFileNames: string[] = [];
+
+    if (isTabsEnabledRef.current) {
+      const currentTabs = tabsRef.current;
+      const currentActiveId = activeTabIdRef.current;
+      for (const tab of currentTabs) {
+        const tabContent =
+          tab.id === currentActiveId && currentContent !== null
+            ? currentContent
+            : tab.content;
+        const isTabDirty =
+          tab.id === currentActiveId && currentContent !== null
+            ? currentContent !== tab.savedContent
+            : (tab.isDirty ?? (tabContent !== tab.savedContent));
+        if (isTabDirty) {
+          unsavedFileNames.push(tab.title);
+        }
+      }
+    } else {
+      const isCurDirty = Boolean(
+        selectedPathRef.current !== null &&
+        currentContent !== null &&
+        savedContentRef.current !== null &&
+        currentContent !== savedContentRef.current
+      );
+      if (isCurDirty) {
+        const curFileName =
+          selectedPathRef.current?.split(/[/\\]/).filter(Boolean).pop() || "現在のファイル";
+        unsavedFileNames.push(curFileName);
+      }
+    }
+
+    return {
+      hasUnsaved: unsavedFileNames.length > 0,
+      fileNames: unsavedFileNames,
+    };
+  }, []);
+
+  // 未保存時のウィンドウクローズ (CloseRequested) および離脱防止
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
+      const unsaved = getUnsavedDocuments();
+      if (unsaved.hasUnsaved) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
+
+    let unlistenClose: (() => void) | undefined;
+    let isCancelled = false;
+
+    (async () => {
+      try {
+        const appWindow = getCurrentWindow();
+        if (!appWindow || typeof appWindow.onCloseRequested !== "function") return;
+
+        const unlisten = await appWindow.onCloseRequested(async (event) => {
+          const unsaved = getUnsavedDocuments();
+          if (unsaved.hasUnsaved) {
+            // 未保存変更がある場合はウィンドウの即時終了を防止
+            event.preventDefault();
+
+            const namesList = unsaved.fileNames.map((name) => `「${name}」`).join("、");
+            const ok = window.confirm(
+              `保存されていない変更があります（${namesList}）。\n保存せずに Typori を終了しますか？`
+            );
+
+            if (ok) {
+              try {
+                await appWindow.destroy();
+              } catch (destroyErr) {
+                console.error("Failed to destroy window on exit:", destroyErr);
+              }
+            }
+          }
+        });
+
+        if (isCancelled) {
+          unlisten();
+        } else {
+          unlistenClose = unlisten;
+        }
+      } catch (err) {
+        console.warn("Tauri window.onCloseRequested listener registration skipped:", err);
+      }
+    })();
+
     return () => {
+      isCancelled = true;
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (unlistenClose) {
+        unlistenClose();
+      }
     };
-  }, [isDirty]);
+  }, [getUnsavedDocuments]);
 
   // ファイル選択時
   const handleSelectFile = useCallback(async (entry: FileEntry) => {
