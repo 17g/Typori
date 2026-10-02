@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 export interface EditorToolbarProps {
   onInsertLink: () => void;
@@ -13,6 +13,7 @@ export interface EditorToolbarProps {
   isRightSidebarOpen?: boolean;
   visible?: boolean;
   isScrolled?: boolean;
+  isHovered?: boolean;
   className?: string;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -31,6 +32,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   isRightSidebarOpen = false,
   visible,
   isScrolled = false,
+  isHovered: isHoveredProp,
   className = "",
   onMouseEnter,
   onMouseLeave,
@@ -38,24 +40,49 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   // 右サイドバー（アウトライン）展開時のオフセット自動調整
   const rightOffsetClass = isRightSidebarOpen ? "right-5" : "right-6";
 
-  // スクロール量に応じた可視状態の判定（明示的な visible が無ければ !isScrolled）
-  const isVisible = visible !== undefined ? visible : !isScrolled;
+  // ホバー状態の管理（Propsで指定があれば優先、無ければ内部状態）
+  const [internalHovered, setInternalHovered] = useState(false);
+  const isHovered = isHoveredProp !== undefined ? isHoveredProp : internalHovered;
 
-  // 表示・非表示スタイル（最上部では通常表示、スクロール時は自動非表示）
+  // スクロール量に応じた可視状態の判定（明示的な visible が無ければ !isScrolled、ホバー時は常に表示）
+  const isVisible = (visible !== undefined ? visible : !isScrolled) || isHovered;
+
+  // 表示・非表示スタイル（最上部では通常表示 opacity-60、スクロール時は自動非表示 opacity-0、ホバー再表示時は opacity-100）
   const visibilityClass = isVisible
-    ? "opacity-60 hover:opacity-100 pointer-events-auto translate-y-0"
+    ? `${isHovered ? "opacity-100" : "opacity-60"} hover:opacity-100 pointer-events-auto translate-y-0`
     : "opacity-0 pointer-events-none -translate-y-1";
+
+  const handleMouseEnter = () => {
+    setInternalHovered(true);
+    onMouseEnter?.();
+  };
+
+  const handleMouseLeave = () => {
+    setInternalHovered(false);
+    onMouseLeave?.();
+  };
 
   return (
     <div
-      data-testid="editor-toolbar"
+      data-testid="editor-toolbar-trigger-zone"
       data-right-sidebar-open={isRightSidebarOpen}
       data-visible={isVisible}
       data-scrolled={isScrolled}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      className={`typori-quick-toolbar absolute top-3 ${rightOffsetClass} z-20 flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm transition-all duration-200 ease-out ${visibilityClass} ${className}`}
+      data-hovered={isHovered}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`typori-toolbar-trigger-zone absolute top-0 ${rightOffsetClass} z-20 pt-3 pb-2 transition-all duration-200 pointer-events-auto`}
     >
+      <div
+        data-testid="editor-toolbar"
+        data-right-sidebar-open={isRightSidebarOpen}
+        data-visible={isVisible}
+        data-scrolled={isScrolled}
+        data-hovered={isHovered}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`typori-quick-toolbar flex items-center gap-1 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-2 py-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm transition-all duration-200 ease-out ${visibilityClass} ${className}`}
+      >
       {onToggleFocusMode && (
         <button
           type="button"
@@ -211,6 +238,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           />
         </svg>
       </button>
+      </div>
     </div>
   );
 };

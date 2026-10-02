@@ -1,3 +1,23 @@
+- 2026-10-02: タスク40「UI/UX: 画面右上のトリガー領域を通じたマウスホバーによるパレット再表示（Hover Reveal）と滑らかなトランジションの実装」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）に策定された「スクロール時オートハイド＆マウスホバー再表示（Hover Reveal）」仕様に基づき、本文スクロールによって非表示（オートハイド）となったクイックアクションパレットを、画面右上（トリガー領域）へのマウスホバーによって即座に滑らかにフェードイン再表示（`opacity-100 pointer-events-auto translate-y-0`）し、マウス離脱時には再び滑らかにフェードアウト（`opacity-0 pointer-events-none -translate-y-1`）するインタラクションを実装するため。
+  - **Before**:
+    - スクロール時にパレットが非表示化（オートハイド）された後、最上部までスクロールを戻さないとパレットを再利用できず、スクロール途中でのフォーカスモード・ソース編集・表や画像の挿入等の機能アクセスに制約があった。
+    - 画面右上のトリガー領域コンテナや、マウスホバー検知による再表示（Hover Reveal）ロジックが存在しなかった。
+  - **After**:
+    - `src/components/Editor/EditorToolbar.tsx`:
+      - `EditorToolbarProps` に `isHovered?: boolean;` を追加し、外部制御と内部状態（`internalHovered`）の両方に対応。
+      - `isVisible` 判定ロジックを `(visible !== undefined ? visible : !isScrolled) || isHovered` に更新し、スクロール中であってもホバー時には即座にパレットを可視化。
+      - パレットを包含する右上トリガー領域コンテナ `<div data-testid="editor-toolbar-trigger-zone" className="typori-toolbar-trigger-zone ...">` を新設し、ホバー検知イベント（`onMouseEnter` / `onMouseLeave`）を配備。
+      - スタイル切り替えロジックを強化し、通常最上部時は半透明（`opacity-60`）、ホバー再表示時は強調（`opacity-100`）、非表示時は完全透過かつ操作無効化（`opacity-0 pointer-events-none -translate-y-1`）を適用。200msイージングトランジション（`transition-all duration-200 ease-out`）による滑らかな開閉アニメーションを実現。
+    - `src/components/Editor/Editor.tsx`:
+      - `isToolbarHovered` 状態管理（`useState`）を追加。
+      - `EditorToolbar` に対して `isHovered={isToolbarHovered}`, `onMouseEnter={() => setIsToolbarHovered(true)}`, `onMouseLeave={() => setIsToolbarHovered(false)}` を渡し、エディタ親コンポーネントとの双方向ホバー連携を実現。
+    - `scripts/verify-palette-hover.mjs` & `scripts/verify-all.mjs`:
+      - トリガー領域DOM、ホバー状態管理、Hover Revealスタイル、イージングトランジション、およびスクロール×ホバーの全状態遷移シミュレーション（最上部/スクロール時/ホバー時/離脱時）を検証する個別テストスクリプトを新規作成。総合結合テストスイートに登録し、全20テスト合格（Exit Code 0）。
+    - `for_agent/architecture.md`:
+      - 改訂履歴を同期更新。
+  - **影響範囲**: `EditorToolbar.tsx`, `Editor.tsx`, `scripts/verify-palette-hover.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`。既存機能への悪影響なし。
+
 - 2026-10-02: タスク39「UI/UX: スクロール量に応じたパレットの自動非表示（オートハイド）および最上部での再表示ロジックの実装」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）に策定された「スクロール時オートハイド＆最上部再表示」仕様に基づき、本文スクロール時にはパレットを自動的にフェードアウト（非表示化: `opacity-0 pointer-events-none`）して執筆・閲覧空間の視覚的ノイズを極小化し、最上部へスクロールバックした際には即座に通常表示（`opacity-60 hover:opacity-100 pointer-events-auto`）へ復帰するロジックを実装するため。
   - **Before**:

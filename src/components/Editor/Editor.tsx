@@ -194,9 +194,10 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       position: null,
     });
 
-    // スクロール量に応じたパレット自動非表示（オートハイド）の状態管理
+    // スクロール量に応じたパレット自動非表示（オートハイド）およびホバー再表示の状態管理
     const SCROLL_TOP_THRESHOLD = 20;
     const [isScrolled, setIsScrolled] = useState(false);
+    const [isToolbarHovered, setIsToolbarHovered] = useState(false);
 
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
       const scrollTop = e.currentTarget.scrollTop;
@@ -881,6 +882,9 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           isRightSidebarOpen={isRightSidebarOpen}
           isScrolled={isScrolled}
           visible={!isScrolled}
+          isHovered={isToolbarHovered}
+          onMouseEnter={() => setIsToolbarHovered(true)}
+          onMouseLeave={() => setIsToolbarHovered(false)}
           onUndo={() => {
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));
