@@ -165,6 +165,8 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: UI/状態管理: タブ切り替え・新規ファイルオープン時のRef参照即時同期と未保存状態の独立性担保の実装（App.tsx での tabsRef/activeTabIdRef/selectedPathRef/fileContentRef/savedContentRef 即時更新、TabBar.tsx の isContentDirty 統一、SourceEditor の key 分離、verify-tabs-ref-sync.mjs 整備）を追記
 - 2026-10-02: エディタ/ショートカット: ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替競合解消の実装（SourceEditor.tsx での Prec.highest 適用、domEventHandlers による先行捕捉・preventDefault / stopPropagation 実行、コールバック Ref 同期）を追記
 - 2026-10-03: 品質保証: 全4項目（ウィンドウクローズ未保存警告、改行コードLF正規化&未保存誤爆防止、タブ切替Ref即時同期&未保存状態独立性、ソース直接編集Ctrl+/競合解消）を網羅検証する自動テストスイート（scripts/verify-source-comment-toggle.mjs, scripts/verify-phase16-fixes.mjs）の整備と総合ビルド検証（全27個別テスト、pnpm test / pnpm run build / cargo test / cargo check / cargo clippy の全パス）を追記
+- 2026-10-03: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜16、全49タスク）の突き合わせ、エッジケースの点検、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全27個別テスト、IPC 14コマンド、ネイティブメニュー 16イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
+
 
 
 
