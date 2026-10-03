@@ -1,3 +1,33 @@
+- 2026-10-03: タスク49「品質保証: 全4項目の修正を検証する自動テストスイートの整備と総合ビルド検証（pnpm test / cargo check）」を完了。
+  - **変更理由**: Phase 16で実装された4つの重要修正（①ウィンドウクローズ未保存警告・Capabilities権限設定、②改行コードLF統一・未保存誤爆防止、③タブ切り替え・ファイルオープン時のRef即時同期・未保存状態独立性担保、④ソース直接編集モード「Ctrl + /」コメント誤挿入防止・WYSIWYG切替競合解消）について、タスク48固有の検証スクリプト、および4機能連動シナリオをエンドツーエンドで網羅検証する総合テストスイートを整備し、全システム整合性・ビルドの健全性を客観的かつ永続的に保証するため。
+  - **Before**:
+    - タスク48（SourceEditorの「Ctrl + /」コメント誤挿入防止および `Prec.highest` による二重遮断機構）に対応する独立した自動テストスクリプトが存在しなかった。
+    - Phase 16の全4項目が一体となって機能するライフサイクル（改行コードLF正規化でのオープン、複数タブでのDirty状態独立性、ソース直接編集切替での本文非汚染、未保存状態でのウィンドウクローズ抑止、保存後の安全終了）を包括検証する総合シナリオテストが存在しなかった。
+    - 総合結合テストスイート（`scripts/verify-all.mjs`）の個別テストスクリプト数は25件であった。
+  - **After**:
+    - `scripts/verify-source-comment-toggle.mjs`:
+      - `SourceEditor.tsx` の静的解析（`Prec.highest`, `domEventHandlers`, `event.preventDefault()`, `event.stopPropagation()`, `keymapExtension`, スラッシュキー判定、テンキー除算記号判定、Callback Refs）の網羅的検証を実装。
+      - キーイベント捕捉・伝播遮断・非対象キー透過シミュレーション（US配列、macOS Cmd、テンキー、JIS/欧州配列、単なるスラッシュ等の非対象キー）を実装。
+      - CodeMirror 優先順位（`Prec.highest` vs `defaultKeymap` の `toggleComment`）シミュレーションにより、`<!-- -->` の誤挿入が完全に防止され本文が汚染されないことを検証。
+      - Callback Refs による動的ハンドラ追従とフォールバック動作（`onToggleSourceMode` / `onExitSourceMode`）を検証。
+    - `scripts/verify-phase16-fixes.mjs`:
+      - Phase 16 全4項目の設定・実装の静的整合性チェック（Capabilities権限、App.tsxの `onCloseRequested` / `getUnsavedDocuments`、text.ts の `normalizeLineEndings` / `isContentDirty`、fs.ts の `openFile`、App.tsx の各種 Ref 即時更新、TabBar.tsx の `isContentDirty`、SourceEditor.tsx の `Prec.highest`）を実装。
+      - アプリケーションライフサイクルシミュレータによる全4機能連動シナリオ（Windows CRLFファイルの読み込みとDirty誤爆防止、複数タブのDirty状態独立性、ソース編集切替でのコメント誤挿入抑止、未保存状態でのウィンドウクローズ警告・抑止、保存後の安全終了）を実装。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に上記2つのスクリプトを追加し、個別検証テスト数を全27件に拡張。
+    - `for_agent/guardrails.md`:
+      - 必須検証コマンドの個別テスト件数を27件に更新。
+      - 「3.8. 静的解析・統合検証テストスクリプト作成時のトークン・引数名整合性」を追記。
+    - `for_agent/architecture.md`:
+      - 全体結合テスト・品質保証の記述を全27項目に更新し、改訂履歴にタスク49を追記。
+    - 検証結果:
+      - `pnpm test`: 全27/27件の個別機能テスト、IPCコマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（16イベント）、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+      - `cargo check`: Exit Code 0 でパス。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `scripts/verify-source-comment-toggle.mjs`, `scripts/verify-phase16-fixes.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-02: タスク48「エディタ/ショートカット: ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替の競合解消（SourceEditor.tsx）」を完了。
   - **変更理由**: ソースコード直接編集モード（CodeMirror 6）で `Ctrl + /` を押した際、CodeMirror の `basicSetup` に含まれる `defaultKeymap` の `toggleComment` コマンドが先に発火し、カーソル行や選択範囲に HTML コメント記号 `<!-- -->` が意図せず挿入されてドキュメントが汚染される不具合を解消するため。また、イベントが親ウィンドウ（`App.tsx`）へバブリングしてモード切替処理が競合・二重実行されるリスクを防止し、`SourceEditor` から安全かつクリーンに WYSIWYG モードへ復帰できるようにするため。
   - **Before**:

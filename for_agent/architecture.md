@@ -67,7 +67,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - HTMLエクスポート: Rust側コマンド `convert_markdown_to_html` / `export_to_html` (pulldown-cmark利用) により、CommonMark/GFM（テーブル・タスクリスト・打ち消し線など）に完全準拠したスタンドアロンHTML文書（ドキュメントタイトル、レスポンシブタイポグラフィ、ライト/ダークテーマCSSスタイル内蔵、印刷最適化）を高速・安全に生成・保存。UI側の `ExportModal`、ヘッダーのエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+E)、およびOSネイティブメニュー連携 (`menu:export_html`) と連動。
 - PDFエクスポート: Rust側コマンド `export_to_pdf_html` および `convert_markdown_to_html` による印刷最適化スタイル内蔵HTML（`@page` ページマージン・A4サイズ自動調整、背景白・文字黒のハイコントラスト印刷カラー、見出し直後の改ページ回避、テーブル・画像・コードブロックの途中分割防止）の生成と、フロントエンド側の非表示iframe・印刷API連携（`printHtmlContent` / `printMarkdownDocument`）により、OS標準の印刷ダイアログ（「PDFに保存」対応）をシームレスに起動。UI側の `ExportModal`（HTML/PDF形式タブ切替）、ヘッダーのPDFエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+P / Ctrl+P)、およびOSネイティブメニュー連携 (`menu:export_pdf`) と連動。
 - アウトライン（右サイドバー）機能: 開いているMarkdownドキュメントの見出し（`#`〜`######`）をリアルタイムに抽出し、インデント付きツリーで表示。見出しクリック時にはWYSIWYG（ProseMirror DOM）およびソース直接編集モード（CodeMirror 6）の該当見出し位置へスムーズスクロールし、ターゲット要素を一時的にパルスハイライト描画。右サイドバーの開閉はヘッダーボタン、ショートカット (Ctrl+Shift+O)、およびOSネイティブメニュー (`menu:toggle_right_sidebar`) と双方向連動。
-- 全体結合テスト・品質保証: 全17項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性、OSネイティブメニューイベント双方向整合性、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
+- 全体結合テスト・品質保証: 全27項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（14コマンド）、OSネイティブメニューイベント双方向整合性（16イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
 - クイックアクションパレット（EditorToolbar）のフロート表示・スクロール制御仕様:
   フォーカスモード切替、ソース直接編集切替、画像/表挿入、リンク編集、引用、Undo/Redoを提供するクイックアクションパレットについて、エディタスクロール時に本文と一緒に画面外へ押し流されて消えてしまう問題を解消し、以下の通り仕様を策定・定義する。
   - **仕様方針の整理と採択**:
@@ -164,6 +164,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: エディタ/ファイル管理: 改行コード正規化とファイルロード時の未保存誤爆防止の実装（LF統一 / ベースライン同期、src/utils/text.ts の normalizeLineEndings / isContentDirty 導入、App.tsx / Editor.tsx / fs.ts 連携、verify-line-endings-normalization.mjs 整備）を追記
 - 2026-10-02: UI/状態管理: タブ切り替え・新規ファイルオープン時のRef参照即時同期と未保存状態の独立性担保の実装（App.tsx での tabsRef/activeTabIdRef/selectedPathRef/fileContentRef/savedContentRef 即時更新、TabBar.tsx の isContentDirty 統一、SourceEditor の key 分離、verify-tabs-ref-sync.mjs 整備）を追記
 - 2026-10-02: エディタ/ショートカット: ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替競合解消の実装（SourceEditor.tsx での Prec.highest 適用、domEventHandlers による先行捕捉・preventDefault / stopPropagation 実行、コールバック Ref 同期）を追記
+- 2026-10-03: 品質保証: 全4項目（ウィンドウクローズ未保存警告、改行コードLF正規化&未保存誤爆防止、タブ切替Ref即時同期&未保存状態独立性、ソース直接編集Ctrl+/競合解消）を網羅検証する自動テストスイート（scripts/verify-source-comment-toggle.mjs, scripts/verify-phase16-fixes.mjs）の整備と総合ビルド検証（全27個別テスト、pnpm test / pnpm run build / cargo test / cargo check / cargo clippy の全パス）を追記
 
 
 
