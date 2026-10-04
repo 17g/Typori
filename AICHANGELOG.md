@@ -1,3 +1,28 @@
+- 2026-10-04: タスク57「タブ管理/未保存保護: タブ切り替え後の未保存状態保持とタブクローズ（`handleCloseTab`）時の保存確認ダイアログ（`window.confirm`）の確実な発火保護の実装（`src/App.tsx`）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）の「3.13. タブ切り替え時のエディタ再マウントによる未保存ステータス（isDirty / savedContent）誤リセット防止」に基づき、タブ有効時に未保存変更を持つタブから他タブへ切り替えて再復帰した際、およびタブを閉じる操作（`handleCloseTab`）において、未保存状態（`isDirty`）を確実に保持し、保存確認ダイアログ（`window.confirm`）を漏れなく発火させて未保存の変更が警告なしに消失するのを防ぐため。
+  - **Before**:
+    - `src/App.tsx` の `isDirty` 計算式において、タブ有効時でも `fileContent` と `savedContent` の比較のみに依存しており、アクティブタブの `isDirty` ステートとの包括的同期が不十分だった。
+    - `handleContentChange` の通常編集時において、タブ更新の対象特定が `currentActiveId` のみに限定されており、パス一致による安全なフォールバックが存在しなかった。
+    - `handleSelectTab` において、切り替え先タブの未保存状態再計算時（`targetIsDirty`）に、元の `targetTab.isDirty` が加味されず、`savedContent` が未定義の場合の安全なフォールバックが欠けていた。
+    - `handleCloseTab` において、アクティブタブのクローズ時判定 `targetIsDirty` が `isContentDirty(currentContent, targetTab.savedContent)` のみに依存しており、`targetTab.isDirty` や `targetTab.content` の差分が包括的に評価されていなかったため、保存確認ダイアログ（`window.confirm`）がスキップされる潜在的リスクがあった。また、アクティブタブ閉鎖後に次のタブへフォーカスが移動する際、次タブの `isDirty` が厳格に保持されていなかった。
+    - `getUnsavedDocuments` においても、アクティブタブの未保存判定が `isContentDirty(currentContent, tab.savedContent)` のみに依存していた。
+  - **After**:
+    - `src/App.tsx`:
+      - `isDirty`: タブ有効時は `activeTab?.isDirty` および差分評価を包括的に評価し、タブバー・ヘッダー・ステータスバーの未保存インジケータとの完全一致を実現。
+      - `handleContentChange`: ユーザー編集時の対象タブ更新において、`t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)` により確実に更新されるよう強化。
+      - `handleSelectTab`: 切り替え先タブの `normTargetSavedContent` を安全に取得（`targetTab.savedContent ?? targetTab.content`）し、`targetIsDirty = Boolean(targetTab.isDirty || isContentDirty(normTargetContent, normTargetSavedContent))` により切り替え後の未保存状態を厳格に保持・Ref同期。
+      - `handleCloseTab`:
+        - `targetIsDirty` を強化し、アクティブタブ閉鎖時は `Boolean(targetTab.isDirty || isContentDirty(currentContent, targetTab.savedContent) || isContentDirty(targetTab.content, targetTab.savedContent))`、非アクティブタブ閉鎖時は `Boolean(targetTab.isDirty || isContentDirty(targetTab.content, targetTab.savedContent))` として、未保存変更が存在する場合は確実に `window.confirm` ダイアログを発火し、キャンセル時はクローズを中断。
+        - アクティブタブ閉鎖後に次のタブへ切り替わる際、`nextIsDirty = Boolean(nextTab.isDirty || isContentDirty(normNextContent, normNextSavedContent))` として次タブの未保存状態を安全に保持・Ref同期。
+      - `getUnsavedDocuments`: アクティブタブの未保存検出において `tab.isDirty || isContentDirty(...)` を包括的に判定し、ウィンドウクローズ時や離脱時の検出漏れを根絶。
+    - 検証結果:
+      - `pnpm test`: 全31個別テスト + Tauri IPCコマンド整合性 (14件) + OSネイティブメニュー整合性 (16件) + ショートカット定義整合性がすべて合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo check`: Rustバックエンド構文・型チェック合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク56「UI/状態管理: `handleContentChange` において未保存変更が存在するタブへの切り替え時・再マウント時に `savedContent` の上書きおよび `isDirty` リセットを防止するガードロジックの実装（`src/App.tsx`, `src/components/Editor/Editor.tsx`）」を完了。
   - **変更理由**: タブ機能有効時、未保存変更を持つタブから別タブへ切り替えて再復帰した際に、エディタ再マウントに伴う初回シリアライズ通知（`meta.isUserInteraction === false`）によってディスク保存基準値（`savedContent`）が編集後コンテンツで誤上書きされ、`isDirty: false` にリセットされて未保存マーク（●）が消失する問題を解消するため。
   - **Before**:

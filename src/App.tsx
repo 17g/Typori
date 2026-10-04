@@ -200,12 +200,22 @@ function App() {
     };
   }, [loadDirectory]);
 
-  const isDirty = Boolean(
-    selectedPath !== null &&
-    fileContent !== null &&
-    savedContent !== null &&
-    isContentDirty(fileContent, savedContent)
+  const activeTab = tabs.find(
+    (t) => t.id === activeTabId || (selectedPath && t.path === selectedPath)
   );
+  const isDirty = isTabsEnabled
+    ? Boolean(
+        activeTab?.isDirty ||
+        (fileContent !== null && savedContent !== null && isContentDirty(fileContent, savedContent)) ||
+        (activeTab && activeTab.content !== null && activeTab.savedContent !== null && isContentDirty(activeTab.content, activeTab.savedContent))
+      )
+    : Boolean(
+        selectedPath !== null &&
+        fileContent !== null &&
+        savedContent !== null &&
+        isContentDirty(fileContent, savedContent)
+      );
+
 
   // ファイル保存
   const handleSave = useCallback(async () => {
@@ -511,7 +521,7 @@ function App() {
 
       setTabs((prev) => {
         const nextTabs = prev.map((t) =>
-          t.id === currentActiveId
+          t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
             ? { ...t, content: normalized, isDirty: isContentDirty(normalized, t.savedContent) }
             : t
         );
@@ -557,8 +567,10 @@ function App() {
       if (!targetTab) return;
 
       const normTargetContent = normalizeLineEndings(targetTab.content);
-      const normTargetSavedContent = normalizeLineEndings(targetTab.savedContent);
-      const targetIsDirty = isContentDirty(normTargetContent, normTargetSavedContent);
+      const normTargetSavedContent = normalizeLineEndings(targetTab.savedContent ?? targetTab.content);
+      const targetIsDirty = Boolean(
+        targetTab.isDirty || isContentDirty(normTargetContent, normTargetSavedContent)
+      );
 
       const syncedTabs = updatedTabs.map((t) =>
         t.id === tabId
@@ -613,8 +625,15 @@ function App() {
 
       const targetIsDirty =
         tabId === currentActiveId && currentContent !== null
-          ? isContentDirty(currentContent, targetTab.savedContent)
-          : (targetTab.isDirty ?? isContentDirty(targetTab.content, targetTab.savedContent));
+          ? Boolean(
+              targetTab.isDirty ||
+              isContentDirty(currentContent, targetTab.savedContent) ||
+              isContentDirty(targetTab.content, targetTab.savedContent)
+            )
+          : Boolean(
+              targetTab.isDirty ||
+              isContentDirty(targetTab.content, targetTab.savedContent)
+            );
 
       if (targetIsDirty) {
         const ok = window.confirm(
@@ -631,8 +650,10 @@ function App() {
           const nextIndex = Math.min(targetIndex, newTabs.length - 1);
           const nextTab = newTabs[nextIndex];
           const normNextContent = normalizeLineEndings(nextTab.content);
-          const normNextSavedContent = normalizeLineEndings(nextTab.savedContent);
-          const nextIsDirty = isContentDirty(normNextContent, normNextSavedContent);
+          const normNextSavedContent = normalizeLineEndings(nextTab.savedContent ?? nextTab.content);
+          const nextIsDirty = Boolean(
+            nextTab.isDirty || isContentDirty(normNextContent, normNextSavedContent)
+          );
 
           const syncedNewTabs = newTabs.map((t, idx) =>
             idx === nextIndex
@@ -928,8 +949,15 @@ function App() {
             : normalizeLineEndings(tab.content);
         const isTabDirty =
           tab.id === currentActiveId && currentContent !== null
-            ? isContentDirty(currentContent, tab.savedContent)
-            : (tab.isDirty ?? isContentDirty(tabContent, tab.savedContent));
+            ? Boolean(
+                tab.isDirty ||
+                isContentDirty(currentContent, tab.savedContent) ||
+                isContentDirty(tab.content, tab.savedContent)
+              )
+            : Boolean(
+                tab.isDirty ||
+                isContentDirty(tabContent, tab.savedContent)
+              );
         if (isTabDirty) {
           unsavedFileNames.push(tab.title);
         }
