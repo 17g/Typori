@@ -471,14 +471,13 @@ function App() {
             activeTab.isDirty ||
             (activeTab.savedContent !== null &&
              activeTab.savedContent !== undefined &&
-             isContentDirty(activeTab.content, activeTab.savedContent)) ||
-            (activeTab.savedContent !== null &&
-             activeTab.savedContent !== undefined &&
-             isContentDirty(normalized, activeTab.savedContent))
+             isContentDirty(activeTab.content, activeTab.savedContent))
           )
         : Boolean(
+            fileContentRef.current !== null &&
             savedContentRef.current !== null &&
-            isContentDirty(normalized, savedContentRef.current)
+            isContentDirty(fileContentRef.current, savedContentRef.current) &&
+            editorRef.current?.hasUserInteracted?.()
           );
 
       if (meta && meta.isUserInteraction === false) {

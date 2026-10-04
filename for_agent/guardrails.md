@@ -174,6 +174,7 @@
   1. `handleContentChange` において `meta.isUserInteraction === false` を受け取った際は、対象タブが未保存状態（`isDirty: true` または `isContentDirty(content, savedContent)`）であるかを必ず判定し、未保存タブに対しては `savedContent` / `savedContentRef` の上書きと `isDirty` リセットを絶対に実行せず、既存のディスク保存基準値（`savedContent`）と未保存状態を保護すること。
   2. 初期シリアライズ差分のベースライン同期は、ディスクから読み込んだ直後や保存直後のクリーンな状態（`!isDirty`）のファイルにのみ限定して適用すること。
   3. `handleCloseTab` においても、タブの `content` と `savedContent` の `isContentDirty` チェックを厳格に行い、未保存タブが警告なしで閉じられることがないよう二重の防護策を講じること。
+  4. `hasUnsavedChanges` の判定において、エディタから届いた初期シリアライズ値（`normalized`）と保存基準値（`savedContent`）を比較して未保存判定に含めないこと。クリーンタブにおける初回シリアライズ差異そのものを「ユーザーによる未保存変更」と誤認してベースライン同期を阻害し、未保存マークが誤点灯するのを防ぐため、未保存判定は対象タブの既存ステータス（`tab.isDirty`）および退避コンテンツ（`tab.content` と `tab.savedContent`）の比較のみに依拠すること。
 
 ---
 

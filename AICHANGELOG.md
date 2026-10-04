@@ -1,3 +1,31 @@
+- 2026-10-04: タスク58「品質保証/自動テスト: タブ有効時の「ファイル1編集 -> ファイル2オープン -> ファイル1切替 -> 未保存マーク（isDirty）維持 -> タブクローズ時警告判定」の挙動を網羅検証する自動テストスクリプト（`scripts/verify-tab-switch-dirty-retention.mjs`）を作成し、総合テスト（`pnpm test`）に統合して検証」を完了。
+  - **変更理由**: タブ有効時に未保存変更を持つタブを安全に保護する一連のデータフロー（編集 -> 別ファイルオープン -> 元タブへ切替復帰 -> エディタ再マウント初期シリアライズ通知 -> 未保存マーク維持 -> タブクローズ時の保存確認ダイアログ発火・中断・承認）が将来にわたり回帰（リグレッション）しないことを客観的・自動的に保証するため。また、クリーンタブでの初回シリアライズ差異誤爆防止と未保存タブ保護ガードが共存できるよう `App.tsx` の `hasUnsavedChanges` 判定をリファクタリングし、網羅的な検証スイートを構築するため。
+  - **Before**:
+    - タブ有効時における「ファイル編集 -> 別タブ切替 -> 元タブ復帰 -> isDirty維持 -> クローズ警告」の一連の状態遷移とエディタ再マウント挙動を専門に網羅検証するテストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs` の個別機能検証テスト数が 31 件だった。
+    - `App.tsx` の `handleContentChange` 内で `hasUnsavedChanges` の判定に `isContentDirty(normalized, activeTab.savedContent)` が含まれていたため、クリーンタブにおける初期シリアライズ差異そのものが「未保存変更」と誤認され、ベースライン同期が阻害される潜在的リスクが存在した。
+  - **After**:
+    - `src/App.tsx`:
+      - `handleContentChange` の `hasUnsavedChanges` 判定を修正し、初期シリアライズ通知結果（`normalized`）の直接比較を除去。対象タブの既存ステータス（`activeTab.isDirty`）および退避内容（`activeTab.content` と `activeTab.savedContent`）のみに依拠させることで、クリーンタブのベースライン同期（未保存誤爆防止）と未保存タブの保護（isDirty維持・savedContent上書き防止）の完全な共存を確立。
+    - `scripts/verify-tab-switch-dirty-retention.mjs`:
+      - 静的コード検査: `Editor.tsx` の `isDirty` prop 定義・同期、`listenerCtx.mounted` でのガード、`App.tsx` の `isDirty={isDirty}` 連携、`hasUnsavedChanges` 分岐、`targetIsDirty`、`handleCloseTab` での `window.confirm` 発火・中断（`if (!ok) return`）を検証。
+      - 状態遷移シミュレーション:
+        - テスト1: ファイル1編集 -> ファイル2オープン -> ファイル1切替 -> エディタ再マウント初期シリアライズ通知 -> isDirty維持 -> タブクローズ時警告判定（キャンセル時保持・承認時クローズ）
+        - テスト2: 非アクティブな未保存タブの閉じるボタン押下時の警告判定
+        - テスト3: クリーンなタブにおける初回シリアライズベースライン同期（未保存誤爆防止）の共存確認
+        - テスト4: ファイル保存操作による未保存フラグ解除とクローズ検証
+    - `scripts/verify-all.mjs`:
+      - `verify-tab-switch-dirty-retention.mjs` をテスト一覧に統合（個別機能テスト数: 31件 -> 32件）。
+    - `for_agent/architecture.md` / `for_agent/guardrails.md`:
+      - Phase 18 の品質保証完了、および初回シリアライズ差異と未保存変更判定の混同防止に関するガードレールを追記。
+    - 検証結果:
+      - `pnpm test`: 全32個別テスト + Tauri IPCコマンド整合性 (14件) + OSネイティブメニュー整合性 (16件) + ショートカット定義整合性がすべて合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo check`: Rustバックエンド構文・型チェック合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src/App.tsx`, `scripts/verify-tab-switch-dirty-retention.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク57「タブ管理/未保存保護: タブ切り替え後の未保存状態保持とタブクローズ（`handleCloseTab`）時の保存確認ダイアログ（`window.confirm`）の確実な発火保護の実装（`src/App.tsx`）」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）の「3.13. タブ切り替え時のエディタ再マウントによる未保存ステータス（isDirty / savedContent）誤リセット防止」に基づき、タブ有効時に未保存変更を持つタブから他タブへ切り替えて再復帰した際、およびタブを閉じる操作（`handleCloseTab`）において、未保存状態（`isDirty`）を確実に保持し、保存確認ダイアログ（`window.confirm`）を漏れなく発火させて未保存の変更が警告なしに消失するのを防ぐため。
   - **Before**:
