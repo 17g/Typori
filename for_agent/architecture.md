@@ -124,6 +124,21 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     2. **CodeMirror キーマップレベル（keymap.of）**: 念のため `keymapExtension` にも `Prec.highest` を適用し、`Mod-/` ハンドラ（`preventDefault: true`, `stopPropagation: true`）を `defaultKeymap` より先に評価・消費（handled: true）させ、`toggleComment` の発火可能性を根本的に根絶。
   - **最新コールバック参照の同期（Callback Refs）**: `onSaveRef`, `onToggleSourceModeRef`, `onExitSourceModeRef`, `onToggleFocusModeRef` を常に最新のプロップ値で同期し、`onToggleSourceMode` と `onExitSourceMode` のいずれが渡された場合でもシームレスに WYSIWYG モードへの復旧・切替を保証。
 
+- ウィンドウクローズ制御（Rust側 CloseRequested インターセプトと双方向ハンドシェイク）仕様:
+  - **ネイティブクローズインターセプト**: Rust側 (`src-tauri/src/lib.rs`) の `tauri::Builder::default()` において `.on_window_event` を実装し、`tauri::WindowEvent::CloseRequested { api, .. }` を捕捉。`api.prevent_close()` を無条件実行して OS ネイティブのウィンドウ即時破棄を確実に一時保留（インターセプト）する。
+  - **フロントエンド連携イベント通知**: クローズ保留後、該当ウィンドウに対して Tauri イベント `window.emit("window:close_requested", ())` を発行。
+  - **未保存確認と安全な終了ハンドシェイク**: フロントエンド (`App.tsx`) は `"window:close_requested"` を受信後、`getUnsavedDocuments()` を実行。未保存ファイルが存在する場合は未保存ファイル名を列挙した確認ダイアログ（`window.confirm`）を表示し、ユーザーが承認（OK）した場合は `getCurrentWindow().destroy()` を呼び出してアプリを終了、キャンセルの場合はそのまま作業を継続。未保存ファイルが存在しない場合はダイアログを表示せず即座に `getCurrentWindow().destroy()` で終了する。
+
+- ファイルオープン直後の未保存誤爆防止（ユーザー操作前イベントガード / 初期シリアライズ同期）仕様:
+  - **初期シリアライズ差異の吸収**: Milkdown（Remark / ProseMirror）マウント時およびファイルロード直後、ASTパースおよびシリアライズの微細なフォーマット差異により `markdownUpdated` が発火して `onChange` がトリガーされ、無編集にもかかわらず `isContentDirty` が `true` に誤爆する現象を根絶。
+  - **ユーザー操作前イベントガード**: エディタマウント完了時および新規ファイルロード完了時、ユーザーによる能動的な編集操作（キーストローク・コマンド）が行われる前の自動シリアライズ差異を初期安定状態として検知し、誤った Dirty マーク（●印）の点灯を防止。
+  - **ベースライン自動アライメント（Baseline Realignment）**: ファイルロード完了直後の初期シリアライズ結果を `savedContentRef` および `TabItem.savedContent` の基準値として同期させ、実質的なユーザー編集のみを未保存変更として検知する。
+
+- 単一ファイル切替時の未保存ステータス破棄とクリーン状態リセット仕様:
+  - **未保存破棄の確定と完全リセット**: タブ機能無効時（単一ファイルモード）において未保存変更がある状態で別ファイルを開く際、未保存警告ダイアログで「OK（保存せずに別ファイルを開く）」を選択した場合、前のファイルの未保存変更は確実に破棄される。
+  - **ステート・Ref・バッファの完全初期化**: 別ファイルの読み込み（`openFile`）直後に、`isDirty: false`、`fileContent = newContent`、`savedContent = newContent`、`saveStatus = null`、`saveError = null`、`fileError = null` を同期的かつ完全にリセットし、切り替え前の Dirty 状態や保存ステータスの残骸が引き継がれるのを防止。
+  - **コンポーネントキー分離による内部キャッシュ破棄**: `TyporiEditor` および `SourceEditor` に渡す `key={selectedPath}` により、ファイル切り替え時にエディタを完全クリーンに再マウントし、内部 Undo/Redo 履歴やバッファを完全に初期化。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -166,6 +181,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-02: エディタ/ショートカット: ソース直接編集モードでの「Ctrl + /」による「<!-- -->」誤挿入防止とWYSIWYG切替競合解消の実装（SourceEditor.tsx での Prec.highest 適用、domEventHandlers による先行捕捉・preventDefault / stopPropagation 実行、コールバック Ref 同期）を追記
 - 2026-10-03: 品質保証: 全4項目（ウィンドウクローズ未保存警告、改行コードLF正規化&未保存誤爆防止、タブ切替Ref即時同期&未保存状態独立性、ソース直接編集Ctrl+/競合解消）を網羅検証する自動テストスイート（scripts/verify-source-comment-toggle.mjs, scripts/verify-phase16-fixes.mjs）の整備と総合ビルド検証（全27個別テスト、pnpm test / pnpm run build / cargo test / cargo check / cargo clippy の全パス）を追記
 - 2026-10-03: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜16、全49タスク）の突き合わせ、エッジケースの点検、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全27個別テスト、IPC 14コマンド、ネイティブメニュー 16イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
+- 2026-10-04: ウィンドウクローズ制御（Rust側 CloseRequested インターセプト）、ファイルオープン直後の未保存誤爆防止（ユーザー操作前イベントガード/初期シリアライズ同期）、および単一ファイル切替時の未保存ステータス破棄の仕様策定（Phase 17）を追記。
 
 
 

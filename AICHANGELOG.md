@@ -1,3 +1,27 @@
+- 2026-10-04: タスク50「仕様策定/設計: ウィンドウクローズ制御（Rust側 CloseRequested インターセプト）、ファイルオープン直後の未保存誤爆防止（ユーザー操作前イベントガード/初期シリアライズ同期）、および単一ファイル切替時の未保存ステータス破棄の仕様を整理し for_agent/ に反映」を完了。
+  - **変更理由**: Phase 17で対応する重要改善項目（①Rustネイティブでのクローズ一時保留とフロントエンドとの未保存確認ハンドシェイク、②Milkdown初回シリアライズ差異による未保存判定の誤爆防止機構、③タブ無効モードでの別ファイルオープン時における未保存ステータスの確実な破棄と状態リセット）について、データフロー・責務・エッジケースを詳細に設計し、`for_agent/architecture.md` および `for_agent/guardrails.md` に明文化・体系化するため。
+  - **Before**:
+    - `for_agent/architecture.md` および `for_agent/guardrails.md` に、Rust 側ネイティブでのクローズ一時保留（`api.prevent_close()`）とフロントエンド通知イベント（`window:close_requested`）、Milkdown 初回シリアライズ差異による未保存誤爆防止（ユーザー操作前イベントガード / ベースライン自動同期）、単一ファイル切替時の未保存ステータス破棄に関する詳細仕様およびガードレールが未定義だった。
+    - `scripts/verify-line-endings-normalization.mjs` 内で `\n` に依存した静的マッチングを行っていたため、Windows 環境（CRLF）において改行コード依存による不整合が発生していた。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - 「ウィンドウクローズ制御（Rust側 CloseRequested インターセプトと双方向ハンドシェイク）仕様」を追記。
+      - 「ファイルオープン直後の未保存誤爆防止（ユーザー操作前イベントガード / 初期シリアライズ同期）仕様」を追記。
+      - 「単一ファイル切替時の未保存ステータス破棄とクリーン状態リセット仕様」を追記。
+      - 改訂履歴にタスク50の仕様策定完了を追記。
+    - `for_agent/guardrails.md`:
+      - 「3.9. ウィンドウクローズ制御（Rust側 CloseRequested インターセプトと双方向ハンドシェイク）」を追記。
+      - 「3.10. Milkdown 初回シリアライズ差異による未保存（Dirty）判定の誤爆防止」を追記。
+      - 「3.11. 単一ファイル切替時における未保存ステータスの確実な破棄とクリーン状態リセット」を追記。
+    - `scripts/verify-line-endings-normalization.mjs`:
+      - 改行コードの違い（CRLF / LF）に依存しない正規表現マッチングに修正し、OS非依存の堅牢性を確保。
+    - 検証結果:
+      - `pnpm test`: 全27/27件の個別テスト、IPCコマンド登録整合性（14コマンド）、OSネイティブメニューイベント双方向整合性（16イベント）、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルドが Exit Code 0 でパス。
+      - `cargo check`: Exit Code 0 でパス。
+      - `cargo test`: 全24件の単体テストが Exit Code 0 でパス。
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `scripts/verify-line-endings-normalization.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-03: 全体レビュー（/review）を実施し、プロジェクト全体のビルド・テスト・仕様整合性を点検完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`、`for_agent/guardrails.md`）と全実装コード（Phase 1〜16、全49タスク）の突合、エッジケースの点検、仕様書の最新化、およびバックエンド・フロントエンド・総合テストスイートの総合品質保証（回帰バグゼロ）を確認するため。
   - **点検・検証結果**:

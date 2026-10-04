@@ -100,7 +100,7 @@ assert.ok(
   "Editor.tsx で initialValue が normalizeLineEndings で正規化されていること"
 );
 assert.ok(
-  editorTsxContent.includes("getMarkdown: () => {\n          return normalizeLineEndings(prevContentRef.current ?? \"\");"),
+  /getMarkdown:\s*\(\)\s*=>\s*\{[\s\S]*?return normalizeLineEndings\(prevContentRef\.current \?\? ""\);/.test(editorTsxContent),
   "Editor.tsx の getMarkdown が normalizeLineEndings された値を返すこと"
 );
 console.log("✓ Editor.tsx で初期値・シリアライズ取得時の LF 正規化が組み込まれていることを確認");
