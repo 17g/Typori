@@ -1007,9 +1007,16 @@ function App() {
     let currentContent = fileContentRef.current;
     if (!isSourceModeRef.current && editorRef.current) {
       try {
-        const md = editorRef.current.getMarkdown();
-        if (md !== undefined && md !== null) {
-          currentContent = md;
+        if (
+          typeof editorRef.current.hasUserInteracted === "function" &&
+          !editorRef.current.hasUserInteracted()
+        ) {
+          // ユーザー未操作時は初期シリアライズ差分を無視
+        } else {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) {
+            currentContent = md;
+          }
         }
       } catch (e) {
         // ignore
@@ -1042,8 +1049,17 @@ function App() {
         if (!ok) return;
       }
 
+      // 未保存破棄承認時: 前のファイルの未保存ステータス・バッファを先行破棄してクリーン初期化
       selectedPathRef.current = entry.path;
       setSelectedPath(entry.path);
+      fileContentRef.current = null;
+      savedContentRef.current = null;
+      setFileContent(null);
+      setSavedContent(null);
+      tabsRef.current = [];
+      setTabs([]);
+      activeTabIdRef.current = null;
+      setActiveTabId(null);
       setIsFileLoading(true);
       setFileError(null);
       setSaveError(null);
@@ -1063,7 +1079,7 @@ function App() {
           isDirty: false,
         };
 
-        // 即時Ref同期（単一ファイルモード）
+        // 即時Ref同期（単一ファイルモード: 未保存ステータス完全破棄 & クリーン同期）
         tabsRef.current = [newTab];
         activeTabIdRef.current = newTab.id;
         selectedPathRef.current = entry.path;
@@ -1072,12 +1088,22 @@ function App() {
 
         setTabs([newTab]);
         setActiveTabId(newTab.id);
+        setSelectedPath(entry.path);
         setFileContent(content);
         setSavedContent(content);
+        setSaveStatus(null);
+        setSaveError(null);
+        setFileError(null);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`Failed to open file '${entry.path}':`, err);
         setFileError(`ファイルの読み込みに失敗しました: ${errMsg}`);
+        fileContentRef.current = null;
+        savedContentRef.current = null;
+        tabsRef.current = [];
+        setTabs([]);
+        setFileContent(null);
+        setSavedContent(null);
       } finally {
         setIsFileLoading(false);
       }
@@ -1245,6 +1271,10 @@ function App() {
         );
         if (!ok) return false;
       }
+
+      setSaveStatus(null);
+      setSaveError(null);
+      setFileError(null);
 
       try {
         const newEntry = await createFile(fullPath, initialContent);

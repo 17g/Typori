@@ -1,3 +1,23 @@
+- 2026-10-04: タスク53「UI/状態管理: タブ機能無効（単一ファイルモード）時に未保存変更警告を「OK」で承認して別ファイルを開いた際、未保存ステータスを確実に破棄してクリーンに開く状態リセット処理の実装（`App.tsx`）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）の「3.11. 単一ファイル切替時における未保存ステータスの確実な破棄とクリーン状態リセット」に基づき、タブ無効モード（単一ファイルモード）において未保存の変更がある状態で別ファイルを開く際、確認ダイアログで「OK（保存せずに別ファイルを開く）」を選択した後に、前のファイルの未保存ステータス（`isDirty`、`saveStatus`、`saveError`、`fileError`、およびコンテンツRef/バッファ）が残留・引き継がれるのを防止し、クリーンな状態で新しいファイルをロード・同期するため。また、初回ファイルオープン直後にユーザー未操作時の初期シリアライズ差異による未保存確認ダイアログの誤爆を防止するため。
+  - **Before**:
+    - `src/App.tsx` の `handleSelectFile` において、`currentContent` 取得時に `editorRef.current.hasUserInteracted()` によるユーザー未操作ガードが存在せず、Milkdownの初回シリアライズ差異によって別ファイル選択時に不要な未保存確認ダイアログが表示されるリスクがあった。
+    - 単一ファイルモードにおいて未保存破棄が承認された際、新しいファイルの読み込み（`openFile`）前に `fileContentRef` / `savedContentRef` / `tabsRef` が前のファイルのDirtyな状態のまま残っていたため、非同期ロード中や読み込み失敗時に前のファイルの未保存ステータスやエラーが残留する可能性があった。
+  - **After**:
+    - `src/App.tsx`:
+      - `handleSelectFile` の `currentContent` 取得時に `editorRef.current.hasUserInteracted()` ガードを追加し、ユーザー未操作時は初期シリアライズ差分を無視して未保存確認ダイアログの誤爆を防止。
+      - 単一ファイルモードにおいて未保存破棄が承認された直後、先行して `fileContentRef.current = null`, `savedContentRef.current = null`, `setFileContent(null)`, `setSavedContent(null)`, `tabsRef.current = []`, `setTabs([])`, `activeTabIdRef.current = null`, `setActiveTabId(null)`, `setSaveStatus(null)`, `setSaveError(null)`, `setFileError(null)` を実行し、前のファイルの状態を完全にクリーンリセット。
+      - `openFile` 完了後は新しいファイルのコンテンツを `isDirty: false` で `newTab` に設定し、`tabsRef`, `activeTabIdRef`, `selectedPathRef`, `fileContentRef`, `savedContentRef` の即時Ref同期と各Reactステート（`tabs`, `activeTabId`, `selectedPath`, `fileContent`, `savedContent`, `saveStatus: null`, `saveError: null`, `fileError: null`）を完全に同期。
+      - `openFile` 失敗時も、前のファイルのDirty状態が残留しないよう確実にバッファおよびタブをクリーンリセット。
+      - `handleCreateFile` においても、単一ファイルモードでの未保存確認ダイアログ承認後に `setSaveStatus(null)`, `setSaveError(null)`, `setFileError(null)` を先行リセットするよう強化。
+    - 検証結果:
+      - `pnpm test`: 全29個別テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo check`: Exit Code 0。
+      - `cargo test`: 全24件の単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク52「エディタ/ファイル管理: Milkdown マウント時・ファイルロード直後の初回シリアライズ差異による未保存（Dirty）判定の誤爆防止機構の実装（`src/components/Editor/Editor.tsx`, `App.tsx`）」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に策定された初回シリアライズ差異誤爆防止仕様に基づき、ファイルを開いた直後やエディタマウント時に、MilkdownのASTパースや初期正規化・シリアライズの微小差異（末尾改行やインデント等）によって `markdownUpdated` が発火し、ユーザーが無編集であるにもかかわらず `isContentDirty` が `true` に誤判定されて未保存マーク（●）が点灯する問題を根本解消するため。
   - **Before**:
