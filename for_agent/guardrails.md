@@ -164,6 +164,17 @@
 - **対策**:
   1. `cargo check`, `cargo test`, `cargo clippy` などの Cargo コマンドを実行する際は、必ず `Cwd: <root>/src-tauri` を明示的に指定すること。
 
+### 3.13. タブ切り替え時のエディタ再マウントによる未保存ステータス（isDirty / savedContent）誤リセット防止
+- **事象・ミス**:
+  - タブ機能有効時、タブAでファイルを編集して未保存状態（●マーク）にした後、タブBに切り替えてから再びタブAに戻ると、タブAの未保存マーク（●）が消えてしまい、保存確認ダイアログが出ずにタブを閉じることができてしまう。
+- **原因**:
+  - `key={selectedPath}` によるエディタ再マウント時に、マウント完了時の初期シリアライズ通知（`meta.isUserInteraction === false`）が無条件で `savedContent` を上書きし、`isDirty: false` にリセットしてしまうため。
+  - Phase 17で導入された初回シリアライズ誤差吸収ロジックが、「対象タブが未保存変更を保持しているか」のチェックを欠いており、未保存タブへの切り替え時にも誤爆してディスク保存基準値（`savedContent`）を現在の編集後コンテンツで上書きしてしまっていた。
+- **対策**:
+  1. `handleContentChange` において `meta.isUserInteraction === false` を受け取った際は、対象タブが未保存状態（`isDirty: true` または `isContentDirty(content, savedContent)`）であるかを必ず判定し、未保存タブに対しては `savedContent` / `savedContentRef` の上書きと `isDirty` リセットを絶対に実行せず、既存のディスク保存基準値（`savedContent`）と未保存状態を保護すること。
+  2. 初期シリアライズ差分のベースライン同期は、ディスクから読み込んだ直後や保存直後のクリーンな状態（`!isDirty`）のファイルにのみ限定して適用すること。
+  3. `handleCloseTab` においても、タブの `content` と `savedContent` の `isContentDirty` チェックを厳格に行い、未保存タブが警告なしで閉じられることがないよう二重の防護策を講じること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

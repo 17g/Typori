@@ -139,6 +139,20 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
   - **ステート・Ref・バッファの完全初期化**: 別ファイルの読み込み（`openFile`）直後に、`isDirty: false`、`fileContent = newContent`、`savedContent = newContent`、`saveStatus = null`、`saveError = null`、`fileError = null` を同期的かつ完全にリセットし、切り替え前の Dirty 状態や保存ステータスの残骸が引き継がれるのを防止。
   - **コンポーネントキー分離による内部キャッシュ破棄**: `TyporiEditor` および `SourceEditor` に渡す `key={selectedPath}` により、ファイル切り替え時にエディタを完全クリーンに再マウントし、内部 Undo/Redo 履歴やバッファを完全に初期化。
 
+- タブ切り替え時の未保存状態保持および未保存タブクローズ保護仕様 (Phase 18):
+  - **根本原因の整理**:
+    - タブ有効時、未保存変更（`isDirty: true`, `savedContent !== content`）を持つタブAからタブBへ切り替え、再びタブAに戻った際、`TyporiEditor`（Milkdown）が `key={selectedPath}` により再マウントされる。
+    - 再マウント完了時に `Editor.tsx` の `listenerCtx.mounted` から `hasUserInteractedRef.current` が `false` の状態で `onChange(initialSerialized, { isUserInteraction: false })` が通知される。
+    - `App.tsx` の `handleContentChange` が、対象タブが未保存変更を持っているかどうかの判定を行わずに、`meta.isUserInteraction === false` を契機として `savedContent` および `savedContentRef` を編集後の内容で無差別に上書きし、`isDirty: false` にリセットしていた。
+    - これにより、タブ切り替え後に未保存マーク（●）が消失し、`savedContent === content` と誤認されるため、タブクローズ時（`handleCloseTab`）やウィンドウ終了時（`getUnsavedDocuments`）の保存確認ダイアログ（`window.confirm`）がスキップされ、未保存の変更が警告なしに消失する不具合が発生していた。
+  - **未保存タブの保護・ガード仕様（Dirty Tab Preservation Guard）**:
+    - `handleContentChange` において、`meta?.isUserInteraction === false`（エディタ再マウント時・初回シリアライズ通知）を受信した場合でも、**対象タブが既に未保存変更を持っている場合**（`activeTab.isDirty === true` または `isContentDirty(activeTab.content, activeTab.savedContent)`、あるいは `savedContentRef` とディスク保存基準値が未保存状態を示している場合）は、`savedContent` / `savedContentRef` の上書きおよび `isDirty: false` へのリセットを行わず、既存の `savedContent` および `isDirty: true` を厳格に維持・保護する。
+    - 初期シリアライズによる `savedContent` ベースライン更新および `isDirty: false` リセットを適用するのは、**新規ファイルオープン直後または直前に保存されたクリーンな状態（`isDirty === false` かつ実質未編集）のタブに限定**する。
+  - **タブクローズ時の未保存警告保護仕様（Tab Close Protection）**:
+    - `handleCloseTab` において、対象タブが未保存変更を保持している場合（`tab.isDirty || isContentDirty(tab.content, tab.savedContent)`）、アクティブタブ・非アクティブタブを問わず、必ず `window.confirm` による保存確認ダイアログを表示し、ユーザーの明示的承認が得られない限りタブクローズを中断する。
+  - **タブ切り替え・データフローの整合性担保**:
+    - タブ切り替え操作（`handleSelectTab`）において、切り替え元タブの編集内容は `tabsRef` に即時同期・退避され、切り替え先タブの未保存ステータス（`isDirty`, `savedContent`, `content`）はエディタ再マウントを経ても完全不変に維持される。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -186,6 +200,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-04: Phase 17（タスク50〜54）実装および品質保証の完了。Rustネイティブでのクローズ一時保留（api.prevent_close()）とフロント通知、Milkdown初回シリアライズ差異誤爆防止とベースライン同期、単一ファイルモード切替時の未保存ステータス先行破棄とクリーン同期を実装し、総合テストスイート（scripts/verify-single-file-clean-reset.mjs, scripts/verify-phase17-fixes.mjs）の全自動検証パス（全31個別テスト、pnpm test / pnpm run build / cargo test / cargo check / cargo clippy のExit Code 0）を確認。
 - 2026-10-04: アプリケーション固有アイコン（新案1「Minimal T」: スカイブルー〜ミントグラデーション背景＋白い角丸Tモノグラム）の採用および全プラットフォーム向けアセット生成・配置仕様を追記。
 - 2026-10-04: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜17、全54タスク＋アプリアイコン刷新）の突き合わせ、エッジケースの点検、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全31個別テスト、IPC 14コマンド、ネイティブメニュー 16イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
+- 2026-10-04: タブ切り替え時の未保存マーク消失バグおよび未保存タブクローズ警告スキップの根本原因整理、および未保存保護仕様（エディタ再マウント時初回シリアライズガード・savedContent保護・タブクローズ警告保護、Phase 18）を追記。
 
 
 

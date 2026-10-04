@@ -1,3 +1,17 @@
+- 2026-10-04: タスク55「仕様策定/設計: タブ切り替え時の未保存マーク消失バグおよび警告なしクローズの根本原因（エディタ再マウント時の初回シリアライズ通知による `savedContent` 上書き・`isDirty` 誤リセット）を整理し、未保存保護仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に追記・改訂」を完了。
+  - **変更理由**: タブ機能有効時、未保存変更を持つタブから他タブへ切り替えて再復帰した際に未保存マーク（●）が消失し、確認警告ダイアログが出ずにタブが閉じられて未保存の変更が失われてしまう不具合の根本原因を究明・整理し、再発防止策と未保存保護仕様を `for_agent/architecture.md` および `for_agent/guardrails.md` に策定・反映するため。
+  - **Before**:
+    - `for_agent/architecture.md` には、エディタ再マウント時に `meta.isUserInteraction === false`（初回シリアライズ通知）が通知された際の、未保存タブに対するガード仕様（Dirty Tab Preservation Guard）が明記されておらず、未保存タブへの切り替え時にもベースライン同期が誤爆して `savedContent` の上書きと `isDirty: false` リセットが発生する潜在的リスクが存在した。
+    - `for_agent/guardrails.md` に、エディタ再マウントに伴う初回シリアライズ通知による `savedContent` 上書きと `isDirty` リセットの防止に関する注意事項および再発防止策が記載されていなかった。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - 「タブ切り替え時の未保存状態保持および未保存タブクローズ保護仕様 (Phase 18)」セクションを新設。
+      - 根本原因（エディタ再マウント時の `isUserInteraction: false` による `savedContent` 上書きと `isDirty: false` 誤リセット）、未保存タブ保護ガード仕様（未保存変更を保持するタブへの切り替え時は `savedContent` 上書き・`isDirty` リセットを抑止し既存状態を厳格に保持）、タブクローズ時の保存確認ダイアログ発火保護仕様、データフロー整合性仕様を明文化。
+      - 改訂履歴に Phase 18 仕様策定を追記。
+    - `for_agent/guardrails.md`:
+      - 「3.13. タブ切り替え時のエディタ再マウントによる未保存ステータス（isDirty / savedContent）誤リセット防止」を新規追加し、事象・ミス、根本原因、および具体的な対策（未保存タブに対するガード、クリーンファイルのみへのベースライン同期限定、タブクローズ時の二重保護）を規定。
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `AICHANGELOG.md`, `Plan.md`。
+
 - 2026-10-04: 全体レビュー（/review）を実施し、Phase 1〜17（全54タスク＋アプリアイコン刷新）の仕様整合性検証と総合品質検証を完了。
   - **変更理由**: Phase 17の全機能実装、および直近のアプリケーション独自アイコン刷新を受け、`for_agent/` 配下の仕様書正本（`architecture.md`, `guardrails.md`）と全実装コード（Rustバックエンド、React/TSフロントエンド、Milkdown/CodeMirrorエディタコア、自動テストスイート）の完全な突き合わせ、エッジケースの考慮漏れ点検、仕様書の最新化、および全検証コマンド（テスト・ビルド・静的解析）の全パスを確認するため。
   - **Before**:
