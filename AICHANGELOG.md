@@ -1,3 +1,27 @@
+- 2026-10-04: タスク52「エディタ/ファイル管理: Milkdown マウント時・ファイルロード直後の初回シリアライズ差異による未保存（Dirty）判定の誤爆防止機構の実装（`src/components/Editor/Editor.tsx`, `App.tsx`）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に策定された初回シリアライズ差異誤爆防止仕様に基づき、ファイルを開いた直後やエディタマウント時に、MilkdownのASTパースや初期正規化・シリアライズの微小差異（末尾改行やインデント等）によって `markdownUpdated` が発火し、ユーザーが無編集であるにもかかわらず `isContentDirty` が `true` に誤判定されて未保存マーク（●）が点灯する問題を根本解消するため。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx` において、ユーザーが能動的にキー入力・編集操作を行ったかを追跡するフラグが存在せず、マウント直後の初回シリアライズ更新時にも無条件で `onChange(normalized)` を送出していた。また `EditorRef` に能動操作追跡メソッドが存在しなかった。
+    - `src/App.tsx` の `handleContentChange` は、エディタからの `onChange` を無条件でユーザー編集として受け取り、ディスク上の `savedContent` との生比較を行っていたため、初回シリアライズの微小な差異で即座に `isDirty: true` と判定されていた。また `getUnsavedDocuments` でもユーザー未操作時のシリアライズ差異による誤爆を抑制するガードが存在しなかった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorRef` に `hasUserInteracted: () => boolean` および `markUserInteracted: () => void` を追加。
+      - `EditorProps` の `onChange` に `meta?: { isUserInteraction?: boolean }` を追加。
+      - `MilkdownEditorContent` 内で `hasUserInteractedRef` を管理し、ユーザーの能動操作（キーストローク、DOM入力イベント `beforeinput` / `compositionend` / `paste` / `drop`、ツールバー操作、エディタ編集コマンド）を検知した時点で `markUserInteracted()` を実行。
+      - `listenerCtx.mounted` において、マウント完了時にユーザー未操作であれば、Milkdownの初期シリアライズ結果を取得して `onChange(initialSerialized, { isUserInteraction: false })` を発行しベースラインを即時自動アライメント。
+      - `listenerCtx.markdownUpdated` において、ユーザー操作状態に応じた `isUserInteraction: hasUserInteractedRef.current` を付与して通知。
+    - `src/App.tsx`:
+      - `handleContentChange` において、`meta?.isUserInteraction === false`（初期シリアライズ自動同期）の場合は `savedContentRef` および `tabs.savedContent` のベースラインを自動同期し、`isDirty: false` を維持。
+      - `getUnsavedDocuments` において、ユーザー未操作（`!editorRef.current.hasUserInteracted()`）の場合はエディタシリアライズによる上書きをスキップし、シリアライズ差異による未保存誤爆を遮断。
+    - `scripts/verify-editor-initial-dirty-guard.mjs` & `scripts/verify-all.mjs`:
+      - `EditorRef`・`EditorProps`・DOM入力イベント・マウント時初期同期・`markdownUpdated`・`App.tsx` ベースライン同期・`getUnsavedDocuments` ガード、および状態遷移シミュレーションテストを網羅検証するテストスクリプトを作成し、総合テストスイートに統合。全29/29件のテスト合格（Exit Code 0）。
+    - 検証結果:
+      - `pnpm test`: 全29個別テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo check` & `cargo clippy`: エラー・警告ゼロ（Exit Code 0）。
+      - `cargo test`: 全24件の単体テスト合格（Exit Code 0）。
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `src/App.tsx`, `scripts/verify-editor-initial-dirty-guard.mjs`, `scripts/verify-all.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク51「バックエンド/ウィンドウ管理: Tauri (Rust) 側 `WindowEvent::CloseRequested` でのクローズ一時保留（`api.prevent_close()`）とフロントエンドとの未保存確認ハンドシェイクの実装（`src-tauri/src/lib.rs`, `App.tsx`）」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に策定されたウィンドウクローズ制御仕様に基づき、OSネイティブのウィンドウクローズ操作（×ボタン、Alt+F4等）発生時にRust側で `api.prevent_close()` を実行して即時破棄を確実に一時保留し、Tauriイベント `window:close_requested` をフロントエンドに送出して、未保存ドキュメントの有無に応じた確認ハンドシェイクと安全な終了（`getCurrentWindow().destroy()`）を実現するため。
   - **Before**:

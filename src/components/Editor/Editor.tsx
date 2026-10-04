@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useEffect, useRef, useState, useCallback } from "react";
-import { defaultValueCtx, Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx } from "@milkdown/kit/core";
+import { defaultValueCtx, Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { commonmark, linkSchema, blockquoteSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
 import { gfm, columnResizingPlugin, createTable } from "@milkdown/kit/preset/gfm";
 import {
@@ -65,6 +65,8 @@ export interface EditorRef {
   redo: () => boolean;
   focus: () => void;
   getMarkdown: () => string;
+  hasUserInteracted: () => boolean;
+  markUserInteracted: () => void;
   toggleBlockquote: () => boolean;
   openLinkModal: () => void;
   insertLink: (href: string, title?: string) => boolean;
@@ -86,7 +88,7 @@ export interface EditorProps {
   content?: string;
   filePath?: string | null;
   workspaceDir?: string | null;
-  onChange?: (markdown: string) => void;
+  onChange?: (markdown: string, meta?: { isUserInteraction?: boolean }) => void;
   onToggleSourceMode?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
@@ -169,6 +171,13 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     const initialValue = normalizeLineEndings(content ?? defaultValue ?? defaultContent);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
+
+    // ユーザーによる能動的な編集操作（キーストローク・コマンド・入力）が行われたかを追跡
+    // ファイルロード直後やマウント直後の初回シリアライズ差異による未保存（Dirty）誤爆を抑止する
+    const hasUserInteractedRef = useRef(false);
+    const markUserInteracted = useCallback(() => {
+      hasUserInteractedRef.current = true;
+    }, []);
 
     const prevContentRef = useRef(initialValue);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -319,10 +328,28 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
                 },
               },
             }));
+            ctx.get(listenerCtx).mounted((innerCtx) => {
+              // マウント完了時にユーザー操作がまだ行われていない場合、
+              // Milkdownの初期シリアライズ結果をベースラインとして同期し未保存誤爆を防止
+              if (!hasUserInteractedRef.current) {
+                try {
+                  const serializer = innerCtx.get(serializerCtx);
+                  const editorView = innerCtx.get(editorViewCtx);
+                  if (editorView && serializer) {
+                    const initialSerialized = normalizeLineEndings(serializer(editorView.state.doc));
+                    prevContentRef.current = initialSerialized;
+                    onChangeRef.current?.(initialSerialized, { isUserInteraction: false });
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+            });
             ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
               const normalized = normalizeLineEndings(markdown);
               prevContentRef.current = normalized;
-              onChangeRef.current?.(normalized);
+              const isUser = hasUserInteractedRef.current;
+              onChangeRef.current?.(normalized, { isUserInteraction: isUser });
             });
             ctx.get(listenerCtx).selectionUpdated((ctx) => {
               try {
@@ -376,6 +403,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
 
     // 引用（Blockquote）のトグル
     const toggleBlockquote = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -487,6 +515,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     // リンクの適用
     const applyLink = useCallback(
       (href: string, text?: string) => {
+        markUserInteracted();
         if (loading) return false;
         const editor = getEditor();
         if (!editor) return false;
@@ -520,11 +549,12 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         setTooltipState((prev) => ({ ...prev, isOpen: false }));
         return success;
       },
-      [loading, getEditor, tooltipState.linkRange]
+      [loading, getEditor, tooltipState.linkRange, markUserInteracted]
     );
 
     // リンクの解除
     const removeLink = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -543,11 +573,12 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
 
       setTooltipState((prev) => ({ ...prev, isOpen: false }));
       return success;
-    }, [loading, getEditor, tooltipState.linkRange]);
+    }, [loading, getEditor, tooltipState.linkRange, markUserInteracted]);
 
     // 表（テーブル）の挿入
     const insertTable = useCallback(
       (rows = 3, cols = 3) => {
+        markUserInteracted();
         if (loading) return false;
         const editor = getEditor();
         if (!editor) return false;
@@ -562,11 +593,12 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           return true;
         });
       },
-      [loading, getEditor]
+      [loading, getEditor, markUserInteracted]
     );
 
     // 行を上に追加
     const addRowBeforeAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -576,10 +608,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         view.focus();
         return res;
       });
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 行を下に追加
     const addRowAfterAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -589,10 +622,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         view.focus();
         return res;
       });
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 行を削除
     const deleteRowAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -602,10 +636,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         view.focus();
         return res;
       });
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 列を左に追加
     const addColBeforeAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -615,10 +650,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         view.focus();
         return res;
       });
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 列を右に追加
     const addColAfterAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -628,10 +664,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         view.focus();
         return res;
       });
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 列を削除
     const deleteColAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -641,10 +678,11 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         view.focus();
         return res;
       });
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 表を削除
     const deleteTableAction = useCallback(() => {
+      markUserInteracted();
       if (loading) return false;
       const editor = getEditor();
       if (!editor) return false;
@@ -656,7 +694,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       });
       setTableToolbarState((prev) => ({ ...prev, isOpen: false }));
       return res;
-    }, [loading, getEditor]);
+    }, [loading, getEditor, markUserInteracted]);
 
     // 表内か判定
     const checkIsInTable = useCallback(() => {
@@ -672,6 +710,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     // 画像の挿入
     const insertImage = useCallback(
       (src: string, alt = "", title = "") => {
+        markUserInteracted();
         if (loading) return false;
         const editor = getEditor();
         if (!editor) return false;
@@ -695,7 +734,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         setTimeout(resolveImagesInDOM, 50);
         return res;
       },
-      [loading, getEditor, resolveImagesInDOM]
+      [loading, getEditor, resolveImagesInDOM, markUserInteracted]
     );
 
     // ドラッグ＆ドロップハンドラー
@@ -777,6 +816,23 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
 
     // ショートカットキーハンドラー
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // ナビゲーションキーや単なる修飾キー単体以外のキーストロークはユーザー能動編集操作とみなす
+      const isModifierOnly = ["Control", "Shift", "Alt", "Meta", "CapsLock", "Tab"].includes(e.key);
+      const isNavigation = [
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "Home",
+        "End",
+        "PageUp",
+        "PageDown",
+        "Escape",
+      ].includes(e.key);
+      if (!isModifierOnly && !isNavigation) {
+        markUserInteracted();
+      }
+
       // Ctrl+K / Cmd+K: リンク挿入・編集
       if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
@@ -810,6 +866,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       ref,
       () => ({
         undo: () => {
+          markUserInteracted();
           if (loading) return false;
           const editor = getEditor();
           if (!editor) return false;
@@ -821,6 +878,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           }
         },
         redo: () => {
+          markUserInteracted();
           if (loading) return false;
           const editor = getEditor();
           if (!editor) return false;
@@ -847,6 +905,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         getMarkdown: () => {
           return normalizeLineEndings(prevContentRef.current ?? "");
         },
+        hasUserInteracted: () => hasUserInteractedRef.current,
+        markUserInteracted,
         toggleBlockquote,
         openLinkModal,
         insertLink: (href: string, title?: string) => applyLink(href, title),
@@ -865,6 +925,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       [
         loading,
         getEditor,
+        markUserInteracted,
         toggleBlockquote,
         openLinkModal,
         applyLink,
@@ -921,11 +982,13 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onMouseEnter={() => setIsToolbarHovered(true)}
           onMouseLeave={() => setIsToolbarHovered(false)}
           onUndo={() => {
+            markUserInteracted();
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(undoCommand.key));
             }
           }}
           onRedo={() => {
+            markUserInteracted();
             if (!loading && getEditor()) {
               getEditor()?.action(callCommand(redoCommand.key));
             }
@@ -943,6 +1006,10 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onScroll={handleScroll}
           onClick={handleContainerClick}
           onKeyDown={handleKeyDown}
+          onBeforeInputCapture={markUserInteracted}
+          onCompositionEndCapture={markUserInteracted}
+          onPasteCapture={markUserInteracted}
+          onDropCapture={markUserInteracted}
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}

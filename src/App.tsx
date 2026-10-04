@@ -439,20 +439,41 @@ function App() {
   handleToggleTabsEnabledRef.current = handleToggleTabsEnabled;
 
   // コンテンツ更新時にアクティブタブの content も同期
-  const handleContentChange = useCallback((markdown: string) => {
-    const normalized = normalizeLineEndings(markdown);
-    fileContentRef.current = normalized;
-    setFileContent(normalized);
-    setTabs((prev) => {
-      const nextTabs = prev.map((t) =>
-        t.id === activeTabIdRef.current
-          ? { ...t, content: normalized, isDirty: isContentDirty(normalized, t.savedContent) }
-          : t
-      );
-      tabsRef.current = nextTabs;
-      return nextTabs;
-    });
-  }, []);
+  // ユーザー能動操作前（meta.isUserInteraction === false）の場合は、
+  // Milkdown初回シリアライズ結果をベースラインとして同期し未保存（Dirty）判定の誤爆を抑止
+  const handleContentChange = useCallback(
+    (markdown: string, meta?: { isUserInteraction?: boolean }) => {
+      const normalized = normalizeLineEndings(markdown);
+      fileContentRef.current = normalized;
+      setFileContent(normalized);
+
+      if (meta && meta.isUserInteraction === false) {
+        savedContentRef.current = normalized;
+        setSavedContent(normalized);
+        setTabs((prev) => {
+          const nextTabs = prev.map((t) =>
+            t.id === activeTabIdRef.current || t.path === selectedPathRef.current
+              ? { ...t, content: normalized, savedContent: normalized, isDirty: false }
+              : t
+          );
+          tabsRef.current = nextTabs;
+          return nextTabs;
+        });
+        return;
+      }
+
+      setTabs((prev) => {
+        const nextTabs = prev.map((t) =>
+          t.id === activeTabIdRef.current
+            ? { ...t, content: normalized, isDirty: isContentDirty(normalized, t.savedContent) }
+            : t
+        );
+        tabsRef.current = nextTabs;
+        return nextTabs;
+      });
+    },
+    []
+  );
 
   // タブ選択（切り替え）
   const handleSelectTab = useCallback(
@@ -826,9 +847,18 @@ function App() {
     let currentContent = fileContentRef.current;
     if (!isSourceModeRef.current && editorRef.current) {
       try {
-        const md = editorRef.current.getMarkdown();
-        if (md !== undefined && md !== null) {
-          currentContent = md;
+        // ユーザーが一度も能動的に編集操作を行っていない場合、
+        // Milkdownの初期シリアライズ差異による未保存誤爆を抑止
+        if (
+          typeof editorRef.current.hasUserInteracted === "function" &&
+          !editorRef.current.hasUserInteracted()
+        ) {
+          // ユーザー未操作のためエディタシリアライズによる上書きをスキップ
+        } else {
+          const md = editorRef.current.getMarkdown();
+          if (md !== undefined && md !== null) {
+            currentContent = md;
+          }
         }
       } catch (e) {
         // ignore
