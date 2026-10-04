@@ -890,41 +890,70 @@ function App() {
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     let unlistenClose: (() => void) | undefined;
+    let unlistenNativeClose: (() => void) | undefined;
     let isCancelled = false;
+    let isHandlingClose = false;
+
+    const executeCloseWorkflow = async (appWindow: ReturnType<typeof getCurrentWindow>) => {
+      if (isHandlingClose) return;
+      isHandlingClose = true;
+      try {
+        const unsaved = getUnsavedDocuments();
+        if (unsaved.hasUnsaved) {
+          // 未保存変更がある場合は確認ダイアログを表示
+          const namesList = unsaved.fileNames.map((name) => `「${name}」`).join("、");
+          const ok = window.confirm(
+            `保存されていない変更があります（${namesList}）。\n保存せずに Typori を終了しますか？`
+          );
+
+          if (ok) {
+            try {
+              await appWindow.destroy();
+            } catch (destroyErr) {
+              console.error("Failed to destroy window on exit:", destroyErr);
+            }
+          }
+        } else {
+          // 未保存変更がない場合は即座に終了
+          try {
+            await appWindow.destroy();
+          } catch (destroyErr) {
+            console.error("Failed to destroy window on exit:", destroyErr);
+          }
+        }
+      } finally {
+        isHandlingClose = false;
+      }
+    };
 
     (async () => {
       try {
         const appWindow = getCurrentWindow();
-        if (!appWindow || typeof appWindow.onCloseRequested !== "function") return;
+        if (!appWindow) return;
 
-        const unlisten = await appWindow.onCloseRequested(async (event) => {
-          const unsaved = getUnsavedDocuments();
-          if (unsaved.hasUnsaved) {
-            // 未保存変更がある場合はウィンドウの即時終了を防止
-            event.preventDefault();
-
-            const namesList = unsaved.fileNames.map((name) => `「${name}」`).join("、");
-            const ok = window.confirm(
-              `保存されていない変更があります（${namesList}）。\n保存せずに Typori を終了しますか？`
-            );
-
-            if (ok) {
-              try {
-                await appWindow.destroy();
-              } catch (destroyErr) {
-                console.error("Failed to destroy window on exit:", destroyErr);
-              }
-            }
-          }
+        // 1. Rust バックエンドからの CloseRequested 通知ハンドシェイク ("window:close_requested")
+        const unlistenEmit = await listen("window:close_requested", async () => {
+          await executeCloseWorkflow(appWindow);
         });
 
+        // 2. フロントエンド直接の onCloseRequested リスナー（フォールバック）
+        let unlistenOnClose: (() => void) | undefined;
+        if (typeof appWindow.onCloseRequested === "function") {
+          unlistenOnClose = await appWindow.onCloseRequested(async (event) => {
+            event.preventDefault();
+            await executeCloseWorkflow(appWindow);
+          });
+        }
+
         if (isCancelled) {
-          unlisten();
+          unlistenEmit();
+          if (unlistenOnClose) unlistenOnClose();
         } else {
-          unlistenClose = unlisten;
+          unlistenNativeClose = unlistenEmit;
+          unlistenClose = unlistenOnClose;
         }
       } catch (err) {
-        console.warn("Tauri window.onCloseRequested listener registration skipped:", err);
+        console.warn("Tauri close requested listener registration skipped:", err);
       }
     })();
 
@@ -933,6 +962,9 @@ function App() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       if (unlistenClose) {
         unlistenClose();
+      }
+      if (unlistenNativeClose) {
+        unlistenNativeClose();
       }
     };
   }, [getUnsavedDocuments]);

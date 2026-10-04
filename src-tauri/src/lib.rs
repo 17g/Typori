@@ -1,3 +1,5 @@
+use tauri::Emitter;
+
 pub mod fs;
 pub mod menu;
 
@@ -23,6 +25,12 @@ pub fn run() {
         })
         .on_menu_event(|app, event| {
             menu::handle_menu_event(app, event);
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.emit("window:close_requested", ());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             greet,

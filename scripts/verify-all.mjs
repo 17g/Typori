@@ -41,6 +41,7 @@ const testScripts = [
   { name: "タブ切替・ファイルオープン Ref即時同期 & 未保存状態独立性", file: "verify-tabs-ref-sync.mjs" },
   { name: "ソース直接編集 Ctrl+/ コメント誤挿入防止 & WYSIWYG切替競合解消", file: "verify-source-comment-toggle.mjs" },
   { name: "Phase 16 全4項目 総合統合テスト (品質保証 & シナリオ検証)", file: "verify-phase16-fixes.mjs" },
+  { name: "ウィンドウクローズ (CloseRequested) インターセプト & 双方向ハンドシェイク", file: "verify-window-close-intercept.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

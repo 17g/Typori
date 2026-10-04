@@ -1,3 +1,27 @@
+- 2026-10-04: タスク51「バックエンド/ウィンドウ管理: Tauri (Rust) 側 `WindowEvent::CloseRequested` でのクローズ一時保留（`api.prevent_close()`）とフロントエンドとの未保存確認ハンドシェイクの実装（`src-tauri/src/lib.rs`, `App.tsx`）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に策定されたウィンドウクローズ制御仕様に基づき、OSネイティブのウィンドウクローズ操作（×ボタン、Alt+F4等）発生時にRust側で `api.prevent_close()` を実行して即時破棄を確実に一時保留し、Tauriイベント `window:close_requested` をフロントエンドに送出して、未保存ドキュメントの有無に応じた確認ハンドシェイクと安全な終了（`getCurrentWindow().destroy()`）を実現するため。
+  - **Before**:
+    - `src-tauri/src/lib.rs` に `on_window_event` ハンドラが存在せず、OSネイティブのクローズ要求時にRust側での一時保留（インターセプト）や `window:close_requested` の発行が行われていなかった。
+    - `src/App.tsx` では `appWindow.onCloseRequested` のみで未保存検出を行っていたが、ネイティブイベントとの双方向ハンドシェイクや、未保存変更がない場合の自動破棄フローが分離・統一されていなかった。
+  - **After**:
+    - `src-tauri/src/lib.rs`:
+      - `use tauri::Emitter;` を追加。
+      - `tauri::Builder::default().on_window_event` を実装し、`tauri::WindowEvent::CloseRequested { api, .. }` を捕捉。`api.prevent_close()` を無条件実行してウィンドウ即時破棄を一時保留し、`window.emit("window:close_requested", ())` を送出。
+    - `src/App.tsx`:
+      - `listen("window:close_requested")` を購読し、共通のクローズワークフロー `executeCloseWorkflow` を実装。
+      - 未保存変更がある場合はファイル名を列挙した確認ダイアログ（`window.confirm`）を表示し、OKの場合のみ `appWindow.destroy()` を実行。
+      - 未保存変更がない場合は確認ダイアログを表示せず即座に `appWindow.destroy()` を実行してアプリを安全に終了。
+      - 二重実行ガードフラグ（`isHandlingClose`）を配置し、`appWindow.onCloseRequested` フォールバックとの多重発火を防止。
+    - `scripts/verify-window-close-intercept.mjs` & `scripts/verify-all.mjs`:
+      - Rust 側の `on_window_event`、`api.prevent_close()`、`window.emit("window:close_requested", ())`、およびフロントエンドの `listen("window:close_requested")`、ハンドシェイク処理を網羅検証するテストスクリプトを新規作成し、総合結合テストスイートに統合。全28/28件のテスト合格（Exit Code 0）。
+    - 検証結果:
+      - `cargo check`: Exit Code 0。
+      - `cargo test`: 全24件の単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteビルド合格（Exit Code 0）。
+      - `pnpm test`: 全28個別テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性合格（Exit Code 0）。
+  - **影響範囲**: `src-tauri/src/lib.rs`, `src/App.tsx`, `scripts/verify-window-close-intercept.mjs`, `scripts/verify-all.mjs`, `Plan.md`。
+
 - 2026-10-04: アプリケーション固有アイコンの刷新（新案1「Minimal T」の採用・全プラットフォーム向け生成・配置）を完了。
   - **変更理由**: デフォルトのTauriアイコンから、Typori固有の明るくシンプルなアプリアイコン（文字なし・スカイブルー〜ミントグラデーションに白い角丸「T」モノグラム）へ置き換えるため。
   - **Before**:
