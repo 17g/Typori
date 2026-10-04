@@ -86,6 +86,7 @@ export interface EditorRef {
 export interface EditorProps {
   defaultValue?: string;
   content?: string;
+  isDirty?: boolean;
   filePath?: string | null;
   workspaceDir?: string | null;
   onChange?: (markdown: string, meta?: { isUserInteraction?: boolean }) => void;
@@ -158,6 +159,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     {
       defaultValue,
       content,
+      isDirty = false,
       filePath,
       workspaceDir,
       onChange,
@@ -174,7 +176,14 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
 
     // ユーザーによる能動的な編集操作（キーストローク・コマンド・入力）が行われたかを追跡
     // ファイルロード直後やマウント直後の初回シリアライズ差異による未保存（Dirty）誤爆を抑止する
+    // 未保存変更が存在するタブ（isDirty: true）の場合は初期状態から操作済みとして追跡
     const hasUserInteractedRef = useRef(false);
+    useEffect(() => {
+      if (isDirty) {
+        hasUserInteractedRef.current = true;
+      }
+    }, [isDirty]);
+
     const markUserInteracted = useCallback(() => {
       hasUserInteractedRef.current = true;
     }, []);
@@ -329,9 +338,9 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
               },
             }));
             ctx.get(listenerCtx).mounted((innerCtx) => {
-              // マウント完了時にユーザー操作がまだ行われていない場合、
+              // マウント完了時にユーザー操作がまだ行われておらず、かつ未保存変更がないクリーンなファイルの場合のみ
               // Milkdownの初期シリアライズ結果をベースラインとして同期し未保存誤爆を防止
-              if (!hasUserInteractedRef.current) {
+              if (!hasUserInteractedRef.current && !isDirty) {
                 try {
                   const serializer = innerCtx.get(serializerCtx);
                   const editorView = innerCtx.get(editorViewCtx);

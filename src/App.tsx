@@ -440,19 +440,66 @@ function App() {
 
   // コンテンツ更新時にアクティブタブの content も同期
   // ユーザー能動操作前（meta.isUserInteraction === false）の場合は、
-  // Milkdown初回シリアライズ結果をベースラインとして同期し未保存（Dirty）判定の誤爆を抑止
+  // クリーンな状態（未保存変更なし）のファイルに限り Milkdown 初回シリアライズ結果をベースラインとして同期し未保存（Dirty）判定の誤爆を抑止。
+  // 一方、対象タブに既に未保存変更が存在する場合は savedContent の上書きおよび isDirty リセットを防止（保護）。
   const handleContentChange = useCallback(
     (markdown: string, meta?: { isUserInteraction?: boolean }) => {
       const normalized = normalizeLineEndings(markdown);
       fileContentRef.current = normalized;
       setFileContent(normalized);
 
+      const currentActiveId = activeTabIdRef.current;
+      const currentSelectedPath = selectedPathRef.current;
+      const currentTabs = tabsRef.current;
+      const activeTab = currentTabs.find(
+        (t) => t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
+      );
+
+      // 対象タブが既に未保存変更を持っているかどうかの判定
+      const hasUnsavedChanges = activeTab
+        ? Boolean(
+            activeTab.isDirty ||
+            (activeTab.savedContent !== null &&
+             activeTab.savedContent !== undefined &&
+             isContentDirty(activeTab.content, activeTab.savedContent)) ||
+            (activeTab.savedContent !== null &&
+             activeTab.savedContent !== undefined &&
+             isContentDirty(normalized, activeTab.savedContent))
+          )
+        : Boolean(
+            savedContentRef.current !== null &&
+            isContentDirty(normalized, savedContentRef.current)
+          );
+
       if (meta && meta.isUserInteraction === false) {
+        // 未保存変更が存在するタブの場合、savedContent の上書きおよび isDirty リセットを抑止し保護
+        if (hasUnsavedChanges) {
+          const preservedSavedContent = activeTab?.savedContent ?? savedContentRef.current ?? normalized;
+          savedContentRef.current = preservedSavedContent;
+          setSavedContent(preservedSavedContent);
+          setTabs((prev) => {
+            const nextTabs = prev.map((t) =>
+              t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
+                ? {
+                    ...t,
+                    content: normalized,
+                    savedContent: t.savedContent ?? preservedSavedContent,
+                    isDirty: true,
+                  }
+                : t
+            );
+            tabsRef.current = nextTabs;
+            return nextTabs;
+          });
+          return;
+        }
+
+        // クリーンな状態のタブの場合のみ、初回シリアライズ差異をベースラインとして同期
         savedContentRef.current = normalized;
         setSavedContent(normalized);
         setTabs((prev) => {
           const nextTabs = prev.map((t) =>
-            t.id === activeTabIdRef.current || t.path === selectedPathRef.current
+            t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
               ? { ...t, content: normalized, savedContent: normalized, isDirty: false }
               : t
           );
@@ -464,7 +511,7 @@ function App() {
 
       setTabs((prev) => {
         const nextTabs = prev.map((t) =>
-          t.id === activeTabIdRef.current
+          t.id === currentActiveId
             ? { ...t, content: normalized, isDirty: isContentDirty(normalized, t.savedContent) }
             : t
         );
@@ -1914,6 +1961,7 @@ function App() {
               ref={editorRef}
               key={selectedPath ?? "__welcome__"}
               content={fileContent ?? undefined}
+              isDirty={isDirty}
               filePath={selectedPath}
               workspaceDir={currentDirectory}
               onChange={handleContentChange}

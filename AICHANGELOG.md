@@ -1,3 +1,27 @@
+- 2026-10-04: タスク56「UI/状態管理: `handleContentChange` において未保存変更が存在するタブへの切り替え時・再マウント時に `savedContent` の上書きおよび `isDirty` リセットを防止するガードロジックの実装（`src/App.tsx`, `src/components/Editor/Editor.tsx`）」を完了。
+  - **変更理由**: タブ機能有効時、未保存変更を持つタブから別タブへ切り替えて再復帰した際に、エディタ再マウントに伴う初回シリアライズ通知（`meta.isUserInteraction === false`）によってディスク保存基準値（`savedContent`）が編集後コンテンツで誤上書きされ、`isDirty: false` にリセットされて未保存マーク（●）が消失する問題を解消するため。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx` の `EditorProps` および `MilkdownEditorContent` に `isDirty` prop が存在せず、未保存タブの再マウント時でも `mounted` リスナーが無条件で `onChange(initialSerialized, { isUserInteraction: false })` を発行していた。
+    - `src/App.tsx` の `handleContentChange` において、`meta?.isUserInteraction === false` を受信した際、対象タブが未保存変更を保持しているかどうかの判定を行わず、無条件で `savedContentRef.current = normalized` および `isDirty: false` にリセットしていた。
+    - `TyporiEditor` レンダリング時に `isDirty` が渡されていなかった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorProps` に `isDirty?: boolean` を追加。
+      - `MilkdownEditorContent` で `isDirty` を受け取り、`isDirty: true` の場合は `hasUserInteractedRef.current = true` と同期。
+      - `listenerCtx.mounted` において、`if (!hasUserInteractedRef.current && !isDirty)` のガードを導入し、未保存変更を持つタブの再マウント時には不要な `isUserInteraction: false` の初回同期発行を抑制。
+    - `src/App.tsx`:
+      - `handleContentChange` において、`activeTab` の未保存状態（`activeTab.isDirty` や `isContentDirty(activeTab.content, activeTab.savedContent)`、`isContentDirty(normalized, activeTab.savedContent)`、または単一ファイル時の `savedContentRef` 比較）を厳格に判定するガードロジックを実装。
+      - `meta?.isUserInteraction === false` を受信した場合でも、未保存変更を持つタブであれば `savedContent` / `savedContentRef` の上書きと `isDirty` リセットを完全に遮断し、既存の保存基準値（`preservedSavedContent`）と `isDirty: true` を保護。
+      - クリーンな状態（`!hasUnsavedChanges`）のタブに限り、初期シリアライズ差異のベースライン同期（未保存誤爆防止）を適用。
+      - `TyporiEditor` レンダリング部に `isDirty={isDirty}` を渡すよう連携。
+    - 検証結果:
+      - `pnpm test`: 全31個別テスト + Tauri IPCコマンド整合性 (14件) + OSネイティブメニュー整合性 (16件) + ショートカット定義整合性がすべて合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo check`: Rustバックエンド構文・型チェック合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク55「仕様策定/設計: タブ切り替え時の未保存マーク消失バグおよび警告なしクローズの根本原因（エディタ再マウント時の初回シリアライズ通知による `savedContent` 上書き・`isDirty` 誤リセット）を整理し、未保存保護仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に追記・改訂」を完了。
   - **変更理由**: タブ機能有効時、未保存変更を持つタブから他タブへ切り替えて再復帰した際に未保存マーク（●）が消失し、確認警告ダイアログが出ずにタブが閉じられて未保存の変更が失われてしまう不具合の根本原因を究明・整理し、再発防止策と未保存保護仕様を `for_agent/architecture.md` および `for_agent/guardrails.md` に策定・反映するため。
   - **Before**:

@@ -95,7 +95,7 @@
 
 ## Phase 18: タブ切り替え時の未保存マーク消失および未保存タブクローズ警告スキップの修正
 - [x] 55. 仕様策定/設計: タブ切り替え時の未保存マーク消失バグおよび警告なしクローズの根本原因（エディタ再マウント時の初回シリアライズ通知による `savedContent` 上書き・`isDirty` 誤リセット）を整理し、未保存保護仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に追記・改訂
-- [ ] 56. UI/状態管理: `handleContentChange` において未保存変更が存在するタブへの切り替え時・再マウント時に `savedContent` の上書きおよび `isDirty` リセットを防止するガードロジックの実装（`src/App.tsx`, `src/components/Editor/Editor.tsx`）
+- [x] 56. UI/状態管理: `handleContentChange` において未保存変更が存在するタブへの切り替え時・再マウント時に `savedContent` の上書きおよび `isDirty` リセットを防止するガードロジックの実装（`src/App.tsx`, `src/components/Editor/Editor.tsx`）
 - [ ] 57. タブ管理/未保存保護: タブ切り替え後の未保存状態保持とタブクローズ（`handleCloseTab`）時の保存確認ダイアログ（`window.confirm`）の確実な発火保護の実装（`src/App.tsx`）
 - [ ] 58. 品質保証/自動テスト: タブ有効時の「ファイル1編集 -> ファイル2オープン -> ファイル1切替 -> 未保存マーク（isDirty）維持 -> タブクローズ時警告判定」の挙動を網羅検証する自動テストスクリプト（`scripts/verify-tab-switch-dirty-retention.mjs`）を作成し、総合テスト（`pnpm test`）に統合して検証
 
