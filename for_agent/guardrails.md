@@ -156,7 +156,13 @@
   - 単一ファイルモードにおいて別ファイルを開く処理の中で、前のファイルの未保存状態（`isDirty`、`saveStatus`、`saveError`、Ref、エディタ内部キャッシュ）が確実にクリアされていないため。
 - **対策**:
   1. `handleSelectFile` において未保存破棄を承認した後は、新しいファイルのロード直後に `isDirty: false`、`fileContent = newContent`、`savedContent = newContent`、`saveStatus = null`、`saveError = null` を同期的かつ完全にリセットすること。
-  2. エディタコンポーネント（Milkdown / CodeMirror）に `key={selectedPath}` を付与し、完全再マウントにより内部状態を初期化すること。
+### 3.12. Tauri プロジェクトにおける Cargo コマンド実行ディレクトリの指定（Cwd = src-tauri）
+- **事象・ミス**:
+  - `cargo check` や `cargo test` をプロジェクトルート（`./`）で実行して `error: could not find 'Cargo.toml'` で失敗する。
+- **原因**:
+  - Tauri プロジェクトでは Rust バックエンドの構成ファイル `Cargo.toml` が `<root>/src-tauri` に配置されているため。
+- **対策**:
+  1. `cargo check`, `cargo test`, `cargo clippy` などの Cargo コマンドを実行する際は、必ず `Cwd: <root>/src-tauri` を明示的に指定すること。
 
 ---
 
