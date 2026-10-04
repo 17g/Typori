@@ -1,3 +1,17 @@
+- 2026-10-04: アプリケーション固有アイコンの刷新（新案1「Minimal T」の採用・全プラットフォーム向け生成・配置）を完了。
+  - **変更理由**: デフォルトのTauriアイコンから、Typori固有の明るくシンプルなアプリアイコン（文字なし・スカイブルー〜ミントグラデーションに白い角丸「T」モノグラム）へ置き換えるため。
+  - **Before**:
+    - Tauriデフォルトのアイコン（`src-tauri/icons/` 配下の .ico, .icns, 各種PNG）およびViteデフォルトのFavicon（`public/vite.svg`, `index.html`）が使用されていた。
+  - **After**:
+    - 新案1（Minimal T）の高品質透過PNGマスター画像（`app-icon.png`）を作成。
+    - Tauri CLI（`pnpm tauri icon`）により、Windows用 `.ico`、macOS用 `.icns`、Linux/マルチ解像度PNG、Windowsタイル用画像一式を自動再生成・更新。
+    - `public/icon.png` に配置し、`index.html` のFaviconおよびタイトルタグを「Typori」に更新。
+    - 検証結果:
+      - `pnpm test`: 全27/27件の個別テスト、IPCコマンド登録整合性、OSネイティブメニューイベント整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+      - `pnpm run build`: Exit Code 0。
+      - `cargo check`: Exit Code 0。
+  - **影響範囲**: `src-tauri/icons/`, `public/icon.png`, `app-icon.png`, `index.html`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク50「仕様策定/設計: ウィンドウクローズ制御（Rust側 CloseRequested インターセプト）、ファイルオープン直後の未保存誤爆防止（ユーザー操作前イベントガード/初期シリアライズ同期）、および単一ファイル切替時の未保存ステータス破棄の仕様を整理し for_agent/ に反映」を完了。
   - **変更理由**: Phase 17で対応する重要改善項目（①Rustネイティブでのクローズ一時保留とフロントエンドとの未保存確認ハンドシェイク、②Milkdown初回シリアライズ差異による未保存判定の誤爆防止機構、③タブ無効モードでの別ファイルオープン時における未保存ステータスの確実な破棄と状態リセット）について、データフロー・責務・エッジケースを詳細に設計し、`for_agent/architecture.md` および `for_agent/guardrails.md` に明文化・体系化するため。
   - **Before**:
