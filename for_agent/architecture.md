@@ -182,6 +182,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-03: 品質保証: 全4項目（ウィンドウクローズ未保存警告、改行コードLF正規化&未保存誤爆防止、タブ切替Ref即時同期&未保存状態独立性、ソース直接編集Ctrl+/競合解消）を網羅検証する自動テストスイート（scripts/verify-source-comment-toggle.mjs, scripts/verify-phase16-fixes.mjs）の整備と総合ビルド検証（全27個別テスト、pnpm test / pnpm run build / cargo test / cargo check / cargo clippy の全パス）を追記
 - 2026-10-03: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜16、全49タスク）の突き合わせ、エッジケースの点検、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全27個別テスト、IPC 14コマンド、ネイティブメニュー 16イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
 - 2026-10-04: ウィンドウクローズ制御（Rust側 CloseRequested インターセプト）、ファイルオープン直後の未保存誤爆防止（ユーザー操作前イベントガード/初期シリアライズ同期）、および単一ファイル切替時の未保存ステータス破棄の仕様策定（Phase 17）を追記。
+- 2026-10-04: Phase 17（タスク50〜54）実装および品質保証の完了。Rustネイティブでのクローズ一時保留（api.prevent_close()）とフロント通知、Milkdown初回シリアライズ差異誤爆防止とベースライン同期、単一ファイルモード切替時の未保存ステータス先行破棄とクリーン同期を実装し、総合テストスイート（scripts/verify-single-file-clean-reset.mjs, scripts/verify-phase17-fixes.mjs）の全自動検証パス（全31個別テスト、pnpm test / pnpm run build / cargo test / cargo check / cargo clippy のExit Code 0）を確認。
 
 
 

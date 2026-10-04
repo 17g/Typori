@@ -43,6 +43,8 @@ const testScripts = [
   { name: "Phase 16 全4項目 総合統合テスト (品質保証 & シナリオ検証)", file: "verify-phase16-fixes.mjs" },
   { name: "ウィンドウクローズ (CloseRequested) インターセプト & 双方向ハンドシェイク", file: "verify-window-close-intercept.mjs" },
   { name: "Milkdown 初回シリアライズ差異 未保存誤爆防止 & ベースライン自動同期", file: "verify-editor-initial-dirty-guard.mjs" },
+  { name: "単一ファイル切替 未保存ステータス確実破棄 & クリーン状態リセット", file: "verify-single-file-clean-reset.mjs" },
+  { name: "Phase 17 全3項目 総合統合テスト (品質保証 & シナリオ検証)", file: "verify-phase17-fixes.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
