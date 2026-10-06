@@ -1012,3 +1012,29 @@
     - リリースプロファイル検証: `cargo check --release`、`cargo clippy -- -D warnings`、`cargo test`、`pnpm run build`、総合結合テストスイート（`verify-all.mjs` 22件全パス）を実行し、リリースビルド準備が完全であることを確認。
   - **影響範囲**: プロジェクトドキュメント、リリース設定、ビルド手順書。既存のアプリケーション機能やエディタ動作に悪影響なし。
 
+
+- 2026-10-04: 全体レビュー（/review）を実施し、プロジェクト全体のビルド・テスト・仕様整合性を点検完了。
+  - **変更理由**: Phase 18までの全58タスク完了を受け、仕様書正本（`architecture.md`, `guardrails.md`）と全実装コード（Rustバックエンド、React/TSフロントエンド、Milkdown/CodeMirrorエディタコア、自動テストスイート）の完全な突き合わせ、エッジケースの考慮漏れ点検、仕様書の最新化、および全検証コマンド（テスト・ビルド・静的解析）の全パスを確認するため。
+  - **点検・検証結果**:
+    - **仕様書との整合性**:
+      - Phase 1〜18の機能要件（タブ未保存保護・誤リセット防止含む）がすべて完全に実装されていることを確認。
+    - **バックエンド検証 (Rust)**:
+      - `cargo test`: 全24件の単体テストがすべて合格（Exit Code 0）。
+      - `cargo check`: Exit Code 0。
+      - `cargo clippy -- -D warnings`: エラー・警告ゼロ（Exit Code 0）。
+    - **フロントエンド検証 (React/TS)**:
+      - `pnpm run build`: TypeScript型検査およびViteプロダクションビルドが成功（Exit Code 0）。
+    - **総合結合テストスイート**:
+      - `pnpm test`: 個別機能検証32件、IPCコマンド14件の登録整合性、OSネイティブメニューイベント16件の双方向整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+    - **仕様書更新**: `for_agent/architecture.md` の改訂履歴を最新化。
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。既存コードベースへの破壊的変更なし。
+
+- 2026-10-06: 全体レビュー（/review）を実施。
+  - **変更理由**: 前回レビュー（2026-10-04、未コミット）以降の状態を再点検し、仕様書と実装の記述ずれを解消するため。
+  - **Before**: `architecture.md` の総合テスト件数が「全27項目」のまま。ウィンドウクローズ仕様が `onCloseRequested` を主経路とする旧記述のまま。改訂履歴に不要な空行が9行あった。
+  - **After**: 件数を「全32項目」に更新。Rust 側 `window:close_requested` が主経路で、`onCloseRequested` はフォールバックとして併存し、`isHandlingClose` で排他されている旨を明記。空行を除去し改訂履歴を追記。
+  - **検証結果**: `cargo test`（24件合格）、`cargo clippy -- -D warnings`（警告0）、`pnpm run build`（成功）、`node scripts/verify-all.mjs`（個別32件・IPC 14・メニュー16・ショートカット整合性すべて合格）。いずれも Exit Code 0。
+  - **要確認事項（コード未変更）**:
+    - クローズ時の確認ダイアログ二重表示の懸念: Rust 側 emit と JS 側 `onCloseRequested` の両方が発火した場合、1回目の確認で「キャンセル」を選ぶと `finally` で `isHandlingClose` が同期的に解除されるため、2回目の通知で再度 `window.confirm` が表示される可能性がある（GUI での実機確認が必要）。
+    - `package.json` に `lint` スクリプトがない（AGENTS.md では `pnpm run lint` または `pnpm run build` と規定。今回は build で代替）。
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。コードの変更はなし。

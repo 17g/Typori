@@ -67,7 +67,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - HTMLエクスポート: Rust側コマンド `convert_markdown_to_html` / `export_to_html` (pulldown-cmark利用) により、CommonMark/GFM（テーブル・タスクリスト・打ち消し線など）に完全準拠したスタンドアロンHTML文書（ドキュメントタイトル、レスポンシブタイポグラフィ、ライト/ダークテーマCSSスタイル内蔵、印刷最適化）を高速・安全に生成・保存。UI側の `ExportModal`、ヘッダーのエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+E)、およびOSネイティブメニュー連携 (`menu:export_html`) と連動。
 - PDFエクスポート: Rust側コマンド `export_to_pdf_html` および `convert_markdown_to_html` による印刷最適化スタイル内蔵HTML（`@page` ページマージン・A4サイズ自動調整、背景白・文字黒のハイコントラスト印刷カラー、見出し直後の改ページ回避、テーブル・画像・コードブロックの途中分割防止）の生成と、フロントエンド側の非表示iframe・印刷API連携（`printHtmlContent` / `printMarkdownDocument`）により、OS標準の印刷ダイアログ（「PDFに保存」対応）をシームレスに起動。UI側の `ExportModal`（HTML/PDF形式タブ切替）、ヘッダーのPDFエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+P / Ctrl+P)、およびOSネイティブメニュー連携 (`menu:export_pdf`) と連動。
 - アウトライン（右サイドバー）機能: 開いているMarkdownドキュメントの見出し（`#`〜`######`）をリアルタイムに抽出し、インデント付きツリーで表示。見出しクリック時にはWYSIWYG（ProseMirror DOM）およびソース直接編集モード（CodeMirror 6）の該当見出し位置へスムーズスクロールし、ターゲット要素を一時的にパルスハイライト描画。右サイドバーの開閉はヘッダーボタン、ショートカット (Ctrl+Shift+O)、およびOSネイティブメニュー (`menu:toggle_right_sidebar`) と双方向連動。
-- 全体結合テスト・品質保証: 全27項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（14コマンド）、OSネイティブメニューイベント双方向整合性（16イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
+- 全体結合テスト・品質保証: 全32項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（14コマンド）、OSネイティブメニューイベント双方向整合性（16イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
 - クイックアクションパレット（EditorToolbar）のフロート表示・スクロール制御仕様:
   フォーカスモード切替、ソース直接編集切替、画像/表挿入、リンク編集、引用、Undo/Redoを提供するクイックアクションパレットについて、エディタスクロール時に本文と一緒に画面外へ押し流されて消えてしまう問題を解消し、以下の通り仕様を策定・定義する。
   - **仕様方針の整理と採択**:
@@ -102,7 +102,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - ウィンドウクローズ時の未保存保護とTauri Capabilities連携仕様:
   - ユーザーが未保存の変更を保持した状態でウィンドウの「×」ボタンを押下した際、アプリが即座に強制終了してデータが失われるのを防ぐため、OS連携および未保存保護フックを実装。
   - **Tauri Capabilities権限設定**: `src-tauri/capabilities/default.json` にウィンドウ制御およびイベント購読に必要な権限（`core:window:default`, `core:window:allow-close`, `core:window:allow-destroy`, `core:event:default`, `core:event:allow-listen`, `core:event:allow-unlisten`）を明示的に付与。
-  - **フロントエンドクローズ購読**: `App.tsx` において `@tauri-apps/api/window` の `getCurrentWindow().onCloseRequested` を購読。未保存ドキュメントが存在する場合は `event.preventDefault()` によりウィンドウの即時破棄を抑止。
+  - **フロントエンドクローズ購読**: `App.tsx` において `@tauri-apps/api/window` の `getCurrentWindow().onCloseRequested` を購読。未保存ドキュメントが存在する場合は `event.preventDefault()` によりウィンドウの即時破棄を抑止。※Phase 17 以降、主経路は Rust 側 CloseRequested インターセプト（`window:close_requested` イベント）であり、`onCloseRequested` はフォールバックとして併存する。両経路は共通の `executeCloseWorkflow` を呼び出し、`isHandlingClose` フラグで同時実行を排他する。
   - **未保存判定（単一・タブ両対応）**: `getUnsavedDocuments` により、単一ファイルモードおよびタブ有効モード双方で未保存ファイル（`fileContentRef` / `editorRef.current.getMarkdown()` vs `savedContentRef`、および全タブの `isDirty`）を網羅的に検出。
   - **確認ダイアログ & 安全な終了**: 未保存ファイル名を含む `window.confirm` ダイアログを提示。ユーザーが終了を承認した場合は `appWindow.destroy()` を明示的に呼び出してウィンドウを破棄・終了し、キャンセルの場合はウィンドウを開いたまま作業を継続可能とする。同時にWeb標準の `beforeunload` リスナーも併用しブラウザ/リロード離脱からも保護。
 
@@ -202,12 +202,5 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-04: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜17、全54タスク＋アプリアイコン刷新）の突き合わせ、エッジケースの点検、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全31個別テスト、IPC 14コマンド、ネイティブメニュー 16イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
 - 2026-10-04: タブ切り替え時の未保存マーク消失バグおよび未保存タブクローズ警告スキップの根本原因整理、および未保存保護仕様（エディタ再マウント時初回シリアライズガード・savedContent保護・タブクローズ警告保護、Phase 18）を追記。
 - 2026-10-04: Phase 18（タスク55〜58）実装および品質保証の完了。タブ有効時における未保存マーク保持（エディタ再マウント時初回シリアライズガード・savedContent保護）、タブクローズ時保存確認ダイアログ（window.confirm）発火保護、および網羅検証テストスクリプト（scripts/verify-tab-switch-dirty-retention.mjs）の総合結合テスト（pnpm test: 全32個別テスト）への統合と全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy: Exit Code 0）のパスを確認。
-
-
-
-
-
-
-
-
-
+- 2026-10-04: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜18、全58タスク＋アプリアイコン刷新）の突き合わせ、エッジケースの点検、バックエンド単体テスト（24件）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全32個別テスト、IPC 14コマンド、ネイティブメニュー 16イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
+- 2026-10-06: 全体レビュー（/review）を実施。全自動検証（cargo test 24件 / cargo clippy -D warnings / pnpm run build / verify-all.mjs 全32件）のパスを確認。仕様書の記述ずれを修正（総合テスト件数 27→32、onCloseRequested が Rust 側インターセプトのフォールバックとして併存し `isHandlingClose` で排他されている旨を明記）。改訂履歴の不要な空行を除去。
