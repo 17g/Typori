@@ -112,6 +112,6 @@
 - [x] 66. チートシート連携: `CheatSheetModal/data.ts` に代表的なMermaid記法（`graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）の構文サンプルと説明を追加
 - [x] 67. WYSIWYGモード: ```mermaid コードブロックを検知し、TyporaライクなSVGプレビュー表示＆クリック編集＆エラー表示を行う ProseMirror ノードビュー/プラグインの実装
 - [x] 68. テーマ連動: アプリケーションのライト/ダークテーマ切り替えに連動したMermaidダイアグラムの動的再レンダリング処理の実装
-- [ ] 69. エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装
+- [x] 69. エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装
 - [ ] 70. 品質保証/自動テスト: Mermaid描画・構文エラー耐性・テーマ追従・エクスポート・チートシート整合性を網羅検証する自動テストスクリプト（`scripts/verify-mermaid-diagrams.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合・全検証パス確認
 

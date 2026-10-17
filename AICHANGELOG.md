@@ -1,3 +1,42 @@
+- 2026-10-17: タスク69「エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装」を完了。
+  - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、HTMLエクスポート時にスタンドアロンHTMLファイル内へMermaidダイアグラムをインラインSVGとして展開・埋め込み、外部スクリプトやネットワーク接続不要でダイアグラムを美しく表示可能にするとともに、PDFエクスポート（印刷）時に印刷用非表示iframe内でMermaid SVGグラフィックスの完全描画・レイアウト確定をダブル `requestAnimationFrame` により待機する印刷ハンドシェイク機構を実装し、印刷やPDF化でダイアグラムが欠落・白紙化することを防止するため。
+  - **Before**:
+    - `src/utils/mermaidExport.ts`: ファイルが存在せず、HTML内のMermaidコードブロック検出・デコード・インラインSVG置換モジュールが存在しなかった。
+    - `src/utils/mermaid.ts`: `renderMermaidInHtml` 等のエクスポート連携関数が再エクスポートされていなかった。
+    - `src/api/fs.ts`:
+      - `exportToHtml`: バックエンドの `export_to_html` のみを呼び出しており、HTML内のMermaidコードブロックが `<pre><code class="language-mermaid">` の未レンダリングテキストとして保存されていた。
+      - `printMarkdownDocument`: `convertMarkdownToHtml` の結果を直接 `printHtmlContent` に渡しており、MermaidダイアグラムがSVG化されていなかった。
+      - `printHtmlContent`: iframe の `onload` のみで `triggerPrint` を発火させており、Mermaidダイアグラムのレンダリング完了を待機するハンドシェイクが存在しなかった。
+    - `src-tauri/src/fs.rs`: `convert_markdown_to_html` の内蔵CSSおよび `@media print` に `.typori-mermaid-svg`、`.typori-mermaid-error`、および改ページ回避スタイルが定義されていなかった。
+    - `scripts/verify-mermaid-export.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が36件だった。
+    - `Plan.md`: タスク69が未完了（`- [ ]`）だった。
+  - **After**:
+    - `src/utils/mermaidExport.ts`: 新規作成。以下を実装:
+      - `hasMermaidInHtml`: HTML内にMermaidコードブロックが存在するかを判定
+      - `extractMermaidBlocksFromHtml`: HTML内からMermaidコード文字列の配列を抽出
+      - `decodeHtmlEntities`: HTMLエンティティ（`&lt;`, `&gt;`, `&amp;` 等）の安全なデコード
+      - `renderMermaidInHtml`: DOMParser（ブラウザ環境）または正規表現（Node.js/テスト環境）を用いて `<pre><code class="language-mermaid">` を抽出し、`renderMermaidSvg` で生成した完全なインラインSVG（`<div class="typori-mermaid-svg" data-mermaid-processed="true">...</div>`）へ置換。構文エラー時はエラーバナーと元のコードブロックを保持。
+    - `src/utils/mermaid.ts`: `mermaidExport.ts` から `renderMermaidInHtml`, `hasMermaidInHtml`, `extractMermaidBlocksFromHtml`, `RenderMermaidInHtmlOptions` を再エクスポート。
+    - `src/api/fs.ts`:
+      - `exportToHtml`: `convertMarkdownToHtml` -> `renderMermaidInHtml` -> `saveFile` のパイプラインを構築し、Mermaidダイアグラムが完全なインラインSVGとして埋め込まれたスタンドアロンHTMLを保存。
+      - `rawExportToHtml`: バックエンド直接呼び出し用ラッパーとして `invoke("export_to_html")` を保持し、Tauri IPC コマンド登録整合性を担保。
+      - `printMarkdownDocument`: `convertMarkdownToHtml` -> `renderMermaidInHtml` -> `printHtmlContent` を経由して印刷用ドキュメントを生成。
+      - `printHtmlContent`: 非表示 iframe への HTML 書出後、`performPrintHandshake` による印刷待機ハンドシェイクを実装。未変換 Mermaid のフォールバック変換、レンダリング済み SVG の存在確認、ダブル `requestAnimationFrame` によるブラウザレイアウト確定待機、`data-typori-mermaid-ready` 属性付与、`typori:mermaid-ready` カスタムイベント通知を経てから `iframe.contentWindow.print()` を起動。
+    - `src-tauri/src/fs.rs`: 内蔵CSSに `.typori-mermaid-svg`、`.typori-mermaid-svg svg`、`.typori-mermaid-error` を追加し、`@media print` に `page-break-inside: avoid` / `break-inside: avoid` を指定。
+    - `scripts/verify-mermaid-export.mjs`: 新規作成。モジュール存在確認、`mermaidExport.ts` の定義・正規表現フォールバック置換検証、`fs.ts` の HTMLエクスポート・PDF印刷ハンドシェイク実装検証、`fs.rs` の CSS定義検証、`mermaid.ts` の再エクスポート検証を網羅。
+    - `scripts/verify-all.mjs`: `verify-mermaid-export.mjs` を追加し、全37件の個別機能テストに拡充。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明を「全個別機能テスト（37件）」に更新し、「3.16. Mermaid エクスポート連携（HTML/PDF印刷）と iframe 印刷待機ハンドシェイク」を追記。
+    - `for_agent/architecture.md`: Phase 20 のエクスポート仕様および改訂履歴を更新。
+    - `Plan.md`: タスク69を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-mermaid-export.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test`: Exit Code 0 (37/37個別テスト、全IPCコマンド、全メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/utils/mermaidExport.ts`, `src/utils/mermaid.ts`, `src/api/fs.ts`, `src-tauri/src/fs.rs`, `scripts/verify-mermaid-export.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク68「テーマ連動: アプリケーションのライト/ダークテーマ切り替えに連動したMermaidダイアグラムの動的再レンダリング処理の実装」を完了。
   - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、ユーザーによるライト/ダークテーマの切り替え（ヘッダーボタン、システム設定連動、OS設定変更）に即座に追従し、Mermaidダイアグラムの配色（SVGグラフィックス）を動的に再描画する仕組みを構築するため。Tailwind CSSのテーマカラー（`gray-800`, `gray-100`, `blue-500`等）と調和するMermaidテーマ変数（`themeVariables`）の設定、SVGルート要素の不要な固定白背景の自動透過正規化、グローバルテーマ監視リスナー、および一括再描画関数（`rerenderAllMermaidDiagrams`）を実装。
   - **Before**:

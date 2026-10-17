@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { FileEntry } from "../components/Sidebar/types";
 import { normalizeLineEndings } from "../utils/text";
+import { renderMermaidInHtml } from "../utils/mermaidExport";
 
 /**
  * 指定ディレクトリ直下のファイルおよびディレクトリ一覧を取得します。
@@ -163,8 +164,26 @@ export async function convertMarkdownToHtml(
 
 /**
  * 指定パスにMarkdownをHTMLファイルとしてエクスポートします。
+ * Mermaidダイアグラムが存在する場合はインラインSVGとして完全描画されたスタンドアロンHTMLを生成して保存します。
  */
 export async function exportToHtml(
+  path: string,
+  markdown: string,
+  title?: string | null,
+  theme?: string | null
+): Promise<void> {
+  const rawHtml = await convertMarkdownToHtml(markdown, title, theme);
+  const finalHtml = await renderMermaidInHtml(
+    rawHtml,
+    theme === "dark" ? "dark" : "light"
+  );
+  await saveFile(path, finalHtml);
+}
+
+/**
+ * バックエンド直接呼び出し用のエクスポートラッパー（Tauri IPC コマンド登録整合性を維持）
+ */
+export async function rawExportToHtml(
   path: string,
   markdown: string,
   title?: string | null,
@@ -196,7 +215,8 @@ export async function exportToPdfHtml(
 }
 
 /**
- * HTML文字列を非表示iframeにレンダリングし、ブラウザ/OSの印刷ダイアログ（PDF出力対応）を呼び出します。
+ * HTML文字列を非表示iframeにレンダリングし、Mermaidダイアグラムの描画確定をハンドシェイクで待機後、
+ * ブラウザ/OSの印刷ダイアログ（PDF出力対応）を呼び出します。
  */
 export function printHtmlContent(htmlContent: string): Promise<void> {
   return new Promise((resolve) => {
@@ -227,6 +247,8 @@ export function printHtmlContent(htmlContent: string): Promise<void> {
     }
 
     let isPrinted = false;
+    let handshakeCompleted = false;
+
     const triggerPrint = () => {
       if (isPrinted) return;
       isPrinted = true;
@@ -245,30 +267,90 @@ export function printHtmlContent(htmlContent: string): Promise<void> {
       }, 100);
     };
 
+    /**
+     * Mermaid ダイアグラム描画確定およびレイアウトハンドシェイク
+     */
+    const performPrintHandshake = async () => {
+      if (handshakeCompleted || isPrinted) return;
+      handshakeCompleted = true;
+
+      try {
+        const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (iframeDoc) {
+          // 1. iframe 内に未変換の Mermaid ブロックがある場合のフォールバック変換
+          const unrendered = iframeDoc.querySelectorAll('pre > code.language-mermaid, pre > code[class*="language-mermaid"]');
+          if (unrendered.length > 0) {
+            const convertedHtml = await renderMermaidInHtml(iframeDoc.documentElement.outerHTML);
+            iframeDoc.open();
+            iframeDoc.write(convertedHtml);
+            iframeDoc.close();
+          }
+
+          // 2. すべての Mermaid SVG 要素のレイアウト確定をダブル rAF で待機
+          const mermaidSvgs = iframeDoc.querySelectorAll('.typori-mermaid-svg svg');
+          if (mermaidSvgs.length > 0) {
+            await new Promise<void>((r) => {
+              if (iframe.contentWindow?.requestAnimationFrame) {
+                iframe.contentWindow.requestAnimationFrame(() => {
+                  iframe.contentWindow?.requestAnimationFrame(() => r());
+                });
+              } else {
+                setTimeout(r, 120);
+              }
+            });
+
+            iframeDoc.documentElement.setAttribute("data-typori-mermaid-ready", "true");
+            try {
+              iframe.contentWindow?.dispatchEvent(
+                new CustomEvent("typori:mermaid-ready", { detail: { count: mermaidSvgs.length } })
+              );
+            } catch {
+              // ignore
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Mermaid print handshake warning:", err);
+      }
+
+      triggerPrint();
+    };
+
     doc.open();
     doc.write(htmlContent);
     doc.close();
 
     if (iframe.contentWindow) {
-      iframe.contentWindow.onload = triggerPrint;
+      iframe.contentWindow.onload = () => {
+        performPrintHandshake();
+      };
     }
-    // 万一 onload が発火しない場合のフォールバック
-    setTimeout(triggerPrint, 400);
+    // 万一 onload が発火しない場合のタイムアウトフォールバック (800ms)
+    setTimeout(() => {
+      if (!handshakeCompleted) {
+        performPrintHandshake();
+      }
+    }, 800);
   });
 }
 
 /**
- * Markdown文字列から完全なスタイル付きHTMLを生成し、OS印刷ダイアログ（PDF保存）を呼び出します。
+ * Markdown文字列から完全なスタイル付きHTML（MermaidダイアグラムSVG展開済み）を生成し、
+ * OS印刷ダイアログ（PDF保存）を呼び出します。
  */
 export async function printMarkdownDocument(options: {
   markdown: string;
   title?: string | null;
   theme?: string | null;
 }): Promise<void> {
-  const htmlContent = await convertMarkdownToHtml(
+  const rawHtml = await convertMarkdownToHtml(
     options.markdown,
     options.title,
     options.theme
+  );
+  const htmlContent = await renderMermaidInHtml(
+    rawHtml,
+    (options.theme as "light" | "dark") || "light"
   );
   await printHtmlContent(htmlContent);
 }

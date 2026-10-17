@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（36件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（37件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -204,6 +204,19 @@
   2. 生成された SVG から不要な白背景インラインスタイルを `transparent` へ自動正規化すること。
   3. React Props（`theme`）、CustomEvent（`typori:theme-change`）、および DOM クラス監視（`MutationObserver`）を併用し、どの契機でのテーマ変更でも漏れなく `rerenderAllMermaidDiagrams()` が発火するようにすること。
   4. 既存テストスクリプトが存在するモジュールを改修する際は、テスト側で指定されているアサーション文字列（トークン形式）との整合性を事前・事後に必ず確認すること。
+
+### 3.16. Mermaid エクスポート連携（HTML/PDF印刷）と iframe 印刷待機ハンドシェイク
+- **事象・ミス**:
+  - HTML エクスポート時にダイアグラムが `<pre><code class="language-mermaid">` のまま出力され、スタンドアロン HTML をブラウザで開いてもダイアグラムが表示されない。
+  - PDF 印刷時に iframe の `window.print()` が Mermaid の SVG レンダリング完了前に即座に発火し、ダイアグラムが白紙・欠落した状態で印刷・PDF 化されてしまう。
+  - `exportToHtml` でフロントエンド完結処理を行う際に `invoke("export_to_html")` の呼び出しを完全に削除してしまうと、Tauri IPC コマンド整合性テスト（`verify-all.mjs`）で未登録エラーとして検知される。
+- **原因**:
+  - pulldown-cmark 単体では Mermaid (JavaScript) を解釈・レンダリングできないため、フロントエンドで HTML 内のコードブロックをインライン SVG へ置換する必要がある。
+  - 非同期の Mermaid レンダリングや DOM 挿入、ブラウザのレイアウト計算（リフロー）完了を待たずに `print()` を実行すると、グラフィックがまだ描画パイプラインに乗っていないため。
+- **対策**:
+  1. HTML エクスポートおよび PDF 印刷ドキュメント生成時に `renderMermaidInHtml` を介して Mermaid コードブロックをスタンドアロンなインライン SVG（`.typori-mermaid-svg`）に事前展開すること。
+  2. `printHtmlContent` において、iframe 内の Mermaid ダイアグラムの描画確定（ダブル `requestAnimationFrame`）を待機するハンドシェイク（`performPrintHandshake` / `data-typori-mermaid-ready` / `typori:mermaid-ready`）を経てから `window.print()` を起動すること。
+  3. バックエンド直接呼び出し用のエクスポートラッパー（`rawExportToHtml` 等）を `src/api/fs.ts` に残し、Tauri IPC コマンドの双方向登録整合性を維持すること。
 
 ---
 

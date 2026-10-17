@@ -266,3 +266,12 @@ export async function renderMermaidSvg(
     };
   }
 }
+
+// エクスポート連携モジュールの再エクスポート
+export {
+  renderMermaidInHtml,
+  hasMermaidInHtml,
+  extractMermaidBlocksFromHtml,
+  type RenderMermaidInHtmlOptions,
+} from "./mermaidExport";
+

@@ -603,6 +603,28 @@ pub fn convert_markdown_to_html(
       box-sizing: content-box;
       border-radius: 4px;
     }}
+    .typori-mermaid-svg {{
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+      overflow-x: auto;
+    }}
+    .typori-mermaid-svg svg {{
+      max-width: 100%;
+      height: auto;
+    }}
+    .typori-mermaid-error-container {{
+      margin: 16px 0;
+    }}
+    .typori-mermaid-error {{
+      color: #ef4444;
+      font-size: 13px;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 4px;
+      border-left: 3px solid #ef4444;
+    }}
     @page {{
       margin: 15mm 20mm;
       size: auto;
@@ -626,9 +648,12 @@ pub fn convert_markdown_to_html(
         max-width: 100% !important;
         padding: 0 !important;
       }}
-      pre, blockquote, table {{
+      pre, blockquote, table, .typori-mermaid-svg, .typori-mermaid-error-container {{
         page-break-inside: avoid;
         break-inside: avoid;
+      }}
+      .typori-mermaid-svg svg {{
+        max-width: 100% !important;
       }}
     }}
   </style>
