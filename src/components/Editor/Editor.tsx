@@ -93,6 +93,7 @@ export interface EditorProps {
   onToggleSourceMode?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  showLineNumbers?: boolean;
   isRightSidebarOpen?: boolean;
 }
 

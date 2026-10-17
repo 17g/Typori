@@ -1038,3 +1038,9 @@
     - クローズ時の確認ダイアログ二重表示の懸念: Rust 側 emit と JS 側 `onCloseRequested` の両方が発火した場合、1回目の確認で「キャンセル」を選ぶと `finally` で `isHandlingClose` が同期的に解除されるため、2回目の通知で再度 `window.confirm` が表示される可能性がある（GUI での実機確認が必要）。
     - `package.json` に `lint` スクリプトがない（AGENTS.md では `pnpm run lint` または `pnpm run build` と規定。今回は build で代替）。
   - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。コードの変更はなし。
+
+- 2026-10-17: Phase 19 タスク 59 実装（行番号表示設定フック `useLineNumberSettings` の実装と `App.tsx`・両エディタへの組み込み）
+  - **変更理由**: `for_agent/architecture.md` の「行番号表示機能仕様 (Phase 19)」に基づき、行番号表示の有効/無効状態（デフォルト有効: `true`）と `localStorage`（キー: `typori:line_numbers_enabled`）への永続化を管理するカスタムフックを作成し、アプリケーション状態および `SourceEditor` / `TyporiEditor` の双方へ `showLineNumbers` プロップを受け渡す基盤を構築するため。
+  - **Before**: 行番号表示の有効/無効を管理・永続化する状態フックが存在せず、`SourceEditor` / `TyporiEditor` も `showLineNumbers` プロップを受け取っていなかった。
+  - **After**: `src/hooks/useLineNumberSettings.ts` を新規作成し、`localStorage`（`typori:line_numbers_enabled`、初期値 `true`）と連動する `isLineNumbersEnabled`、`setIsLineNumbersEnabled`、`toggleLineNumbers` を実装。`src/App.tsx` で `useLineNumberSettings` と `handleToggleLineNumbers`（および `handleToggleLineNumbersRef`）を組み込み、`SourceEditor` と `TyporiEditor` に `showLineNumbers={isLineNumbersEnabled}` を渡すよう更新。`SourceEditorProps` および `EditorProps` に `showLineNumbers?: boolean` を追加。
+  - **影響範囲**: `src/hooks/useLineNumberSettings.ts`（新規）, `src/App.tsx`, `src/components/Editor/SourceEditor.tsx`, `src/components/Editor/Editor.tsx`, `Plan.md`, `for_agent/architecture.md`。

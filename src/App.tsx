@@ -17,6 +17,7 @@ import {
 } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import { useTabSettings } from "./hooks/useTabSettings";
+import { useLineNumberSettings } from "./hooks/useLineNumberSettings";
 import { useShortcutSettings } from "./hooks/useShortcutSettings";
 import { normalizeLineEndings, isContentDirty } from "./utils/text";
 import ThemeToggle from "./components/ThemeToggle";
@@ -33,6 +34,7 @@ import { ExportModal, ExportFormat } from "./components/ExportModal";
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { isTabsEnabled, setIsTabsEnabled } = useTabSettings();
+  const { isLineNumbersEnabled, toggleLineNumbers } = useLineNumberSettings();
   const { shortcutConfig, saveShortcutConfig } = useShortcutSettings();
   const editorRef = useRef<EditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -343,6 +345,12 @@ function App() {
   }, []);
   const handleToggleFocusModeRef = useRef(handleToggleFocusMode);
   handleToggleFocusModeRef.current = handleToggleFocusMode;
+
+  const handleToggleLineNumbers = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+  const handleToggleLineNumbersRef = useRef(handleToggleLineNumbers);
+  handleToggleLineNumbersRef.current = handleToggleLineNumbers;
 
   const handleToggleSourceMode = useCallback(() => {
     setIsSourceMode((prev) => {
@@ -1981,6 +1989,7 @@ function App() {
               onToggleSourceMode={handleToggleSourceMode}
               isFocusMode={isFocusMode}
               onToggleFocusMode={handleToggleFocusMode}
+              showLineNumbers={isLineNumbersEnabled}
               filePath={selectedPath}
             />
           ) : (
@@ -1995,6 +2004,7 @@ function App() {
               onToggleSourceMode={handleToggleSourceMode}
               isFocusMode={isFocusMode}
               onToggleFocusMode={handleToggleFocusMode}
+              showLineNumbers={isLineNumbersEnabled}
               isRightSidebarOpen={isRightSidebarOpen}
             />
           )}

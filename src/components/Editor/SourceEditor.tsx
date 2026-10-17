@@ -11,6 +11,7 @@ export interface SourceEditorProps {
   onToggleSourceMode?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  showLineNumbers?: boolean;
   filePath?: string | null;
   placeholder?: string;
 }
