@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（27件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（16イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（33件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（16イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build

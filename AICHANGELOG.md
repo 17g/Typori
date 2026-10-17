@@ -1,3 +1,29 @@
+- 2026-10-18: タスク76「品質保証/自動テスト: `init_workspace` IPCコマンド、ウィンドウ初期非表示/表示ハンドシェイク、0msテーマ判定・スケルトン、コード分割/遅延読み込みを網羅検証する自動テストスクリプト（`scripts/verify-startup-acceleration.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」で実装されたバックエンド一括IPC（`init_workspace`）、ウィンドウ初期非表示（`visible: false`）と表示権限（`core:window:allow-show`）、0msテーマ同期インラインスクリプトおよびゼロフラッシュ初期スケルトン、React側での表示ハンドシェイクとセーフティフォールバック（400ms/500ms）、重いモジュールの `React.lazy()` 遅延ロードおよび `vite.config.ts` のコード分割設定について、回帰防止と仕様準拠を恒久的に自動検証するテストスイートを整備し、総合テスト（`pnpm test`）に統合するため。
+  - **Before**:
+    - `scripts/verify-startup-acceleration.mjs` が存在しなかった。
+    - `scripts/verify-all.mjs` の個別機能テスト配列が32件であり、バックエンドコマンド検証リストに `init_workspace` が含まれていなかった。
+    - `for_agent/guardrails.md` のテスト件数表記が古い状態であった。
+  - **After**:
+    - `scripts/verify-startup-acceleration.mjs` を新規作成:
+      - [Test 1] バックエンド/IPC一括化: `WorkspaceInitResult` 構造体およびフィールド（`current_dir`, `entries`, `initial_file_path`, `initial_file_content`, `initial_file_error`）、`init_workspace` コマンド定義、単体テスト群、`src-tauri/src/lib.rs` へのハンドラー登録、バックエンド側セーフティフォールバック（500msスレッド）、フロントエンド `initWorkspace` API と改行コードLF正規化を検証。
+      - [Test 2] ウィンドウ初期非表示 & Capabilities: `tauri.conf.json` での `visible: false` / `backgroundColor` 設定、`capabilities/default.json` での `core:window:allow-show` / `core:window:allow-set-focus` 権限を検証。
+      - [Test 3] 0ms テーマ判定 & ゼロフラッシュ初期スケルトン: `index.html` 内の同期スクリプト（`localStorage`, `prefers-color-scheme`, 即時 `dark` クラス付与, `backgroundColor: #18181b`）およびシミュレーション、インラインスタイルCSS変数、`#typori-initial-skeleton` と各プレースホルダー要素を検証。
+      - [Test 4] フロントエンド初期化一括化 & 表示ハンドシェイク & フォールバック: `src/App.tsx` での `initWorkspace()` 呼び出し、`revealWindow`（`show()` / `setFocus()`、Ref二重実行ガード）、`requestAnimationFrame` 描画同期、400msフォールバックタイマーを検証。
+      - [Test 5] コード分割 & バンドル最適化: `App.tsx` での `SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal` の `React.lazy()` 遅延ロードと `<Suspense>`、`vite.config.ts` での `manualChunks`（`editor-milkdown`, `editor-codemirror`, `vendor-react` 等）チャンク最適化を検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-startup-acceleration.mjs` を追加（全33件に拡充）。
+      - `expectedBackendCommands` に `init_workspace` を追加（全15コマンドを網羅検証）。
+    - `for_agent/guardrails.md`:
+      - 総合テスト件数表記を33件、コマンド件数を15件に更新。
+    - 検証結果:
+      - `node scripts/verify-startup-acceleration.mjs`: 全5項目合格（Exit Code 0）。
+      - `pnpm test`: 全33件のテストスクリプト合格、全15件のIPCコマンド整合性合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteチャンク分割ビルド成功（Exit Code 0）。
+      - `cargo test`: 全28件単体テスト成功（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+  - **影響範囲**: `scripts/verify-startup-acceleration.mjs` (新規), `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク75「バンドル最適化 & 遅延ロード: `App.tsx` および関連コンポーネントでの重いモジュール（`SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`）の `React.lazy()` 分割と `vite.config.ts` でのチャンク最適化」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、初期起動時（WYSIWYGモードかつモーダル非表示状態）に即座に必要としない重いモジュール群（CodeMirror 6 一式を含む `SourceEditor`、各種モーダル `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`）を `React.lazy()` および動的 `import()` によりコード分割（Code Splitting）し、`vite.config.ts` でのチャンク最適化（`manualChunks`）と併せて初期エントリチャンクを激減（1.46MB → 113KB）させ、起動時のスクリプト解析・実行負荷を最小化するため。
   - **Before**:

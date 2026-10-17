@@ -46,6 +46,7 @@ const testScripts = [
   { name: "単一ファイル切替 未保存ステータス確実破棄 & クリーン状態リセット", file: "verify-single-file-clean-reset.mjs" },
   { name: "Phase 17 全3項目 総合統合テスト (品質保証 & シナリオ検証)", file: "verify-phase17-fixes.mjs" },
   { name: "タブ有効時 未保存マーク (isDirty) 維持 & クローズ警告判定 (Phase 18)", file: "verify-tab-switch-dirty-retention.mjs" },
+  { name: "起動高速化 & ゼロフラッシュ・コード分割 (Phase 21)", file: "verify-startup-acceleration.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
@@ -94,6 +95,7 @@ const expectedBackendCommands = [
   "convert_markdown_to_html",
   "export_to_html",
   "export_to_pdf_html",
+  "init_workspace",
 ];
 
 for (const cmd of expectedBackendCommands) {
