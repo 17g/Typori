@@ -1,3 +1,40 @@
+- 2026-10-17: タスク67「WYSIWYGモード: ```mermaid コードブロックを検知し、TyporaライクなSVGプレビュー表示＆クリック編集＆エラー表示を行う ProseMirror ノードビュー/プラグインの実装」を完了。
+  - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、WYSIWYGエディタ（Milkdown / ProseMirror）において ```mermaid コードブロックを検知し、Typoraライクなインライン SVG プレビュー表示、クリックによるキャレット進入＆ソースコード展開編集、フォーカスアウトによる自動再描画、タイピング途中などの文法エラー耐性表示（控えめな赤字エラーメッセージ）、および ProseMirror ライフサイクル整合性を担保するカスタム NodeView およびプラグイン（`mermaidPlugin`）を実装するため。
+  - **Before**:
+    - `src/components/Editor/mermaidPlugin.ts`: ファイルが存在せず、Mermaid 専用の ProseMirror NodeView およびプラグインが未実装だった。
+    - `src/components/Editor/Editor.tsx`: `mermaidPlugin` が組み込まれておらず、WYSIWYG モードで ```mermaid コードブロックが通常のモノスペースコードブロックとして表示されていた。
+    - `scripts/verify-mermaid-wysiwyg.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が34件だった。
+    - `Plan.md`: タスク67が未完了（`- [ ]`）だった。
+  - **After**:
+    - `src/components/Editor/mermaidPlugin.ts`: 新規作成。以下を実装:
+      - `mermaidPluginKey`: プラグインの一意なキー
+      - `MermaidNodeView`: ProseMirror `NodeView` 実装クラス
+        - ルートコンテナ `this.dom`、編集モードヘッダー `this.headerBar`、ソース編集ラッパー `this.sourceWrapper`、ProseMirror用テキスト編集要素 `this.contentDOM`（`code`）、プレビューコンテナ `this.previewContainer` の構造
+        - Typoraライクなインタラクション: Selection がノード内部にある場合は編集モード（ヘッダーとソース入力欄を展開し、下部にプレビューを表示）、外部に出た場合はプレビューのみをコンパクト表示
+        - クリック編集: プレビュー領域をクリックした際、`TextSelection.near` でキャレットをコードブロック先頭へ移動させて即座にソース編集モードへ移行
+        - 構文エラー耐性: 文法エラー発生時もエディタや ProseMirror をクラッシュさせず、`typori-mermaid-error` コンテナで控えめなエラーメッセージを表示し、編集の継続・修正を可能に
+        - ProseMirror 状態破壊防止: `ignoreMutation` で `contentDOM` 以外の DOM 変更（プレビュー SVG の差し替え等）による不要なトランザクション・状態破壊を完全遮断
+        - イベント制御: `stopEvent` でプレビュー領域のイベント伝播を安全に制御
+        - テーマ変更監視: `MutationObserver` で `document.documentElement` の `dark` クラスを監視し、テーマ切り替え時に自動再レンダリング
+        - リソース解放: `destroy()` でタイマー解除、Observer 切断、レジストリ解放
+      - `mermaidPlugin`: `$prose` による Milkdown プラグイン定義
+        - `props.nodeViews`: `code_block` において `isMermaidLanguage(node.attrs.language)` を判定し、Mermaid のみ `MermaidNodeView` を適用、通常コードブロックはデフォルト表示を維持
+        - `view().update`: Selection 変更時にアクティブな全 NodeView インスタンスへ通知（`onSelectionChange`）し、ソース表示／折りたたみを即時同期
+    - `src/components/Editor/Editor.tsx`: `mermaidPlugin` をインポートし、Milkdown プラグインチェーンに `.use(mermaidPlugin)` を追加。
+    - `scripts/verify-mermaid-wysiwyg.mjs`: 新規作成。ファイルの存在、必須シンボルのエクスポート、`Editor.tsx` への組み込み、DOM構造・contentDOM整合性、Typoraライクなクリック編集・アクティブ追従、構文エラー耐性、ProseMirror ライフサイクル整合性、通常コードブロック共存ガード、Selection 判定シミュレーションを網羅検証。
+    - `scripts/verify-all.mjs`: `verify-mermaid-wysiwyg.mjs` を追加し、個別機能テストを全35件に拡張。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明を「全個別機能テスト（35件）」に更新し、「3.14. ProseMirror カスタム NodeView（Mermaidブロック等）の実装と型制約・ライフサイクル管理」を追記。
+    - `for_agent/architecture.md`: 改訂履歴にタスク67の実装完了内容を追記。
+    - `Plan.md`: タスク67を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-mermaid-wysiwyg.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test`: Exit Code 0 (35/35個別テスト、全IPCコマンド、全メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/mermaidPlugin.ts`, `src/components/Editor/Editor.tsx`, `scripts/verify-mermaid-wysiwyg.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク66「チートシート連携: CheatSheetModal/data.ts に代表的なMermaid記法（graph TB, sequenceDiagram, erDiagram, gantt）の構文サンプルと説明を追加」を完了。
   - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、Markdown記法チートシート（F1キー）にMermaid記法の専用カテゴリ「Mermaid図（`mermaid`）」を追加し、代表的な4形式（フローチャート `graph TB`、シーケンス図 `sequenceDiagram`、ER図 `erDiagram`、ガントチャート `gantt`）の完全な構文サンプルと説明文を掲載して、ユーザーがワンクリックでコードをコピーしてエディタに貼り付けられるようにするため。
   - **Before**:

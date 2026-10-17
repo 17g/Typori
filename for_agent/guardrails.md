@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（34件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（35件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -175,6 +175,21 @@
   2. 初期シリアライズ差分のベースライン同期は、ディスクから読み込んだ直後や保存直後のクリーンな状態（`!isDirty`）のファイルにのみ限定して適用すること。
   3. `handleCloseTab` においても、タブの `content` と `savedContent` の `isContentDirty` チェックを厳格に行い、未保存タブが警告なしで閉じられることがないよう二重の防護策を講じること。
   4. `hasUnsavedChanges` の判定において、エディタから届いた初期シリアライズ値（`normalized`）と保存基準値（`savedContent`）を比較して未保存判定に含めないこと。クリーンタブにおける初回シリアライズ差異そのものを「ユーザーによる未保存変更」と誤認してベースライン同期を阻害し、未保存マークが誤点灯するのを防ぐため、未保存判定は対象タブの既存ステータス（`tab.isDirty`）および退避コンテンツ（`tab.content` と `tab.savedContent`）の比較のみに依拠すること。
+
+### 3.14. ProseMirror カスタム NodeView（Mermaidブロック等）の実装と型制約・ライフサイクル管理
+- **事象・ミス**:
+  - Milkdown / ProseMirror で特定のノード（`code_block` の言語が `mermaid` の場合など）に対してカスタム NodeView を提供する際、TypeScript 型エラー（`ignoreMutation` の引数型不一致、`nodeViews` 内での `undefined` 許容エラー）が発生する。
+  - レンダリングした SVG プレビュー内の DOM 変更を ProseMirror が検知してドキュメントの破壊や不要なトランザクションを発行してしまう。
+  - 非同期パース・レンダリング（Mermaid の `render`）において、ユーザーの素早いタイピング時に古い描画結果が遅れて DOM に反映される race condition が発生する。
+- **原因**:
+  - ProseMirror の `NodeView.ignoreMutation` は標準の `MutationRecord` ではなく `{ type: "selection"; target: Node }` を含むユニオン型を受け取る仕様であるため。
+  - ProseMirror の `NodeViewConstructor` 型定義は戻り値として `NodeView` 必須と定義されているが、特定ノード（通常コードブロック等）をデフォルト描画へフォールバックさせるには falsy（`undefined`）を返す実行時仕様との間に型の不一致があるため。
+  - ProseMirror は `contentDOM` 以外の DOM 変更も監視対象とするため、プレビュー領域の SVG 差し替えが mutation として検知されてしまうため。
+- **対策**:
+  1. `ignoreMutation`: 引数型を `MutationRecord | { type: "selection"; target: Node }` と定義し、`this.contentDOM.contains(mutation.target)` の場合のみ `false`（ProseMirror に処理させる）を返し、プレビュー領域などの変更はすべて `return true;` で ProseMirror の介入を遮断すること。
+  2. `nodeViews` の型キャスト: `nodeViews` ファクトリ内で `isMermaidLanguage(node.attrs.language)` を判定し、Mermaid 以外の通常コードブロックで `return undefined;` を返す関数全体を `as any` でキャストして実行時のデフォルトフォールバックを維持すること。
+  3. 非同期レンダリングの race condition 防止: `renderVersion` カウンタ（または token）を管理し、非同期レンダリング完了時に最新バージョンと一致する場合のみ DOM（SVG）を更新すること。
+  4. Selection 連動: プラグインの `view().update` フックで Selection の変化を監視し、アクティブな全 NodeView インスタンスへ通知（`updateActiveState()`）してソースコード展開・折りたたみを追従させること。
 
 ---
 

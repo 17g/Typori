@@ -27,6 +27,7 @@ import { normalizeLineEndings } from "../../utils/text";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
+import { mermaidPlugin } from "./mermaidPlugin";
 
 export const focusModePluginKey = new PluginKey("focusModePlugin");
 
@@ -675,6 +676,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           .use(trailing)
           .use(focusModePlugin)
           .use(lineNumbersPlugin)
+          .use(mermaidPlugin)
           .use(listener);
       },
       []

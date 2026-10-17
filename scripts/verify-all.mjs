@@ -48,6 +48,7 @@ const testScripts = [
   { name: "タブ有効時 未保存マーク (isDirty) 維持 & クローズ警告判定 (Phase 18)", file: "verify-tab-switch-dirty-retention.mjs" },
   { name: "エディタ行番号表示機能 (WYSIWYG/ソース/メニュー/ショートカット) (Phase 19)", file: "verify-line-numbers.mjs" },
   { name: "Mermaid 基盤 & ユーティリティモジュール (Phase 20)", file: "verify-mermaid-core.mjs" },
+  { name: "WYSIWYG Mermaid ノードビュー & プラグイン (Phase 20)", file: "verify-mermaid-wysiwyg.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
