@@ -1,3 +1,36 @@
+- 2026-10-17: タスク65「パッケージ導入・基盤: mermaid パッケージの追加と、SVGレンダリング・テーマ切り替え・構文エラーハンドリングを行うユーティリティモジュール（src/utils/mermaid.ts）の実装」を完了。
+  - **変更理由**: Phase 20「Mermaidダイアグラム機能」の基盤として、`mermaid` パッケージ（v12.2.0）を導入し、Markdown 内の ```mermaid コードブロックに対する SVG レンダリング、ライト/ダークテーマ動的切り替え、構文エラー耐性ハンドリング、ダイアグラム種別検出、言語判定、および一時 DOM 要素の自動クリーンアップを行うユーティリティモジュール（`src/utils/mermaid.ts`）を提供するため。
+  - **Before**:
+    - `package.json`: `mermaid` パッケージがインストールされていなかった。
+    - `src/utils/mermaid.ts`: ファイルが存在せず、Mermaid の初期化、SVG レンダリング、構文パース、テーマ連動ユーティリティが存在しなかった。
+    - `scripts/verify-mermaid-core.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が33件だった。
+    - `Plan.md`: タスク65が未完了（`- [ ]`）だった。
+  - **After**:
+    - `package.json`: `mermaid`（`^12.2.0`）を依存関係に追加。
+    - `src/utils/mermaid.ts`: 新規作成。以下を提供:
+      - `MermaidTheme` 型（`"light" | "dark"`）、`MermaidRenderResult`、`MermaidValidationResult` インターフェース
+      - `initMermaid(theme, force)`: テーマに応じた設定（ライト: `default`、ダーク: `dark`、`suppressErrorRendering: true` 等）での初期化
+      - `getMermaidTheme()`: 現在のテーマ取得
+      - `generateMermaidId(prefix)`: 重複や特殊文字を防止する一意な ID 生成
+      - `cleanupMermaidTempElements(id)`: エラー発生時に Mermaid が DOM（`document.body`）に挿入した一時要素（`id`, `d${id}`）の自動クリーンアップ
+      - `extractMermaidErrorMessage(err)`: `Error` インスタンスや `err.str` 等の様々なエラー形式から安全にメッセージを抽出
+      - `isMermaidLanguage(lang)`: `mermaid` / `mermaid.js` の言語タグ判定
+      - `detectDiagramType(code)`: `flowchart`, `sequenceDiagram`, `erDiagram`, `gantt`, `classDiagram`, `stateDiagram`, `pie`, `mindmap`, `gitGraph` 等の自動検出
+      - `validateMermaidCode(code)`: `mermaid.parse` による非同期構文検証
+      - `renderMermaidSvg(code, theme, customId)`: `mermaid.render` を用いた安全な SVG 生成（空入力ガード、テーマ自動設定、エラーキャッチと一時 DOM クリーンアップ）
+    - `scripts/verify-mermaid-core.mjs`: 新規作成。依存関係、型・関数の定義とエクスポート、言語判定、ダイアグラム種別検出、ID生成、エラーメッセージ抽出、テーマ切り替え、構文エラー耐性・クリーンアップ機構を網羅検証。
+    - `scripts/verify-all.mjs`: `verify-mermaid-core.mjs` を追加し、個別機能テストを全34件に拡張。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明を「全個別機能テスト（34件）」に更新。
+    - `Plan.md`: タスク65を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-mermaid-core.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test`: Exit Code 0 (34/34個別テスト、全IPCコマンド、全メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `package.json`, `pnpm-lock.yaml`, `src/utils/mermaid.ts`, `scripts/verify-mermaid-core.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク64「品質保証: scripts/verify-line-numbers.mjs の作成と verify-all.mjs / verify-native-menu.mjs への統合、全検証コマンドのパス確認、仕様書・ガードレールの件数更新」を完了。
   - **変更理由**: Phase 19「エディタの行番号表示機能」における全実装（状態管理フック、ショートカット登録、チートシート掲載、OSネイティブメニュー連携・双方向同期、ソースモードCodeMirror行番号制御、WYSIWYGモードProseMirrorガター＆ハイライトプラグイン、CSSスタイリング）を網羅検証する自動テストスイートを整備し、総合テスト（`scripts/verify-all.mjs`）およびネイティブメニュー検証（`scripts/verify-native-menu.mjs`）へ統合するとともに、仕様書およびガードレールの件数表記を同期し、全検証コマンドの合格（Exit Code 0）を担保するため。
   - **Before**:

@@ -47,6 +47,7 @@ const testScripts = [
   { name: "Phase 17 全3項目 総合統合テスト (品質保証 & シナリオ検証)", file: "verify-phase17-fixes.mjs" },
   { name: "タブ有効時 未保存マーク (isDirty) 維持 & クローズ警告判定 (Phase 18)", file: "verify-tab-switch-dirty-retention.mjs" },
   { name: "エディタ行番号表示機能 (WYSIWYG/ソース/メニュー/ショートカット) (Phase 19)", file: "verify-line-numbers.mjs" },
+  { name: "Mermaid 基盤 & ユーティリティモジュール (Phase 20)", file: "verify-mermaid-core.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
