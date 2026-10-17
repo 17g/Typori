@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（35件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（36件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -190,6 +190,20 @@
   2. `nodeViews` の型キャスト: `nodeViews` ファクトリ内で `isMermaidLanguage(node.attrs.language)` を判定し、Mermaid 以外の通常コードブロックで `return undefined;` を返す関数全体を `as any` でキャストして実行時のデフォルトフォールバックを維持すること。
   3. 非同期レンダリングの race condition 防止: `renderVersion` カウンタ（または token）を管理し、非同期レンダリング完了時に最新バージョンと一致する場合のみ DOM（SVG）を更新すること。
   4. Selection 連動: プラグインの `view().update` フックで Selection の変化を監視し、アクティブな全 NodeView インスタンスへ通知（`updateActiveState()`）してソースコード展開・折りたたみを追従させること。
+
+### 3.15. Mermaid ダイアグラムのテーマ連動と動的再レンダリング
+- **事象・ミス**:
+  - アプリケーション全体のライト/ダークテーマを切り替えても、Mermaid ダイアグラムの配色（SVG）が追従しない、または古いテーマの白背景がダークモード下のコンテナ内で不自然に浮き出てしまう。
+  - 既存のテストスクリプト（`verify-mermaid-core.mjs` 等）で `theme === "dark" ? "dark" : "default"` などの特定トークンを完全一致アサーションしている場合、リファクタリング時に中間変数（例: `const isDark = theme === "dark"; theme: isDark ? ...`）に置き換えるとテストが失敗する。
+- **原因**:
+  - Mermaid は `mermaid.initialize` の設定を内部にキャッシュするため、明示的に `theme` や `themeVariables` を更新して再初期化（`force: true`）しなければ動的にスタイルが反映されない。
+  - Mermaid の生成する SVG ルート要素に `background-color: white` 等の固定インラインスタイルが混入する場合がある。
+  - 既存の静的解析テストスクリプトが特定のコード表現を前提としており、意味的に等価なリファクタリングでも文字列不一致となるため。
+- **対策**:
+  1. テーマ切り替え時は `initMermaid(theme, true)` / `updateMermaidTheme(theme)` で強制再初期化を行い、Tailwind CSS のダークモード配色（`#1f2937` 背景、`#f3f4f6` テキスト等）を `themeVariables` に適用すること。
+  2. 生成された SVG から不要な白背景インラインスタイルを `transparent` へ自動正規化すること。
+  3. React Props（`theme`）、CustomEvent（`typori:theme-change`）、および DOM クラス監視（`MutationObserver`）を併用し、どの契機でのテーマ変更でも漏れなく `rerenderAllMermaidDiagrams()` が発火するようにすること。
+  4. 既存テストスクリプトが存在するモジュールを改修する際は、テスト側で指定されているアサーション文字列（トークン形式）との整合性を事前・事後に必ず確認すること。
 
 ---
 

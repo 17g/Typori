@@ -1,3 +1,45 @@
+- 2026-10-17: タスク68「テーマ連動: アプリケーションのライト/ダークテーマ切り替えに連動したMermaidダイアグラムの動的再レンダリング処理の実装」を完了。
+  - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、ユーザーによるライト/ダークテーマの切り替え（ヘッダーボタン、システム設定連動、OS設定変更）に即座に追従し、Mermaidダイアグラムの配色（SVGグラフィックス）を動的に再描画する仕組みを構築するため。Tailwind CSSのテーマカラー（`gray-800`, `gray-100`, `blue-500`等）と調和するMermaidテーマ変数（`themeVariables`）の設定、SVGルート要素の不要な固定白背景の自動透過正規化、グローバルテーマ監視リスナー、および一括再描画関数（`rerenderAllMermaidDiagrams`）を実装。
+  - **Before**:
+    - `src/utils/mermaid.ts`: `initMermaid` で `themeVariables`（ダーク/ライト調和設定）が未設定だった。`updateMermaidTheme` が未定義だった。`renderMermaidSvg` でSVG内の固定白背景インラインスタイルの透過最適化が行われていなかった。
+    - `src/hooks/useTheme.ts`: `applyTheme` 内で `typori:theme-change` カスタムイベントが発行されていなかった。
+    - `src/components/Editor/mermaidPlugin.ts`: `rerenderAllMermaidDiagrams` やグローバルテーマ監視機構（`ensureGlobalThemeObserver` / `teardownGlobalThemeObserver`）が未定義で、`MermaidNodeView.renderDiagram` に明示的なテーマ引数が存在しなかった。
+    - `src/components/Editor/Editor.tsx`: `EditorProps` に `theme` prop がなく、テーマ変更に連動したダイアグラム再レンダリングの `useEffect` が未接続だった。
+    - `src/App.tsx`: `TyporiEditor` に `theme={resolvedTheme}` が渡されていなかった。
+    - `scripts/verify-mermaid-theme.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が35件だった。
+    - `Plan.md`: タスク68が未完了（`- [ ]`）だった。
+  - **After**:
+    - `src/utils/mermaid.ts`:
+      - `initMermaid`: ダークモード時に `#1f2937` (gray-800) 背景・`#f3f4f6` (gray-100) / `#e5e7eb` (gray-200) テキスト・`#3b82f6` (blue-500) アクセントカラー等を適用する `themeVariables` 設定を追加。
+      - `updateMermaidTheme(theme)`: 強制再初期化（`initMermaid(theme, true)`）を行うヘルパー関数を追加・エクスポート。
+      - `renderMermaidSvg`: SVG内部の不要な固定白背景（`background-color: white` / `#ffffff` 等）を `transparent` へ自動正規化するサニタイズ処理を追加。
+    - `src/hooks/useTheme.ts`:
+      - `applyTheme`: テーマ変更時に `window.dispatchEvent(new CustomEvent("typori:theme-change", { detail: { theme: resolved } }))` を送出する処理を追加。
+    - `src/components/Editor/mermaidPlugin.ts`:
+      - `getCurrentAppTheme()` をエクスポート。
+      - `rerenderAllMermaidDiagrams(targetTheme?: MermaidTheme)`: 全アクティブ Mermaid ダイアグラムを対象に、指定テーマで一括再レンダリングを実行する関数を追加・エクスポート。
+      - `ensureGlobalThemeObserver()` / `teardownGlobalThemeObserver()`: `typori:theme-change` イベントリスナーおよび `document.documentElement` の `class` 属性監視（MutationObserver）によるグローバルテーマ変更検知機構を実装。
+      - `MermaidNodeView.renderDiagram(targetTheme?: MermaidTheme)`: 明示的なテーマ指定を受け付け、プレビューおよびソース展開編集中の双方で最新テーマに応じた SVG を再生成可能に拡張。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorProps` に `theme?: "light" | "dark"` を追加。
+      - `rerenderAllMermaidDiagrams` をインポートし、`useEffect(() => { if (theme) rerenderAllMermaidDiagrams(theme); }, [theme])` により React ステート駆動での再描画を接続。
+    - `src/App.tsx`:
+      - `TyporiEditor` の呼び出し箇所に `theme={resolvedTheme}` を付与。
+    - `scripts/verify-mermaid-theme.mjs`: 新規作成。テーマ変数設定、`typori:theme-change` イベント送出、一括再描画関数・グローバル監視機構、`Editor.tsx` の prop & useEffect、`App.tsx` の伝達、および仮想ノードによるテーマ切り替えシミュレーションを網羅検証。
+    - `scripts/verify-all.mjs`: `verify-mermaid-theme.mjs` を追加し、全36件の個別機能テストに拡充。
+    - `for_agent/architecture.md`: Phase 20 のテーマ連動仕様および改訂履歴を更新。
+    - `for_agent/guardrails.md`: 必須検証コマンドの件数を「36件」に更新し、「3.15. Mermaid ダイアグラムのテーマ連動と動的再レンダリング」を追記。
+    - `Plan.md`: タスク68を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-mermaid-theme.mjs`: Exit Code 0 (全項目合格)
+      - `node scripts/verify-mermaid-core.mjs`: Exit Code 0 (全項目合格)
+      - `node scripts/verify-mermaid-wysiwyg.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test`: Exit Code 0 (36/36個別テスト、全IPCコマンド、全メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo check`: Exit Code 0 (コンパイルエラー0件)
+  - **影響範囲**: `src/utils/mermaid.ts`, `src/hooks/useTheme.ts`, `src/components/Editor/mermaidPlugin.ts`, `src/components/Editor/Editor.tsx`, `src/App.tsx`, `scripts/verify-mermaid-theme.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク67「WYSIWYGモード: ```mermaid コードブロックを検知し、TyporaライクなSVGプレビュー表示＆クリック編集＆エラー表示を行う ProseMirror ノードビュー/プラグインの実装」を完了。
   - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、WYSIWYGエディタ（Milkdown / ProseMirror）において ```mermaid コードブロックを検知し、Typoraライクなインライン SVG プレビュー表示、クリックによるキャレット進入＆ソースコード展開編集、フォーカスアウトによる自動再描画、タイピング途中などの文法エラー耐性表示（控えめな赤字エラーメッセージ）、および ProseMirror ライフサイクル整合性を担保するカスタム NodeView およびプラグイン（`mermaidPlugin`）を実装するため。
   - **Before**:

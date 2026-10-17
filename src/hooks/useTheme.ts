@@ -42,12 +42,21 @@ export function useTheme(): UseThemeReturn {
         window.matchMedia("(prefers-color-scheme: dark)").matches);
 
     const root = document.documentElement;
+    const resolved: "light" | "dark" = isDark ? "dark" : "light";
     if (isDark) {
       root.classList.add("dark");
-      setResolvedTheme("dark");
     } else {
       root.classList.remove("dark");
-      setResolvedTheme("light");
+    }
+    setResolvedTheme(resolved);
+
+    // テーマ切り替えイベントを通知（Mermaidダイアグラム等の動的再レンダリング連携）
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("typori:theme-change", {
+          detail: { theme: resolved },
+        })
+      );
     }
   }, []);
 

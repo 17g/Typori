@@ -49,6 +49,7 @@ const testScripts = [
   { name: "エディタ行番号表示機能 (WYSIWYG/ソース/メニュー/ショートカット) (Phase 19)", file: "verify-line-numbers.mjs" },
   { name: "Mermaid 基盤 & ユーティリティモジュール (Phase 20)", file: "verify-mermaid-core.mjs" },
   { name: "WYSIWYG Mermaid ノードビュー & プラグイン (Phase 20)", file: "verify-mermaid-wysiwyg.mjs" },
+  { name: "Mermaid テーマ連動 & 動的再レンダリング (Phase 20)", file: "verify-mermaid-theme.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

@@ -46,14 +46,54 @@ export function initMermaid(theme: MermaidTheme = "light", force: boolean = fals
   }
   currentTheme = theme;
 
+  const isDark = theme === "dark";
+
   mermaid.initialize({
     startOnLoad: false,
     theme: theme === "dark" ? "dark" : "default",
+    darkMode: isDark,
     securityLevel: "loose",
     fontFamily:
       'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     suppressErrorRendering: true,
+    themeVariables: isDark
+      ? {
+          darkMode: true,
+          background: "#1f2937",
+          mainBkg: "#1f2937",
+          primaryColor: "#3b82f6",
+          primaryTextColor: "#f3f4f6",
+          primaryBorderColor: "#4b5563",
+          lineColor: "#9ca3af",
+          textColor: "#e5e7eb",
+          actorTextColor: "#f3f4f6",
+          actorLineColor: "#9ca3af",
+          signalColor: "#e5e7eb",
+          signalTextColor: "#f3f4f6",
+          labelBoxBkgColor: "#374151",
+          labelBoxBorderColor: "#4b5563",
+          labelTextColor: "#f3f4f6",
+          loopTextColor: "#f3f4f6",
+          noteBorderColor: "#4b5563",
+          noteBkgColor: "#374151",
+          noteTextColor: "#f3f4f6",
+        }
+      : {
+          darkMode: false,
+          primaryColor: "#3b82f6",
+          primaryTextColor: "#1f2937",
+          primaryBorderColor: "#d1d5db",
+          lineColor: "#4b5563",
+          textColor: "#1f2937",
+        },
   });
+}
+
+/**
+ * Mermaid のテーマを更新し、強制的に再初期化します。
+ */
+export function updateMermaidTheme(theme: MermaidTheme): void {
+  initMermaid(theme, true);
 }
 
 /**
@@ -204,9 +244,17 @@ export async function renderMermaidSvg(
 
   try {
     const result = await mermaid.render(id, trimmed);
+    let svg = result.svg;
+
+    // ダークモード時などにSVG内部の固定背景色がコンテナの背景色と競合しないよう、
+    // インラインスタイルの背景色指定を最適化（transparentへ正規化）
+    if (svg) {
+      svg = svg.replace(/background-color:\s*(?:white|#fff(?:fff)?|rgb\(255,\s*255,\s*255\));?/gi, "background-color: transparent;");
+    }
+
     return {
       success: true,
-      svg: result.svg,
+      svg,
       bindFunctions: result.bindFunctions,
     };
   } catch (err) {

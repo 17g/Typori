@@ -27,7 +27,7 @@ import { normalizeLineEndings } from "../../utils/text";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
-import { mermaidPlugin } from "./mermaidPlugin";
+import { mermaidPlugin, rerenderAllMermaidDiagrams } from "./mermaidPlugin";
 
 export const focusModePluginKey = new PluginKey("focusModePlugin");
 
@@ -375,6 +375,7 @@ export interface EditorProps {
   onToggleFocusMode?: () => void;
   showLineNumbers?: boolean;
   isRightSidebarOpen?: boolean;
+  theme?: "light" | "dark";
 }
 
 export const defaultContent = `# ようこそ Typori へ
@@ -449,9 +450,17 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       onToggleFocusMode,
       showLineNumbers = true,
       isRightSidebarOpen = false,
+      theme,
     },
     ref
   ) => {
+    // テーマ切り替え検知による Mermaid ダイアグラムの動的再レンダリング
+    useEffect(() => {
+      if (theme) {
+        rerenderAllMermaidDiagrams(theme);
+      }
+    }, [theme]);
+
     const initialValue = normalizeLineEndings(content ?? defaultValue ?? defaultContent);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;

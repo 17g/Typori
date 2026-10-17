@@ -13,13 +13,18 @@ import { $prose } from "@milkdown/kit/utils";
 import {
   isMermaidLanguage,
   renderMermaidSvg,
+  updateMermaidTheme,
   type MermaidTheme,
 } from "../../utils/mermaid";
 
 export const mermaidPluginKey = new PluginKey("mermaidPlugin");
 
-// アクティブな MermaidNodeView インスタンスのレジストリ（Selection 追従用）
-const activeMermaidViews = new Set<MermaidNodeView>();
+// アクティブな MermaidNodeView インスタンスのレジストリ（Selection 追従・テーマ一括更新用）
+export const activeMermaidViews = new Set<MermaidNodeView>();
+
+let globalThemeObserver: MutationObserver | null = null;
+let globalThemeEventListener: ((e: Event) => void) | null = null;
+let globalRerenderTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * HTML 特殊文字をエスケープします。
@@ -36,11 +41,91 @@ function escapeHtml(str: string): string {
 /**
  * 現在の HTML ドキュメントから適用すべき Mermaid テーマを取得します。
  */
-function getCurrentAppTheme(): MermaidTheme {
+export function getCurrentAppTheme(): MermaidTheme {
   if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) {
     return "dark";
   }
   return "light";
+}
+
+/**
+ * すべてのアクティブな Mermaid ダイアグラムを指定（または現在の）テーマで一括再レンダリングします。
+ */
+export async function rerenderAllMermaidDiagrams(targetTheme?: MermaidTheme): Promise<void> {
+  const theme = targetTheme ?? getCurrentAppTheme();
+  updateMermaidTheme(theme);
+
+  const promises: Promise<void>[] = [];
+  activeMermaidViews.forEach((view) => {
+    promises.push(view.renderDiagram(theme));
+  });
+  await Promise.allSettled(promises);
+}
+
+/**
+ * デバウンス付きで全 Mermaid ダイアグラムの再レンダリングを実行します。
+ */
+export function scheduleRerenderAllDiagrams(targetTheme?: MermaidTheme): void {
+  if (globalRerenderTimer) {
+    clearTimeout(globalRerenderTimer);
+  }
+  globalRerenderTimer = setTimeout(() => {
+    rerenderAllMermaidDiagrams(targetTheme);
+  }, 50);
+}
+
+/**
+ * アプリケーション全体のテーマ変更（DOMクラス変化およびtypori:theme-changeイベント）を監視する
+ * グローバルリスナーを確立します。
+ */
+export function ensureGlobalThemeObserver(): void {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  // 1. typori:theme-change イベント監視
+  if (!globalThemeEventListener) {
+    globalThemeEventListener = (e: Event) => {
+      const customEvent = e as CustomEvent<{ theme?: MermaidTheme }>;
+      const nextTheme = customEvent.detail?.theme ?? getCurrentAppTheme();
+      scheduleRerenderAllDiagrams(nextTheme);
+    };
+    window.addEventListener("typori:theme-change", globalThemeEventListener);
+  }
+
+  // 2. documentElement の class 属性監視 (MutationObserver)
+  if (!globalThemeObserver && typeof MutationObserver !== "undefined") {
+    globalThemeObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && m.attributeName === "class") {
+          scheduleRerenderAllDiagrams();
+          break;
+        }
+      }
+    });
+    globalThemeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+}
+
+/**
+ * グローバルテーマ監視リスナーを解除します。
+ */
+export function teardownGlobalThemeObserver(): void {
+  if (globalThemeEventListener && typeof window !== "undefined") {
+    window.removeEventListener("typori:theme-change", globalThemeEventListener);
+    globalThemeEventListener = null;
+  }
+  if (globalThemeObserver) {
+    globalThemeObserver.disconnect();
+    globalThemeObserver = null;
+  }
+  if (globalRerenderTimer) {
+    clearTimeout(globalRerenderTimer);
+    globalRerenderTimer = null;
+  }
 }
 
 /**
@@ -128,7 +213,8 @@ export class MermaidNodeView implements NodeView {
     // インスタンスをレジストリに追加
     activeMermaidViews.add(this);
 
-    // テーマ監視の初期化
+    // グローバルテーマ監視の確立と個別監視（バックアップ）
+    ensureGlobalThemeObserver();
     this.setupThemeObserver();
 
     // 初期状態の反映と初回レンダリング
@@ -211,8 +297,10 @@ export class MermaidNodeView implements NodeView {
 
   /**
    * Mermaid ダイアグラムを SVG レンダリングしてプレビュー領域に反映します。
+   * 
+   * @param targetTheme 明示的に適用するテーマ。省略時は現在のアプリテーマを使用
    */
-  async renderDiagram(): Promise<void> {
+  async renderDiagram(targetTheme?: MermaidTheme): Promise<void> {
     const currentVersion = ++this.renderVersion;
     const code = this.node.textContent.trim();
 
@@ -225,7 +313,7 @@ export class MermaidNodeView implements NodeView {
       return;
     }
 
-    const theme = getCurrentAppTheme();
+    const theme = targetTheme ?? getCurrentAppTheme();
     const result = await renderMermaidSvg(code, theme);
 
     // 非同期処理中に新しいレンダリングが開始された場合は破棄
@@ -343,6 +431,9 @@ export class MermaidNodeView implements NodeView {
       this.themeObserver.disconnect();
       this.themeObserver = null;
     }
+    if (activeMermaidViews.size === 0) {
+      teardownGlobalThemeObserver();
+    }
   }
 }
 
@@ -364,6 +455,7 @@ export const mermaidPlugin = $prose(() => {
       },
     },
     view() {
+      ensureGlobalThemeObserver();
       return {
         update(view, prevState) {
           // selection または doc が更新された場合、すべての MermaidNodeView のアクティブ状態を同期
@@ -375,6 +467,7 @@ export const mermaidPlugin = $prose(() => {
         },
         destroy() {
           activeMermaidViews.clear();
+          teardownGlobalThemeObserver();
         },
       };
     },

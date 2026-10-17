@@ -2036,6 +2036,7 @@ function App() {
               onToggleFocusMode={handleToggleFocusMode}
               showLineNumbers={isLineNumbersEnabled}
               isRightSidebarOpen={isRightSidebarOpen}
+              theme={resolvedTheme}
             />
           )}
         </div>

@@ -212,7 +212,13 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     - 通常のMarkdownフェンスドコードブロック（```mermaid ... ```）として等幅フォントおよびMarkdownシンタックスで直接編集可能とし、モード切り替え時にもテキストが完全保持される。
   - **テーマ連動（ライト／ダークモード）**:
     - Typoriのグローバルテーマ（ライト／ダーク）の切り替えを検知し、Mermaidのレンダリング設定（ライト: `default`、ダーク: `dark`）を動的に切り替えてダイアグラムを再描画する。
-    - 背景色やテキストカラー、線の配色がアプリ全体のテーマと調和するようにスタイルを適用する。
+    - **Tailwind CSS配色との調和**: Mermaid 初期化設定（`initMermaid` / `updateMermaidTheme`）において、ダークテーマ時は `#1f2937` (gray-800) 背景・`#f3f4f6` (gray-100) / `#e5e7eb` (gray-200) テキスト・`#3b82f6` (blue-500) アクセントカラー・`#4b5563` (gray-600) ボーダーカラーを `themeVariables` に適用し、ライトテーマ時は `#ffffff` 背景・`#1f2937` テキスト・`#3b82f6` アクセントカラーを設定。
+    - **SVG固定背景透過最適化**: ダークモード時等にMermaidが生成するSVGルート要素に含まれる不要な固定白背景（`background-color: white` / `#ffffff`）を `transparent` に自動正規化し、エディタおよびダイアグラムコンテナと美しく融合させる。
+    - **三重の動的連動・一括再描画機構**:
+      1. **React Props 連動**: `App.tsx` から `TyporiEditor` へ `theme={resolvedTheme}` を渡し、`Editor.tsx` の `useEffect` で `rerenderAllMermaidDiagrams(theme)` を実行。
+      2. **CustomEvent 通知**: `useTheme.ts` の `applyTheme` において `typori:theme-change` カスタムイベントを送出し、`ensureGlobalThemeObserver` で即座に検知して再描画。
+      3. **DOM クラス監視**: `document.documentElement` の `class="dark"` 属性変化をモジュールレベルの `MutationObserver` でグローバル監視し、全 `activeMermaidViews` を対象にデバウンス付き一括再レンダリングを実行。
+    - 非アクティブ時（プレビュー表示）はもちろん、アクティブ時（ソース展開編集時）においてもプレビュー領域のダイアグラムが最新テーマで即座に再描画される。
   - **エクスポート連携（HTML / PDF）**:
     - **HTMLエクスポート**:
       - エクスポートされたスタンドアロンHTMLファイル内でもMermaidダイアグラムが正常にSVG描画・表示されるようにする（レンダリング済みSVGの直接インライン展開、またはスタンドアロンHTML内でのMermaid描画スクリプト連携）。
@@ -285,5 +291,6 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-17: Phase 19（タスク59〜64）実装および品質保証の完了。行番号表示設定フック（useLineNumberSettings, localStorage永続化）、ショートカット（Ctrl+Alt+L）、表示メニューのチェック付き切替（CheckMenuItem / set_line_numbers_menu_checked）、ソース直接編集モード（lineNumbers / highlightActiveLineGutter）、WYSIWYGモード（ブロック単位行番号オーバーレイガター / キャレットブロックハイライト / フォーカスモード連動）の実装、網羅検証スクリプト（scripts/verify-line-numbers.mjs）の整備、総合結合テスト（scripts/verify-all.mjs: 全33個別テスト、IPC 14コマンド＋menu 1コマンド、OSメニュー 17イベント）への統合、および全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy: Exit Code 0）のパスを確認。
 - 2026-10-17: Mermaidチートシート連携（タスク66）の実装および品質保証の完了。CheatSheetModal/data.ts に Mermaid図カテゴリ（`mermaid`）と代表的4形式（`graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）の構文サンプル・説明を追加、CheatSheetModal UIの縦スクロール最適化（`max-h-48 overflow-y-auto`）、および `scripts/verify-cheatsheet.mjs` での自動検証アサーション拡充と全テスト合格を確認。
 - 2026-10-17: WYSIWYGモード Mermaid ノードビュー・プラグイン（タスク67）の実装および品質保証の完了。`src/components/Editor/mermaidPlugin.ts`（`MermaidNodeView`, `mermaidPlugin`）を実装し、```mermaid コードブロックを自動検知してインライン SVG プレビュー表示・クリックによるキャレット移動＆ソース展開（Typoraライク体験）・構文エラー耐性表示（typori-mermaid-error）・ProseMirror ライフサイクル保護（ignoreMutation / stopEvent / destroy）・テーマ切り替え連動（MutationObserver）を実装。`Editor.tsx` の Milkdown プラグインチェーンに統合し、自動検証テスト（`scripts/verify-mermaid-wysiwyg.mjs`）を作成して総合結合テスト（`scripts/verify-all.mjs`: 全35個別テスト）へ統合。全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認。
+- 2026-10-17: Mermaidテーマ連動・動的再レンダリング処理（タスク68）の実装および品質保証の完了。Mermaid初期化（`initMermaid` / `updateMermaidTheme`）におけるTailwind調和配色設定（`themeVariables`）、SVG固定白背景の自動透過正規化、グローバルテーマ監視・一括再描画関数（`rerenderAllMermaidDiagrams`）、`useTheme.ts` での `typori:theme-change` イベント発火、`App.tsx` から `TyporiEditor` への `theme={resolvedTheme}` 伝達と `Editor.tsx` の `useEffect` 連動による三重の動的テーマ追従機構を実装。自動検証スクリプト（`scripts/verify-mermaid-theme.mjs`）を作成し、総合結合テスト（`scripts/verify-all.mjs`: 全36個別テスト）へ統合。全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo check`: Exit Code 0）のパスを確認。
 
 
