@@ -1,4 +1,5 @@
 use tauri::Emitter;
+use tauri::Manager;
 
 pub mod fs;
 pub mod menu;
@@ -21,6 +22,19 @@ pub fn run() {
         .setup(|app| {
             let app_menu = menu::create_app_menu(app.handle())?;
             app.set_menu(app_menu)?;
+
+            // 起動セーフティフォールバック: フロントエンドの初期化遅延やエラー時でも
+            // ウィンドウが非表示のまま永久に固まらないよう、一定時間経過後に自動で show() を呼び出す
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                if let Some(window) = handle.get_webview_window("main") {
+                    if let Ok(false) = window.is_visible() {
+                        let _ = window.show();
+                    }
+                }
+            });
+
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -49,6 +63,7 @@ pub fn run() {
             fs::convert_markdown_to_html,
             fs::export_to_html,
             fs::export_to_pdf_html,
+            fs::init_workspace,
             menu::set_line_numbers_menu_checked
         ])
         .run(tauri::generate_context!())

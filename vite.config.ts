@@ -30,4 +30,29 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@milkdown") || id.includes("prosemirror")) {
+              return "editor-milkdown";
+            }
+            if (id.includes("@codemirror") || id.includes("@uiw/react-codemirror")) {
+              return "editor-codemirror";
+            }
+            if (id.includes("@tauri-apps")) {
+              return "tauri";
+            }
+            if (id.includes("react") || id.includes("react-dom")) {
+              return "vendor-react";
+            }
+            return "vendor";
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
+  },
 }));
+

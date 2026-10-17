@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（39件）、Tauri IPC コマンド登録整合性（14コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（40件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -217,6 +217,30 @@
   1. HTML エクスポートおよび PDF 印刷ドキュメント生成時に `renderMermaidInHtml` を介して Mermaid コードブロックをスタンドアロンなインライン SVG（`.typori-mermaid-svg`）に事前展開すること。
   2. `printHtmlContent` において、iframe 内の Mermaid ダイアグラムの描画確定（ダブル `requestAnimationFrame`）を待機するハンドシェイク（`performPrintHandshake` / `data-typori-mermaid-ready` / `typori:mermaid-ready`）を経てから `window.print()` を起動すること。
   3. バックエンド直接呼び出し用のエクスポートラッパー（`rawExportToHtml` 等）を `src/api/fs.ts` に残し、Tauri IPC コマンドの双方向登録整合性を維持すること。
+
+### 3.17. 起動時白画面フラッシュ防止のための0msテーマ判定スクリプトと初期スケルトン整合性
+- **事象・ミス**:
+  - アプリ起動時（特にダークテーマ設定時やOSダークモード時）に、一瞬真っ白な画面が露出（ホワイトブランク・白フラッシュ）し、Reactコンポーネントがマウントされた後にダーク背景に切り替わる現象が発生する。
+- **原因**:
+  - ReactおよびTailwind CSSのCSSバンドルがパースされ、`useTheme` カスタムフックの `useEffect` が実行されるまで `html` 要素に `dark` クラスが付与されず、デフォルトのブラウザ背景色（白）が表示されるため。
+  - `#root` 内が空のままであると、Reactがマウントされるまでの数百ミリ秒間、ウィンドウにコンテンツが何も描画されず空白状態となる。
+- **対策**:
+  1. `index.html` の `<head>` 内に同期的インラインスクリプトを配置し、0msで `localStorage.getItem("typori-theme")` および `window.matchMedia("(prefers-color-scheme: dark)")` を判定して `document.documentElement.classList.add("dark")` と `style.backgroundColor = "#18181b"` を適用すること。
+  2. `<head>` 内にインライン `<style>` を含め、外部CSSのロード前でも `:root` および `html.dark` の背景色・スケルトン用CSS変数が即時反映されるようにすること。
+  3. `index.html` の `#root` 内部に初期スケルトンDOM（サイドバー枠・ヘッダー枠・エディタ枠・ステータスバー枠）を配置し、Reactマウント完了まで白画面ではなくアプリの概観がちらつくことなく表示されるようにすること（React 18の `createRoot` によりマウント時に自動置換される）。
+  4. `src/hooks/useTheme.ts` の `applyTheme` においても `root.style.backgroundColor` を同期更新し、インラインスクリプトとReact側のテーマ管理の整合性を保つこと。
+
+### 3.18. 起動時ウィンドウ表示制御（ハンドシェイク）とセーフティフォールバック・インポート整合性
+- **事象・ミス**:
+  - ウィンドウ初期非表示（`visible: false`）の採用時、フロントエンドの初期化エラーや遅延によってウィンドウが永久に表示されず、プロセスは起動しているのに画面が出ない状態（ハング）に陥る。
+  - `src-tauri/src/lib.rs` に新しいトレイト（`use tauri::Manager;` 等）を追加した際、`use tauri::{Emitter, Manager};` のように既存の単独行インポートをまとめると、既存の総合結合テスト（`verify-phase17-fixes.mjs`, `verify-window-close-intercept.mjs`）の静的検査（`use tauri::Emitter;`）が失敗する。
+  - フロントエンドで一括IPC（`initWorkspace`）へ移行した際、不要となった個別API（`getCurrentDir`, `getCliArgs` 等）のインポートが残り、TypeScriptの未使用変数エラー（TS6133）でビルドが失敗する。
+- **原因**:
+  - ウィンドウ表示制御がフロントエンドの非同期完了通知のみに依存している場合、何らかの例外や未解決Promiseで表示トリガーが失われるため。また、既存テストの一部が特定トークンの完全一致検査を行っているため。
+- **対策**:
+  1. ウィンドウ表示は、フロントエンド初期化完了時の `getCurrentWindow().show()` 呼び出しに加えて、フロントエンド側（400ms）およびRustバックエンド側（`setup` 内の500msスレッド）の双方に「自動 `show()` セーフティフォールバック」を設けてハングを二重に防止すること。
+  2. `src-tauri/src/lib.rs` でのインポートは既存の静的検査との互換性を崩さないよう、`use tauri::Emitter;` の行をそのまま維持し、追加のトレイトは別行（`use tauri::Manager;`）で宣言すること。
+  3. APIの移行に伴って呼び出しが消えたインポートは、TypeScriptの型検査（`tsc`）で TS6133 エラーが発生するため、忘れずに `import` リストを整理すること。
 
 ---
 

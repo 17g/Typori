@@ -1,17 +1,16 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import TyporiEditor, { EditorRef, SourceEditor } from "./components/Editor";
+import TyporiEditor, { EditorRef } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import OutlineSidebar, { OutlineItem } from "./components/OutlineSidebar";
 import {
-  getCurrentDir,
   getParentDir,
   openFile,
   readDir,
   saveFile,
   createFile,
-  getCliArgs,
+  initWorkspace,
   saveImageFile,
   isImageFilePath,
   setLineNumbersMenuChecked,
@@ -23,14 +22,27 @@ import { useShortcutSettings } from "./hooks/useShortcutSettings";
 import { normalizeLineEndings, isContentDirty } from "./utils/text";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
-import { CheatSheetModal } from "./components/CheatSheetModal";
 import {
-  ShortcutSettingsModal,
   isShortcutEvent,
   formatKeys,
   areKeysEqual,
-} from "./components/ShortcutSettingsModal";
-import { ExportModal, ExportFormat } from "./components/ExportModal";
+} from "./components/ShortcutSettingsModal/utils";
+import type { ExportFormat } from "./components/ExportModal";
+
+// 重いコンポーネントの遅延ロード (Code Splitting / Lazy Loading)
+const SourceEditor = lazy(() => import("./components/Editor/SourceEditor"));
+const CheatSheetModal = lazy(() =>
+  import("./components/CheatSheetModal").then((m) => ({ default: m.CheatSheetModal }))
+);
+const ShortcutSettingsModal = lazy(() =>
+  import("./components/ShortcutSettingsModal/ShortcutSettingsModal").then((m) => ({
+    default: m.ShortcutSettingsModal,
+  }))
+);
+const ExportModal = lazy(() =>
+  import("./components/ExportModal").then((m) => ({ default: m.ExportModal }))
+);
+
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -128,80 +140,101 @@ function App() {
     }
   }, []);
 
-  // 初期起動時にカレントディレクトリを取得・読み込み
+  // ウィンドウ表示制御 & セーフティフォールバック
+  const hasRevealedWindowRef = useRef(false);
+  const revealWindow = useCallback(async () => {
+    if (hasRevealedWindowRef.current) return;
+    hasRevealedWindowRef.current = true;
+    try {
+      const win = getCurrentWindow();
+      await win.show();
+      await win.setFocus();
+    } catch (e) {
+      console.warn("Could not show window via Tauri API:", e);
+    }
+  }, []);
+
+  // 初期起動時にワークスペースを一括初期化し、描画完了後にウィンドウを表示
   useEffect(() => {
     let isMounted = true;
-    const initWorkspace = async () => {
+
+    // フロントエンド側セーフティフォールバック: 万一初期化が遅延・ハングした場合でも
+    // ウィンドウが非表示のまま残らないよう、最大400msで自動表示する
+    const fallbackTimer = setTimeout(() => {
+      revealWindow();
+    }, 400);
+
+    const initialize = async () => {
+      setIsLoadingRoot(true);
+      setRootError(null);
       try {
-        const args = await getCliArgs();
-        let targetFilePath: string | null = null;
-        let targetDir: string | null = null;
+        const initResult = await initWorkspace();
+        if (!isMounted) return;
 
-        for (let i = 1; i < args.length; i++) {
-          const arg = args[i];
-          if (arg.toLowerCase().endsWith(".md") || arg.toLowerCase().endsWith(".txt") || arg.toLowerCase().endsWith(".markdown")) {
-            targetFilePath = arg;
-            break;
-          }
-        }
+        const currentDir = initResult.current_dir;
+        setCurrentDirectory(currentDir);
+        currentDirectoryRef.current = currentDir;
+        setDirectoryContents((prev) => ({
+          ...prev,
+          [currentDir]: initResult.entries,
+        }));
 
-        if (targetFilePath) {
-          targetDir = await getParentDir(targetFilePath);
-        }
+        if (initResult.initial_file_path) {
+          const targetFilePath = initResult.initial_file_path;
+          setSelectedPath(targetFilePath);
+          selectedPathRef.current = targetFilePath;
 
-        const cwd = targetDir || await getCurrentDir();
-        if (isMounted) {
-          await loadDirectory(cwd, true);
+          if (initResult.initial_file_content !== null) {
+            const content = normalizeLineEndings(initResult.initial_file_content);
+            fileContentRef.current = content;
+            savedContentRef.current = content;
+            setFileContent(content);
+            setSavedContent(content);
 
-          if (targetFilePath) {
-            setSelectedPath(targetFilePath);
-            selectedPathRef.current = targetFilePath;
-            setIsFileLoading(true);
-            try {
-              const rawContent = await openFile(targetFilePath);
-              const content = normalizeLineEndings(rawContent);
-              selectedPathRef.current = targetFilePath;
-              fileContentRef.current = content;
-              savedContentRef.current = content;
-              setFileContent(content);
-              setSavedContent(content);
-              const fileName =
-                targetFilePath.split(/[/\\]/).filter(Boolean).pop() || targetFilePath;
-              const initialTab: TabItem = {
-                id: targetFilePath,
-                path: targetFilePath,
-                title: fileName,
-                content,
-                savedContent: content,
-                isDirty: false,
-              };
-              tabsRef.current = [initialTab];
-              activeTabIdRef.current = initialTab.id;
-              setTabs([initialTab]);
-              setActiveTabId(initialTab.id);
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              console.error(`Failed to open initial file '${targetFilePath}':`, err);
-              setFileError(`ファイルの読み込みに失敗しました: ${errMsg}`);
-            } finally {
-              setIsFileLoading(false);
-            }
+            const fileName =
+              targetFilePath.split(/[/\\]/).filter(Boolean).pop() || targetFilePath;
+            const initialTab: TabItem = {
+              id: targetFilePath,
+              path: targetFilePath,
+              title: fileName,
+              content,
+              savedContent: content,
+              isDirty: false,
+            };
+            tabsRef.current = [initialTab];
+            activeTabIdRef.current = initialTab.id;
+            setTabs([initialTab]);
+            setActiveTabId(initialTab.id);
+          } else if (initResult.initial_file_error) {
+            console.error(`Failed to open initial file '${targetFilePath}':`, initResult.initial_file_error);
+            setFileError(`ファイルの読み込みに失敗しました: ${initResult.initial_file_error}`);
           }
         }
       } catch (err) {
         if (isMounted) {
-          console.warn("Could not determine current directory or load file from Tauri:", err);
+          console.warn("Could not initialize workspace from Tauri:", err);
           setRootError("作業ディレクトリの取得またはファイルの読み込みに失敗しました。フォルダパスを指定してください。");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingRoot(false);
+          // 初回描画がDOMへ確実に反映された直後にウィンドウを表示
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              revealWindow();
+            });
+          });
         }
       }
     };
 
-    initWorkspace();
+    initialize();
 
     return () => {
       isMounted = false;
+      clearTimeout(fallbackTimer);
     };
-  }, [loadDirectory]);
+  }, [revealWindow]);
 
   const activeTab = tabs.find(
     (t) => t.id === activeTabId || (selectedPath && t.path === selectedPath)
@@ -2009,19 +2042,27 @@ function App() {
               </div>
             </div>
           ) : isSourceMode ? (
-            <SourceEditor
-              key={selectedPath ?? "__source__"}
-              content={fileContent ?? ""}
-              theme={resolvedTheme}
-              onChange={handleContentChange}
-              onSave={handleSave}
-              onExitSourceMode={() => setIsSourceMode(false)}
-              onToggleSourceMode={handleToggleSourceMode}
-              isFocusMode={isFocusMode}
-              onToggleFocusMode={handleToggleFocusMode}
-              showLineNumbers={isLineNumbersEnabled}
-              filePath={selectedPath}
-            />
+            <Suspense
+              fallback={
+                <div className="h-full w-full flex items-center justify-center text-xs text-zinc-400 dark:text-zinc-500">
+                  ソースエディタを読み込み中...
+                </div>
+              }
+            >
+              <SourceEditor
+                key={selectedPath ?? "__source__"}
+                content={fileContent ?? ""}
+                theme={resolvedTheme}
+                onChange={handleContentChange}
+                onSave={handleSave}
+                onExitSourceMode={() => setIsSourceMode(false)}
+                onToggleSourceMode={handleToggleSourceMode}
+                isFocusMode={isFocusMode}
+                onToggleFocusMode={handleToggleFocusMode}
+                showLineNumbers={isLineNumbersEnabled}
+                filePath={selectedPath}
+              />
+            </Suspense>
           ) : (
             <TyporiEditor
               ref={editorRef}
@@ -2093,29 +2134,41 @@ function App() {
 
 
       {/* チートシートモーダル */}
-      <CheatSheetModal
-        isOpen={isCheatSheetOpen}
-        onClose={() => setIsCheatSheetOpen(false)}
-        shortcutConfig={shortcutConfig}
-      />
+      {isCheatSheetOpen && (
+        <Suspense fallback={null}>
+          <CheatSheetModal
+            isOpen={isCheatSheetOpen}
+            onClose={() => setIsCheatSheetOpen(false)}
+            shortcutConfig={shortcutConfig}
+          />
+        </Suspense>
+      )}
 
       {/* ショートカットキー設定モーダル */}
-      <ShortcutSettingsModal
-        isOpen={isShortcutSettingsOpen}
-        onClose={() => setIsShortcutSettingsOpen(false)}
-        currentConfig={shortcutConfig}
-        onSave={saveShortcutConfig}
-      />
+      {isShortcutSettingsOpen && (
+        <Suspense fallback={null}>
+          <ShortcutSettingsModal
+            isOpen={isShortcutSettingsOpen}
+            onClose={() => setIsShortcutSettingsOpen(false)}
+            currentConfig={shortcutConfig}
+            onSave={saveShortcutConfig}
+          />
+        </Suspense>
+      )}
 
       {/* エクスポートモーダル (HTML / PDF) */}
-      <ExportModal
-        isOpen={isExportModalOpen}
-        onClose={handleCloseExportModal}
-        currentFilePath={selectedPath}
-        currentDirectory={currentDirectory}
-        markdownContent={getCurrentMarkdown()}
-        initialFormat={exportModalFormat}
-      />
+      {isExportModalOpen && (
+        <Suspense fallback={null}>
+          <ExportModal
+            isOpen={isExportModalOpen}
+            onClose={handleCloseExportModal}
+            currentFilePath={selectedPath}
+            currentDirectory={currentDirectory}
+            markdownContent={getCurrentMarkdown()}
+            initialFormat={exportModalFormat}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

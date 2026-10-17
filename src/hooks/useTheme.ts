@@ -45,8 +45,10 @@ export function useTheme(): UseThemeReturn {
     const resolved: "light" | "dark" = isDark ? "dark" : "light";
     if (isDark) {
       root.classList.add("dark");
+      root.style.backgroundColor = "#18181b";
     } else {
       root.classList.remove("dark");
+      root.style.backgroundColor = "#ffffff";
     }
     setResolvedTheme(resolved);
 

@@ -1,5 +1,157 @@
-- 2026-10-17: Phase 21「リリースビルドの準備と成果物検証」（タスク71〜72）を完了。
-  - **変更理由**: Phase 20までの全機能開発および総合レビュー完了を受け、ユーザーからのリリースビルド準備要求に基づき、アプリケーションのバージョン番号（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）やバンドル設定・アイコンアセット・リリース最適化設定の整合性を点検する自動検証スクリプト（`scripts/verify-release-config.mjs`）を作成して総合結合テストスイート（`scripts/verify-all.mjs`）へ統合するとともに、フルリリースビルド（`pnpm run build:release`）を実行して、最新コードベースに基づくWindowsリリースバイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）の正常生成とSHA-256チェックサムの完全性を検証（`scripts/verify-release-bundle.mjs`）するため。
+- 2026-10-18: タスク76「品質保証/自動テスト: `init_workspace` IPCコマンド、ウィンドウ初期非表示/表示ハンドシェイク、0msテーマ判定・スケルトン、コード分割/遅延読み込みを網羅検証する自動テストスクリプト（`scripts/verify-startup-acceleration.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」で実装されたバックエンド一括IPC（`init_workspace`）、ウィンドウ初期非表示（`visible: false`）と表示権限（`core:window:allow-show`）、0msテーマ同期インラインスクリプトおよびゼロフラッシュ初期スケルトン、React側での表示ハンドシェイクとセーフティフォールバック（400ms/500ms）、重いモジュールの `React.lazy()` 遅延ロードおよび `vite.config.ts` のコード分割設定について、回帰防止と仕様準拠を恒久的に自動検証するテストスイートを整備し、総合テスト（`pnpm test`）に統合するため。
+  - **Before**:
+    - `scripts/verify-startup-acceleration.mjs` が存在しなかった。
+    - `scripts/verify-all.mjs` の個別機能テスト配列が32件であり、バックエンドコマンド検証リストに `init_workspace` が含まれていなかった。
+    - `for_agent/guardrails.md` のテスト件数表記が古い状態であった。
+  - **After**:
+    - `scripts/verify-startup-acceleration.mjs` を新規作成:
+      - [Test 1] バックエンド/IPC一括化: `WorkspaceInitResult` 構造体およびフィールド（`current_dir`, `entries`, `initial_file_path`, `initial_file_content`, `initial_file_error`）、`init_workspace` コマンド定義、単体テスト群、`src-tauri/src/lib.rs` へのハンドラー登録、バックエンド側セーフティフォールバック（500msスレッド）、フロントエンド `initWorkspace` API と改行コードLF正規化を検証。
+      - [Test 2] ウィンドウ初期非表示 & Capabilities: `tauri.conf.json` での `visible: false` / `backgroundColor` 設定、`capabilities/default.json` での `core:window:allow-show` / `core:window:allow-set-focus` 権限を検証。
+      - [Test 3] 0ms テーマ判定 & ゼロフラッシュ初期スケルトン: `index.html` 内の同期スクリプト（`localStorage`, `prefers-color-scheme`, 即時 `dark` クラス付与, `backgroundColor: #18181b`）およびシミュレーション、インラインスタイルCSS変数、`#typori-initial-skeleton` と各プレースホルダー要素を検証。
+      - [Test 4] フロントエンド初期化一括化 & 表示ハンドシェイク & フォールバック: `src/App.tsx` での `initWorkspace()` 呼び出し、`revealWindow`（`show()` / `setFocus()`、Ref二重実行ガード）、`requestAnimationFrame` 描画同期、400msフォールバックタイマーを検証。
+      - [Test 5] コード分割 & バンドル最適化: `App.tsx` での `SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal` の `React.lazy()` 遅延ロードと `<Suspense>`、`vite.config.ts` での `manualChunks`（`editor-milkdown`, `editor-codemirror`, `vendor-react` 等）チャンク最適化を検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-startup-acceleration.mjs` を追加。
+      - `expectedBackendCommands` に `init_workspace` を追加。
+    - `for_agent/guardrails.md`:
+      - 総合テスト件数表記およびコマンド件数を最新化。
+    - 検証結果:
+      - `node scripts/verify-startup-acceleration.mjs`: 全5項目合格（Exit Code 0）。
+      - `pnpm test`: 全テストスクリプト合格、全IPCコマンド整合性合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteチャンク分割ビルド成功（Exit Code 0）。
+      - `cargo test`: 全28件単体テスト成功（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+  - **影響範囲**: `scripts/verify-startup-acceleration.mjs` (新規), `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-18: タスク75「バンドル最適化 & 遅延ロード: `App.tsx` および関連コンポーネントでの重いモジュール（`SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`）の `React.lazy()` 分割と `vite.config.ts` でのチャンク最適化」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、初期起動時（WYSIWYGモードかつモーダル非表示状態）に即座に必要としない重いモジュール群（CodeMirror 6 一式を含む `SourceEditor`、各種モーダル `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`）を `React.lazy()` および動的 `import()` によりコード分割（Code Splitting）し、`vite.config.ts` でのチャンク最適化（`manualChunks`）と併せて初期エントリチャンクを激減（1.46MB → 113KB）させ、起動時のスクリプト解析・実行負荷を最小化するため。
+  - **Before**:
+    - `src/App.tsx`:
+      - `SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal` が静的にインポートされ、メインバンドル（単一の `index-*.js`、約1.46MB）にすべて同梱されていた。
+      - 各モーダルおよび `SourceEditor` が `<Suspense>` なしで直接レンダリングされていた。
+    - `vite.config.ts`:
+      - `build` 設定が存在せず、全コード・依存ライブラリが単一チャンクに集約され、500kB 超過警告が発生していた。
+    - `src/components/Editor/index.ts`:
+      - `export * from "./SourceEditor"` により、Editor インポート時に SourceEditor および CodeMirror 6 が静的に引き込まれていた。
+    - `src/hooks/useShortcutSettings.ts`:
+      - `../components/ShortcutSettingsModal`（index.ts）から直接インポートしていたため、モーダルUIコンポーネントが静的に引き込まれていた。
+  - **After**:
+    - `src/App.tsx`:
+      - `lazy`, `Suspense` を導入し、`SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal` を `React.lazy()` による動的インポートに移行。
+      - `isSourceMode ? (<Suspense fallback={...}><SourceEditor ... /></Suspense>)` としてソースコードエディタをオンデマンド描画。
+      - 各モーダルを `isCheatSheetOpen && (<Suspense fallback={null}><CheatSheetModal ... /></Suspense>)` のように表示フラグが true の時のみ遅延マウント・遅延フェッチするよう改修。
+      - ユーティリティ関数（`isShortcutEvent`, `formatKeys`, `areKeysEqual`）および型（`ExportFormat`）をサブパス/型インポートへ最適化。
+    - `src/components/Editor/index.ts`:
+      - `export type * from "./SourceEditor"` に変更し、ランタイムコードの静的インポートを排除。
+    - `src/hooks/useShortcutSettings.ts`:
+      - `types.ts` および `utils.ts` から直接インポートするよう変更し、モーダルコンポーネント本体の静的インポートを排除。
+    - `vite.config.ts`:
+      - `build.rollupOptions.output.manualChunks` を構成し、`editor-milkdown`, `editor-codemirror`, `vendor-react`, `tauri` 等のチャンクに分離。`chunkSizeWarningLimit: 1000` を設定。
+    - 検証結果:
+      - `pnpm run build`: メインエントリが 1.46MB から 113.18 kB (gzip 29.12 kB) へ激減。CodeMirror 6（624 kB）や各モーダルが独立チャンクへ完全に分離され、警告0件でビルド成功（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト合格（Exit Code 0）。
+      - `cargo test`: 全28件パス（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+  - **影響範囲**: `src/App.tsx`, `vite.config.ts`, `src/components/Editor/index.ts`, `src/hooks/useShortcutSettings.ts`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-18: タスク74「表示タイミング制御 & フォールバック: `App.tsx` での `init_workspace` 呼び出しへの移行、初回描画完了時の `getCurrentWindow().show()` 呼び出し、および起動遅延/エラー時の自動 `show()` セーフティフォールバック（フロント＆Rust）の実装」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、フロントエンド初期化における直列IPC通信を `init_workspace` 一括APIへ置き換えて起動速度を最大化するとともに、DOM初回描画が確定したフレームで `getCurrentWindow().show()` を呼び出して完成UIで瞬時にウィンドウを表示し、万一の初期化遅延やハング時にもウィンドウが非表示のまま残らないようフロントエンド（400ms）およびRustバックエンド（500ms）の双方にセーフティフォールバック機構を導入するため。
+  - **Before**:
+    - `src-tauri/src/lib.rs`:
+      - `setup` クロージャ内でメニュー設定のみを行い、ウィンドウ表示に関するセーフティフォールバック処理は存在しなかった。
+    - `src/App.tsx`:
+      - 起動時 `useEffect` 内で `getCliArgs` → `getParentDir` → `getCurrentDir` → `loadDirectory` (`readDir`) → `openFile` を直列に呼び出していた。
+      - ウィンドウの `show()` / `setFocus()` 呼び出しおよびフォールバックタイマーは実装されていなかった。
+  - **After**:
+    - `src-tauri/src/lib.rs`:
+      - `tauri::Manager` をインポートし、`setup` 内で別スレッドから 500ms 後に `main` ウィンドウの可視性を確認して非表示であれば自動で `window.show()` を呼び出すバックエンド側セーフティフォールバックを実装。
+    - `src/App.tsx`:
+      - `revealWindow` コールバックを新設（`getCurrentWindow().show()` / `getCurrentWindow().setFocus()`、Refによる二重実行防止）。
+      - 起動時 `useEffect` でフロントエンド側セーフティフォールバックタイマー（400msで自動表示）を設定。
+      - 従来の直列IPC呼び出しを `initWorkspace()` による1往復一括取得に移行。
+      - 初回描画がDOMへ確実に反映された直後（`requestAnimationFrame`）に `revealWindow()` を呼び出し、UI完成状態でウィンドウを表示。
+      - 未使用となった `getCurrentDir`, `getCliArgs` のインポートを削除。
+    - 検証結果:
+      - `cargo test`: 全28件パス（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteビルド成功（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト合格（Exit Code 0）。
+  - **影響範囲**: `src-tauri/src/lib.rs`, `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-18: タスク73「ゼロフラッシュ基盤: `index.html` の `<head>` 内インラインスクリプトによる0msテーマ判定（`typori-theme` / システム配色）、初期背景色/スケルトン配置による起動時白フラッシュ完全防止」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、Reactバンドル読み込みやマウント完了前の数百ミリ秒間に発生する白画面露出（ホワイトブランク）およびダークモード時の白フラッシュを完全に解消するため、`index.html` の `<head>` 内インラインスクリプトによる0msでのテーマ・背景色判定と、`#root` 内への初期スケルトンDOM配置を導入するため。
+  - **Before**:
+    - `index.html`:
+      - `<head>` 内にテーマ判定スクリプトがなく、`#root` も空の `<div>` のみであった。
+      - Reactマウント完了（`useTheme` の `useEffect` 実行）まで `html` 要素に `dark` クラスが付与されず、ブラウザのデフォルト白色背景が露出していた。
+    - `src/hooks/useTheme.ts`:
+      - `applyTheme` 内で `document.documentElement.classList` の操作のみを行い、`root.style.backgroundColor` は直接同期されていなかった。
+  - **After**:
+    - `index.html`:
+      - `<head>` に0msテーマ同期インラインスクリプトを追加: `localStorage.getItem("typori-theme")` および `window.matchMedia("(prefers-color-scheme: dark)")` を即時評価し、`document.documentElement` に `dark` クラス付与/除去および `style.backgroundColor`（`#18181b` / `#ffffff`）を0msで同期適用。
+      - `<head>` にゼロフラッシュ・初期スケルトン用インライン `<style>` を追加: CSS変数（`--typori-bg`, `--typori-sidebar-bg`, `--typori-border`, `--typori-skeleton`）およびアニメーションキーフレームを外部CSS読み込み前から適用。
+      - `#root` 内にゼロフラッシュ初期スケルトンDOM（サイドバー枠・ヘッダー枠・エディタコンテンツ枠・ステータスバー枠）を配置。Reactマウント時に `createRoot` によりシームレスに置換される。
+    - `src/hooks/useTheme.ts`:
+      - `applyTheme` において `root.style.backgroundColor = isDark ? "#18181b" : "#ffffff"` を同期更新するよう改修。
+    - `scripts/verify-zero-flash-theme.mjs`:
+      - 0msテーマ判定、インラインスタイル、初期スケルトンDOM構造、およびシミュレーション実行（dark/light/system/OS連動全ケース）を自動検証するテストスクリプトを作成。
+    - 検証結果:
+      - `node scripts/verify-zero-flash-theme.mjs`: 全テストケース合格（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteプロダクションビルド成功（Exit Code 0）。
+      - `cargo test`: 全28件パス（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+  - **影響範囲**: `index.html`, `src/hooks/useTheme.ts`, `for_agent/guardrails.md`, `scripts/verify-zero-flash-theme.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-18: タスク72「ウィンドウ設定 & Capabilities: Tauri 初期非表示（`tauri.conf.json` での `"visible": false`・`backgroundColor`）とフロントエンド表示権限（`capabilities/default.json` での `core:window:allow-show`）の設定」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、WebView2初期化中の空ウィンドウ露出（ホワイトブランク）を防止するためウィンドウを初期非表示（`visible: false`）に設定し、描画前露出に備えた背景色（`backgroundColor: "#ffffff"`）と、フロントエンドから描画完了時にウィンドウを表示するための権限（`core:window:allow-show`, `core:window:allow-set-focus`）を付与するため。
+  - **Before**:
+    - `src-tauri/tauri.conf.json`:
+      - メインウィンドウ設定に `visible` および `backgroundColor` が明示指定されておらず、デフォルトで起動直後からウィンドウが表示されていた。
+    - `src-tauri/capabilities/default.json`:
+      - permissions に `core:window:allow-show` および `core:window:allow-set-focus` が含まれていなかった。
+  - **After**:
+    - `src-tauri/tauri.conf.json`:
+      - メインウィンドウ設定に `"visible": false` および `"backgroundColor": "#ffffff"` を追加。
+    - `src-tauri/capabilities/default.json`:
+      - permissions に `"core:window:allow-show"` と `"core:window:allow-set-focus"` を追加。
+    - 検証結果:
+      - `cargo check --manifest-path src-tauri/Cargo.toml`: Tauri v2 設定スキーマバリデーションおよびコンパイル成功（Exit Code 0）。
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: 全28件パス（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteビルド成功（Exit Code 0）。
+      - `pnpm test`: 総合結合テストすべて合格（Exit Code 0）。
+  - **影響範囲**: `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-18: タスク71「バックエンド/IPC一括化: Rust `init_workspace` コマンド（`WorkspaceInitResult` 返却、CLI引数・カレント/親ディレクトリ走査・ファイル初期読み込みを1往復で集約）の実装と単体テスト・登録（`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、従来 `App.tsx` の起動時 `useEffect` 内で直列に最大5往復していたIPC通信（`get_cli_args` → `get_parent_dir` → `get_current_dir` → `read_dir` → `open_file`）を、Rust内部で一括処理して1回のIPC往復で返却する `init_workspace` コマンドを新設・登録し、初期起動時のIPCオーバーヘッドを削減するため。
+  - **Before**:
+    - `src-tauri/src/fs.rs`:
+      - `WorkspaceInitResult` 構造体および `init_workspace` / `init_workspace_internal` 関数が存在しなかった。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `fs::init_workspace` が登録されていなかった。
+    - `src/api/fs.ts`:
+      - `WorkspaceInitResult` インターフェースおよび `initWorkspace` API関数が存在しなかった。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - `WorkspaceInitResult` 構造体を新設（`current_dir: String`, `entries: Vec<FileEntry>`, `initial_file_path: Option<String>`, `initial_file_content: Option<String>`, `initial_file_error: Option<String>`）。
+      - `init_workspace_internal` 関数を実装: CLI引数（第1引数以降の `.md` / `.txt` / `.markdown`）およびカスタムパスを解析し、ディレクトリの特定・`read_dir` 実行・対象ファイルの安全読み込み（CRLF正規化含む）を1回で集約。
+      - `#[tauri::command] pub fn init_workspace(custom_path: Option<String>)` を実装。
+      - 単体テスト4件を追加（デフォルト引数なし、CLI引数マークダウン指定、存在しないファイル指定時のエラー格納、カスタムディレクトリ指定）。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `fs::init_workspace` を登録。
+    - `src/api/fs.ts`:
+      - `WorkspaceInitResult` インターフェースを定義・エクスポート。
+      - `initWorkspace(customPath?: string): Promise<WorkspaceInitResult>` を実装・エクスポート（`initial_file_content` の改行コードLF正規化を含む）。
+    - 検証結果:
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: 全28件パス（単体テスト4件追加）。
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: 警告0件。
+      - `pnpm run build`: TypeScript型検査およびViteプロダクションビルド成功。
+      - `pnpm test`: 総合結合テストスイートすべて合格。
+  - **影響範囲**: `src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-17: Phase 22「リリースビルドの準備と成果物検証」（タスク77〜78）を完了。
+  - **変更理由**: 全機能開発および総合レビュー完了を受け、ユーザーからのリリースビルド準備要求に基づき、アプリケーションのバージョン番号（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）やバンドル設定・アイコンアセット・リリース最適化設定の整合性を点検する自動検証スクリプト（`scripts/verify-release-config.mjs`）を作成して総合結合テストスイート（`scripts/verify-all.mjs`）へ統合するとともに、フルリリースビルド（`pnpm run build:release`）を実行して、最新コードベースに基づくWindowsリリースバイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）の正常生成とSHA-256チェックサムの完全性を検証（`scripts/verify-release-bundle.mjs`）するため。
   - **Before**:
     - `Plan.md`: Phase 20までの計画しか存在せず、リリースビルド準備タスクが存在しなかった。
     - `scripts/verify-release-config.mjs`: ファイルが存在しなかった。
@@ -8,7 +160,7 @@
     - `for_agent/guardrails.md`: 必須検証コマンドの説明が「全個別機能テスト（38件）」となっていた。
     - `src-tauri/target/release/bundle/`: 過去（10月3日時点）の古いビルド成果物のままだった。
   - **After**:
-    - `Plan.md`: 「Phase 21: リリースビルドの準備と成果物検証」を追加し、タスク71およびタスク72を完了（`- [x]`）に更新。
+    - `Plan.md`: 「Phase 22: リリースビルドの準備と成果物検証」を追加し、タスク77およびタスク78を完了（`- [x]`）に更新。
     - `scripts/verify-release-config.mjs`: 新規作成。以下を網羅検証:
       1. 各設定ファイル（`package.json`, `tauri.conf.json`, `Cargo.toml`）の存在とバージョン番号（`v0.1.0`）の完全一致
       2. アプリケーション識別情報（`productName: "Typori"`, `identifier: "com.typori.editor"`）、バンドル設定（`active: true`）、ビルド前コマンド（`beforeBuildCommand: "pnpm build"`）の正常性
@@ -17,7 +169,7 @@
       5. `package.json` の `build:release` スクリプトの存在
     - `scripts/verify-release-bundle.mjs`: 新規作成。生成された3成果物（`typori.exe`, NSISインストーラ, MSIインストーラ）の存在、1MB以上のファイルサイズ、およびSHA-256チェックサムを検証。
     - `scripts/verify-all.mjs`: `verify-release-config.mjs` を追加し、全39件の個別機能テストに拡充。
-    - `for_agent/guardrails.md` / `for_agent/architecture.md`: テスト件数を「全個別機能テスト（39件）」に同期。
+    - `for_agent/guardrails.md` / `for_agent/architecture.md`: テスト件数を同期。
     - `pnpm run build:release`: 正常完了（Exit Code 0）。
       - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.17 MB / SHA256: `fd1242143530b5690af1631afde123dedf4fc92d1ba988952ce85e03700ba568`)
       - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_0.1.0_x64-setup.exe` (3.23 MB / SHA256: `75975c665578552f5038131181e5fe95385d637a52c63464391751418345f558`)
@@ -25,7 +177,7 @@
     - 検証結果:
       - `node scripts/verify-release-config.mjs`: Exit Code 0 (全項目合格)
       - `node scripts/verify-release-bundle.mjs`: Exit Code 0 (全項目合格)
-      - `pnpm test`: Exit Code 0 (全39個別テスト合格、全14+1 IPCコマンド整合、全17ネイティブメニューイベント整合、ショートカット定義競合なし)
+      - `pnpm test`: Exit Code 0 (全個別テスト合格、全IPCコマンド整合、全ネイティブメニューイベント整合、ショートカット定義競合なし)
   - **影響範囲**: `Plan.md`, `scripts/verify-release-config.mjs`, `scripts/verify-release-bundle.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `AICHANGELOG.md`, `src-tauri/target/release/`。
 
 - 2026-10-17: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜20、全70タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（24件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全38個別テスト、IPC 14+1コマンド、ネイティブメニュー 17イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様書の記述整合性（総合テスト件数・IPCコマンド・メニューイベント表記）を最新化・同期。

@@ -60,6 +60,29 @@ export async function getCliArgs(): Promise<string[]> {
   return await invoke<string[]>("get_cli_args");
 }
 
+export interface WorkspaceInitResult {
+  current_dir: string;
+  entries: FileEntry[];
+  initial_file_path: string | null;
+  initial_file_content: string | null;
+  initial_file_error: string | null;
+}
+
+/**
+ * 起動時のワークスペースを一括で初期化します。
+ * カレントディレクトリの特定、ディレクトリエントリの読み込み、および初期指定ファイルの内容取得を1往復で集約して返します。
+ * @param customPath オプションの対象ファイルまたはディレクトリパス
+ */
+export async function initWorkspace(customPath?: string): Promise<WorkspaceInitResult> {
+  const result = await invoke<WorkspaceInitResult>("init_workspace", {
+    customPath: customPath ?? null,
+  });
+  if (result.initial_file_content !== null && result.initial_file_content !== undefined) {
+    result.initial_file_content = normalizeLineEndings(result.initial_file_content);
+  }
+  return result;
+}
+
 /**
  * 指定ディレクトリ配下を再帰的に走査し、ファイル名・フォルダ名にクエリが含まれるエントリを検索します。
  * @param rootPath 検索起点ディレクトリのパス
