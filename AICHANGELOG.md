@@ -1,3 +1,27 @@
+- 2026-10-18: タスク74「表示タイミング制御 & フォールバック: `App.tsx` での `init_workspace` 呼び出しへの移行、初回描画完了時の `getCurrentWindow().show()` 呼び出し、および起動遅延/エラー時の自動 `show()` セーフティフォールバック（フロント＆Rust）の実装」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、フロントエンド初期化における直列IPC通信を `init_workspace` 一括APIへ置き換えて起動速度を最大化するとともに、DOM初回描画が確定したフレームで `getCurrentWindow().show()` を呼び出して完成UIで瞬時にウィンドウを表示し、万一の初期化遅延やハング時にもウィンドウが非表示のまま残らないようフロントエンド（400ms）およびRustバックエンド（500ms）の双方にセーフティフォールバック機構を導入するため。
+  - **Before**:
+    - `src-tauri/src/lib.rs`:
+      - `setup` クロージャ内でメニュー設定のみを行い、ウィンドウ表示に関するセーフティフォールバック処理は存在しなかった。
+    - `src/App.tsx`:
+      - 起動時 `useEffect` 内で `getCliArgs` → `getParentDir` → `getCurrentDir` → `loadDirectory` (`readDir`) → `openFile` を直列に呼び出していた。
+      - ウィンドウの `show()` / `setFocus()` 呼び出しおよびフォールバックタイマーは実装されていなかった。
+  - **After**:
+    - `src-tauri/src/lib.rs`:
+      - `tauri::Manager` をインポートし、`setup` 内で別スレッドから 500ms 後に `main` ウィンドウの可視性を確認して非表示であれば自動で `window.show()` を呼び出すバックエンド側セーフティフォールバックを実装。
+    - `src/App.tsx`:
+      - `revealWindow` コールバックを新設（`getCurrentWindow().show()` / `getCurrentWindow().setFocus()`、Refによる二重実行防止）。
+      - 起動時 `useEffect` でフロントエンド側セーフティフォールバックタイマー（400msで自動表示）を設定。
+      - 従来の直列IPC呼び出しを `initWorkspace()` による1往復一括取得に移行。
+      - 初回描画がDOMへ確実に反映された直後（`requestAnimationFrame`）に `revealWindow()` を呼び出し、UI完成状態でウィンドウを表示。
+      - 未使用となった `getCurrentDir`, `getCliArgs` のインポートを削除。
+    - 検証結果:
+      - `cargo test`: 全28件パス（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteビルド成功（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト全32件合格（Exit Code 0）。
+  - **影響範囲**: `src-tauri/src/lib.rs`, `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク73「ゼロフラッシュ基盤: `index.html` の `<head>` 内インラインスクリプトによる0msテーマ判定（`typori-theme` / システム配色）、初期背景色/スケルトン配置による起動時白フラッシュ完全防止」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、Reactバンドル読み込みやマウント完了前の数百ミリ秒間に発生する白画面露出（ホワイトブランク）およびダークモード時の白フラッシュを完全に解消するため、`index.html` の `<head>` 内インラインスクリプトによる0msでのテーマ・背景色判定と、`#root` 内への初期スケルトンDOM配置を導入するため。
   - **Before**:
