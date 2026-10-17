@@ -1,3 +1,24 @@
+- 2026-10-17: 要件定義（/requirements）: Mermaidダイアグラム機能仕様（Phase 20）を策定し、`for_agent/architecture.md` を更新。
+  - **変更理由**: ユーザーからの要求に基づき、Mermaid記法によるダイアグラム（`erDiagram`, `sequenceDiagram`, `graph TB/TD`, `gantt` 等のMermaid標準記法全般）のWYSIWYG表示・編集、ライト/ダークテーマ連動、HTML/PDFエクスポート連携、およびチートシート掲載の要件を明確化し、仕様書正本へ反映するため。
+  - **Before**:
+    - `for_agent/architecture.md`:
+      - Mermaidダイアグラムに関する仕様や技術スタックの定義が存在しなかった。
+      - エクスポート時やチートシートにおけるMermaidダイアグラムの扱いが未定義だった。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - 技術スタックに `Mermaid` を追加。
+      - 主な機能要件（フェーズ1）に「8. Mermaidダイアグラム機能」を追加。
+      - データフローに「Mermaidダイアグラム機能仕様 (Phase 20)」を追加:
+        - 対応記法: `erDiagram`, `sequenceDiagram`, `graph TB/TD`, `gantt`, `classDiagram`, `stateDiagram`, `pie`, `mindmap` 等の標準記法全般。
+        - WYSIWYGモード: 通常時はSVGダイアグラム表示、クリック/選択時にソースコードを展開・直接編集、フォーカス外れで再レンダリングするTyporaライクなブロック操作。
+        - 構文エラー耐性: 不正な構文でもエディタが壊れず、ダイアグラム領域に控えめなエラーメッセージを表示して編集を継続可能。
+        - テーマ連動: ライト/ダークテーマ切り替えに連動した配色変更。
+        - エクスポート連携: HTMLおよびPDF（印刷ダイアログiframe）出力時にもダイアグラムがSVGとして描画・保持される。
+        - チートシート連携: `CheatSheetModal`（F1）に代表的なMermaid記法サンプル（`graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）を掲載。
+        - 完成基準を定義。
+      - 改訂履歴に仕様策定の内容を追記。
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク63「WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン lineNumbersPlugin の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、WYSIWYGモード（Milkdown / ProseMirror）において、段落・見出し・リスト内段落・引用内段落・コードブロック・表・水平線・画像を1ブロックとして数える連番の行番号オーバーレイガターをエディタ左端に表示し、キャレット（または選択範囲のヘッド）が存在するブロックの行番号ハイライト（濃色・太字・薄い背景色）、フォーカスモード時の減光非適用連携、およびライト/ダークテーマ追従を実装するため。
   - **Before**:
