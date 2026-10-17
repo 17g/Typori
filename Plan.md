@@ -118,7 +118,7 @@
 ## Phase 21: 起動高速化・ホワイトブランク完全解消
 - [x] 71. バックエンド/IPC一括化: Rust `init_workspace` コマンド（`WorkspaceInitResult` 返却、CLI引数・カレント/親ディレクトリ走査・ファイル初期読み込みを1往復で集約）の実装と単体テスト・登録（`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`）
 - [x] 72. ウィンドウ設定 & Capabilities: Tauri 初期非表示（`tauri.conf.json` での `"visible": false`・`backgroundColor`）とフロントエンド表示権限（`capabilities/default.json` での `core:window:allow-show`）の設定
-- [ ] 73. ゼロフラッシュ基盤: `index.html` の `<head>` 内インラインスクリプトによる0msテーマ判定（`typori-theme` / システム配色）、初期背景色/スケルトン配置による起動時白フラッシュ完全防止
+- [x] 73. ゼロフラッシュ基盤: `index.html` の `<head>` 内インラインスクリプトによる0msテーマ判定（`typori-theme` / システム配色）、初期背景色/スケルトン配置による起動時白フラッシュ完全防止
 - [ ] 74. 表示タイミング制御 & フォールバック: `App.tsx` での `init_workspace` 呼び出しへの移行、初回描画完了時の `getCurrentWindow().show()` 呼び出し、および起動遅延/エラー時の自動 `show()` セーフティフォールバック（フロント＆Rust）の実装
 - [ ] 75. バンドル最適化 & 遅延ロード: `App.tsx` および関連コンポーネントでの重いモジュール（`SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`, `Mermaid`）の `React.lazy()` 分割と `vite.config.ts` でのチャンク最適化
 - [ ] 76. 品質保証/自動テスト: `init_workspace` IPCコマンド、ウィンドウ初期非表示/表示ハンドシェイク、0msテーマ判定・スケルトン、コード分割/遅延読み込みを網羅検証する自動テストスクリプト（`scripts/verify-startup-acceleration.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認

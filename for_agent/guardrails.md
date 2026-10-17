@@ -176,6 +176,18 @@
   3. `handleCloseTab` においても、タブの `content` と `savedContent` の `isContentDirty` チェックを厳格に行い、未保存タブが警告なしで閉じられることがないよう二重の防護策を講じること。
   4. `hasUnsavedChanges` の判定において、エディタから届いた初期シリアライズ値（`normalized`）と保存基準値（`savedContent`）を比較して未保存判定に含めないこと。クリーンタブにおける初回シリアライズ差異そのものを「ユーザーによる未保存変更」と誤認してベースライン同期を阻害し、未保存マークが誤点灯するのを防ぐため、未保存判定は対象タブの既存ステータス（`tab.isDirty`）および退避コンテンツ（`tab.content` と `tab.savedContent`）の比較のみに依拠すること。
 
+### 3.14. 起動時白画面フラッシュ防止のための0msテーマ判定スクリプトと初期スケルトン整合性
+- **事象・ミス**:
+  - アプリ起動時（特にダークテーマ設定時やOSダークモード時）に、一瞬真っ白な画面が露出（ホワイトブランク・白フラッシュ）し、Reactコンポーネントがマウントされた後にダーク背景に切り替わる現象が発生する。
+- **原因**:
+  - ReactおよびTailwind CSSのCSSバンドルがパースされ、`useTheme` カスタムフックの `useEffect` が実行されるまで `html` 要素に `dark` クラスが付与されず、デフォルトのブラウザ背景色（白）が表示されるため。
+  - `#root` 内が空のままであると、Reactがマウントされるまでの数百ミリ秒間、ウィンドウにコンテンツが何も描画されず空白状態となる。
+- **対策**:
+  1. `index.html` の `<head>` 内に同期的インラインスクリプトを配置し、0msで `localStorage.getItem("typori-theme")` および `window.matchMedia("(prefers-color-scheme: dark)")` を判定して `document.documentElement.classList.add("dark")` と `style.backgroundColor = "#18181b"` を適用すること。
+  2. `<head>` 内にインライン `<style>` を含め、外部CSSのロード前でも `:root` および `html.dark` の背景色・スケルトン用CSS変数が即時反映されるようにすること。
+  3. `index.html` の `#root` 内部に初期スケルトンDOM（サイドバー枠・ヘッダー枠・エディタ枠・ステータスバー枠）を配置し、Reactマウント完了まで白画面ではなくアプリの概観がちらつくことなく表示されるようにすること（React 18の `createRoot` によりマウント時に自動置換される）。
+  4. `src/hooks/useTheme.ts` の `applyTheme` においても `root.style.backgroundColor` を同期更新し、インラインスクリプトとReact側のテーマ管理の整合性を保つこと。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

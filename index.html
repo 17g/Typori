@@ -5,10 +5,169 @@
     <link rel="icon" type="image/png" href="/icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Typori</title>
+
+    <!-- 0ms テーマ同期スクリプト (白フラッシュ完全防止) -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("typori-theme");
+          var isDark = false;
+          if (saved === "dark") {
+            isDark = true;
+          } else if (saved === "light") {
+            isDark = false;
+          } else {
+            isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          }
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add("dark");
+            root.style.backgroundColor = "#18181b";
+          } else {
+            root.classList.remove("dark");
+            root.style.backgroundColor = "#ffffff";
+          }
+        } catch (e) {
+          // localStorage 等のアクセス例外対策
+        }
+      })();
+    </script>
+
+    <!-- 初期ロード・ゼロフラッシュ用インラインスタイル -->
+    <style>
+      :root {
+        --typori-bg: #ffffff;
+        --typori-sidebar-bg: #f9fafb;
+        --typori-border: rgba(228, 228, 231, 0.8);
+        --typori-skeleton: rgba(161, 161, 170, 0.16);
+      }
+      html.dark {
+        --typori-bg: #18181b;
+        --typori-sidebar-bg: #09090b;
+        --typori-border: rgba(39, 39, 42, 0.8);
+        --typori-skeleton: rgba(113, 113, 122, 0.22);
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: var(--typori-bg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+      .initial-skeleton-wrapper {
+        display: flex;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background-color: var(--typori-bg);
+        user-select: none;
+      }
+      .initial-skeleton-sidebar {
+        width: 16rem;
+        height: 100%;
+        background-color: var(--typori-sidebar-bg);
+        border-right: 1px solid var(--typori-border);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+      .initial-skeleton-sidebar-header {
+        height: 2.5rem;
+        border-bottom: 1px solid var(--typori-border);
+        display: flex;
+        align-items: center;
+        padding: 0 0.75rem;
+      }
+      .initial-skeleton-sidebar-content {
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+      }
+      .initial-skeleton-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+      }
+      .initial-skeleton-header {
+        height: 2.25rem;
+        border-bottom: 1px solid var(--typori-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 0.75rem;
+      }
+      .initial-skeleton-editor {
+        flex: 1;
+        max-width: 860px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+      .initial-skeleton-statusbar {
+        height: 1.5rem;
+        border-top: 1px solid var(--typori-border);
+        background-color: var(--typori-sidebar-bg);
+      }
+      .initial-skeleton-bar {
+        border-radius: 4px;
+        background-color: var(--typori-skeleton);
+        animation: typori-skeleton-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes typori-skeleton-pulse {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 0.28; }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Reactマウント前に表示されるゼロフラッシュ初期スケルトン -->
+      <div id="typori-initial-skeleton" class="initial-skeleton-wrapper" aria-hidden="true">
+        <aside class="initial-skeleton-sidebar">
+          <div class="initial-skeleton-sidebar-header">
+            <div class="initial-skeleton-bar" style="width: 55px; height: 11px;"></div>
+          </div>
+          <div class="initial-skeleton-sidebar-content">
+            <div class="initial-skeleton-bar" style="width: 85%; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 65%; height: 13px; margin-left: 10px;"></div>
+            <div class="initial-skeleton-bar" style="width: 75%; height: 13px; margin-left: 10px;"></div>
+            <div class="initial-skeleton-bar" style="width: 50%; height: 13px; margin-left: 10px;"></div>
+            <div class="initial-skeleton-bar" style="width: 80%; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 60%; height: 13px; margin-left: 10px;"></div>
+          </div>
+        </aside>
+        <div class="initial-skeleton-main">
+          <header class="initial-skeleton-header">
+            <div class="initial-skeleton-bar" style="width: 65px; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 120px; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 80px; height: 13px;"></div>
+          </header>
+          <main class="initial-skeleton-editor">
+            <div class="initial-skeleton-bar" style="width: 45%; height: 26px; margin-bottom: 0.5rem;"></div>
+            <div class="initial-skeleton-bar" style="width: 95%; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 90%; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 70%; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 92%; height: 13px; margin-top: 0.75rem;"></div>
+            <div class="initial-skeleton-bar" style="width: 88%; height: 13px;"></div>
+            <div class="initial-skeleton-bar" style="width: 60%; height: 13px;"></div>
+          </main>
+          <footer class="initial-skeleton-statusbar"></footer>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

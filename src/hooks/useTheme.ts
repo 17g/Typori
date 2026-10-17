@@ -44,9 +44,11 @@ export function useTheme(): UseThemeReturn {
     const root = document.documentElement;
     if (isDark) {
       root.classList.add("dark");
+      root.style.backgroundColor = "#18181b";
       setResolvedTheme("dark");
     } else {
       root.classList.remove("dark");
+      root.style.backgroundColor = "#ffffff";
       setResolvedTheme("light");
     }
   }, []);

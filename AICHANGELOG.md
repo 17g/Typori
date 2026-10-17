@@ -1,3 +1,28 @@
+- 2026-10-18: タスク73「ゼロフラッシュ基盤: `index.html` の `<head>` 内インラインスクリプトによる0msテーマ判定（`typori-theme` / システム配色）、初期背景色/スケルトン配置による起動時白フラッシュ完全防止」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、Reactバンドル読み込みやマウント完了前の数百ミリ秒間に発生する白画面露出（ホワイトブランク）およびダークモード時の白フラッシュを完全に解消するため、`index.html` の `<head>` 内インラインスクリプトによる0msでのテーマ・背景色判定と、`#root` 内への初期スケルトンDOM配置を導入するため。
+  - **Before**:
+    - `index.html`:
+      - `<head>` 内にテーマ判定スクリプトがなく、`#root` も空の `<div>` のみであった。
+      - Reactマウント完了（`useTheme` の `useEffect` 実行）まで `html` 要素に `dark` クラスが付与されず、ブラウザのデフォルト白色背景が露出していた。
+    - `src/hooks/useTheme.ts`:
+      - `applyTheme` 内で `document.documentElement.classList` の操作のみを行い、`root.style.backgroundColor` は直接同期されていなかった。
+  - **After**:
+    - `index.html`:
+      - `<head>` に0msテーマ同期インラインスクリプトを追加: `localStorage.getItem("typori-theme")` および `window.matchMedia("(prefers-color-scheme: dark)")` を即時評価し、`document.documentElement` に `dark` クラス付与/除去および `style.backgroundColor`（`#18181b` / `#ffffff`）を0msで同期適用。
+      - `<head>` にゼロフラッシュ・初期スケルトン用インライン `<style>` を追加: CSS変数（`--typori-bg`, `--typori-sidebar-bg`, `--typori-border`, `--typori-skeleton`）およびアニメーションキーフレームを外部CSS読み込み前から適用。
+      - `#root` 内にゼロフラッシュ初期スケルトンDOM（サイドバー枠・ヘッダー枠・エディタコンテンツ枠・ステータスバー枠）を配置。Reactマウント時に `createRoot` によりシームレスに置換される。
+    - `src/hooks/useTheme.ts`:
+      - `applyTheme` において `root.style.backgroundColor = isDark ? "#18181b" : "#ffffff"` を同期更新するよう改修。
+    - `scripts/verify-zero-flash-theme.mjs`:
+      - 0msテーマ判定、インラインスタイル、初期スケルトンDOM構造、およびシミュレーション実行（dark/light/system/OS連動全ケース）を自動検証するテストスクリプトを作成。
+    - 検証結果:
+      - `node scripts/verify-zero-flash-theme.mjs`: 全テストケース合格（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト全32件合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteプロダクションビルド成功（Exit Code 0）。
+      - `cargo test`: 全28件パス（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+  - **影響範囲**: `index.html`, `src/hooks/useTheme.ts`, `for_agent/guardrails.md`, `scripts/verify-zero-flash-theme.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク72「ウィンドウ設定 & Capabilities: Tauri 初期非表示（`tauri.conf.json` での `"visible": false`・`backgroundColor`）とフロントエンド表示権限（`capabilities/default.json` での `core:window:allow-show`）の設定」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、WebView2初期化中の空ウィンドウ露出（ホワイトブランク）を防止するためウィンドウを初期非表示（`visible: false`）に設定し、描画前露出に備えた背景色（`backgroundColor: "#ffffff"`）と、フロントエンドから描画完了時にウィンドウを表示するための権限（`core:window:allow-show`, `core:window:allow-set-focus`）を付与するため。
   - **Before**:
