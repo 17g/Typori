@@ -1,3 +1,36 @@
+- 2026-10-17: タスク64「品質保証: scripts/verify-line-numbers.mjs の作成と verify-all.mjs / verify-native-menu.mjs への統合、全検証コマンドのパス確認、仕様書・ガードレールの件数更新」を完了。
+  - **変更理由**: Phase 19「エディタの行番号表示機能」における全実装（状態管理フック、ショートカット登録、チートシート掲載、OSネイティブメニュー連携・双方向同期、ソースモードCodeMirror行番号制御、WYSIWYGモードProseMirrorガター＆ハイライトプラグイン、CSSスタイリング）を網羅検証する自動テストスイートを整備し、総合テスト（`scripts/verify-all.mjs`）およびネイティブメニュー検証（`scripts/verify-native-menu.mjs`）へ統合するとともに、仕様書およびガードレールの件数表記を同期し、全検証コマンドの合格（Exit Code 0）を担保するため。
+  - **Before**:
+    - `scripts/verify-line-numbers.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-native-menu.mjs`: `toggle_line_numbers` メニュー項目および `menu:toggle_line_numbers` イベント、トグルシミュレーションの検証が含まれていなかった。
+    - `scripts/verify-all.mjs`: `verify-line-numbers.mjs` が個別テスト配列に含まれておらず（32件）、メニューイベント数も16件のままだった。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明において「全個別機能テスト（27件）」「OSネイティブメニューイベント整合性（16イベント）」と古い件数が記載されていた。
+    - `for_agent/architecture.md`: 改訂履歴に Phase 19 の完了が記録されていなかった。
+    - `Plan.md`: タスク64が未完了（`- [ ]`）だった。
+  - **After**:
+    - `scripts/verify-line-numbers.mjs`: 新規作成。以下8領域を網羅検証:
+      1. `useLineNumberSettings.ts`: ストレージキー `typori:line_numbers_enabled`、デフォルト有効 (true)、localStorage 永続化およびトグル状態遷移シミュレーション。
+      2. `ShortcutSettingsModal/types.ts`: `SHORTCUT_ITEMS` に `toggle_line_numbers`、デフォルト `["Ctrl", "Alt", "L"]`、カテゴリ `view`、名前 `行番号表示切替` が登録されていること。
+      3. `CheatSheetModal/data.ts`: `KEYBOARD_SHORTCUTS` に `toggle_line_numbers`（`["Ctrl", "Alt", "L"]`、`行番号表示切替`）が掲載されていること。
+      4. `menu.rs` / `lib.rs` / `src/api/fs.ts`: CheckMenuItem 定義、イベント送出、IPC コマンド `set_line_numbers_menu_checked` の登録とフロントエンド invoke ラッパーの整合性。
+      5. `App.tsx`: `useLineNumberSettings` 呼び出し、`menu:toggle_line_numbers` リスナー、メニューチェック同期、両エディタへの `showLineNumbers` 伝達、キーボードショートカット処理。
+      6. `SourceEditor.tsx`: `showLineNumbers` prop、CodeMirror `basicSetupOptions` での `lineNumbers` / `highlightActiveLineGutter` 制御、ガタースタイリング。
+      7. `Editor.tsx`: `showLineNumbers` prop、ProseMirror `lineNumbersPlugin`、`getTargetBlocks` ブロック走査、`getActiveBlockIndex` キャレット位置判定シミュレーション。
+      8. `index.css`: `.typori-prosemirror-gutter`, `.ProseMirror.has-line-numbers`, `.typori-line-number-item`, `.typori-line-number-active`, フォーカスモード連携スタイル。
+    - `scripts/verify-native-menu.mjs`: `toggle_line_numbers` メニュー項目のアクセラレータ、view_menu 登録、`menu:toggle_line_numbers` 送出、`App.tsx` リスナー、トグルシミュレーションを追加。
+    - `scripts/verify-all.mjs`: `verify-line-numbers.mjs` を追加（全33件）、`menu:toggle_line_numbers` を追加（全17件）、`set_line_numbers_menu_checked` IPC コマンドおよび `toggle_line_numbers` ショートカット検証を追加。
+    - `for_agent/guardrails.md`: テスト件数を「全個別機能テスト（33件）」「OSネイティブメニューイベント整合性（17イベント）」に更新。
+    - `for_agent/architecture.md`: 改訂履歴に Phase 19 完了を追記。
+    - `Plan.md`: タスク64を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-line-numbers.mjs`: Exit Code 0 (全8領域合格)
+      - `node scripts/verify-native-menu.mjs`: Exit Code 0 (全ステップ合格)
+      - `pnpm test` (`node scripts/verify-all.mjs`): Exit Code 0 (33/33個別テスト、14+1 IPCコマンド、17メニューイベント、ショートカット定義全合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-line-numbers.mjs`, `scripts/verify-native-menu.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: 計画策定（/plan）: `for_agent/architecture.md` の Phase 20 Mermaidダイアグラム機能仕様を分析し、`Plan.md` にタスク65〜70を追加・マージ。
   - **変更理由**: 仕様書に追加されたMermaidダイアグラム機能（Phase 20）について、自律ループ（1イテレーション = 1タスク）で確実に実装・検証可能な最小粒度（タスク65〜70）へ分解し、既存の完了済みタスク（Phase 1〜19）を完全保護した上で計画を同期するため。
   - **Before**:

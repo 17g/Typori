@@ -46,6 +46,7 @@ const testScripts = [
   { name: "単一ファイル切替 未保存ステータス確実破棄 & クリーン状態リセット", file: "verify-single-file-clean-reset.mjs" },
   { name: "Phase 17 全3項目 総合統合テスト (品質保証 & シナリオ検証)", file: "verify-phase17-fixes.mjs" },
   { name: "タブ有効時 未保存マーク (isDirty) 維持 & クローズ警告判定 (Phase 18)", file: "verify-tab-switch-dirty-retention.mjs" },
+  { name: "エディタ行番号表示機能 (WYSIWYG/ソース/メニュー/ショートカット) (Phase 19)", file: "verify-line-numbers.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
@@ -115,6 +116,15 @@ for (const cmd of expectedBackendCommands) {
     `src/api/fs.ts で invoke("${cmd}") が呼び出されていること`
   );
 }
+// menu 関連 IPC コマンドの確認
+assert.ok(
+  libRsContent.includes("menu::set_line_numbers_menu_checked"),
+  "src-tauri/src/lib.rs の generate_handler に menu::set_line_numbers_menu_checked が登録されていること"
+);
+assert.ok(
+  /invoke(?:<[^>]+>)?\("set_line_numbers_menu_checked"/.test(fsTsContent),
+  "src/api/fs.ts で invoke('set_line_numbers_menu_checked') が呼び出されていること"
+);
 console.log("✓ フロントエンド API (src/api/fs.ts) で全コマンドの invoke 定義が存在することを確認");
 
 // 3. OSネイティブメニューイベントとフロントエンドリスナーの双方向整合性検証
@@ -140,6 +150,7 @@ const expectedMenuEvents = [
   "menu:toggle_source_mode",
   "menu:toggle_focus_mode",
   "menu:toggle_tabs",
+  "menu:toggle_line_numbers",
   "menu:open_cheatsheet",
   "menu:open_shortcuts_settings",
 ];
@@ -166,6 +177,7 @@ assert.ok(defaultShortcutsContent.includes("export_pdf"), "export_pdf ショー�
 assert.ok(defaultShortcutsContent.includes("export_html"), "export_html ショートカットが定義されていること");
 assert.ok(defaultShortcutsContent.includes("toggle_right_sidebar"), "toggle_right_sidebar ショートカットが定義されていること");
 assert.ok(defaultShortcutsContent.includes("toggle_focus_mode"), "toggle_focus_mode ショートカットが定義されていること");
+assert.ok(defaultShortcutsContent.includes("toggle_line_numbers"), "toggle_line_numbers ショートカットが定義されていること");
 
 console.log("✓ ショートカット定義の整合性チェックに合格");
 

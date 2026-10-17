@@ -105,7 +105,7 @@
 - [x] 61. OS連携: 表示メニューへのチェック付き「行番号を表示」（CheckMenuItem）追加、`menu:toggle_line_numbers` イベント連携、チェック状態同期コマンド `set_line_numbers_menu_checked`（menu.rs / lib.rs / fs.ts / App.tsx）の実装
 - [x] 62. ソース直接編集モード: `SourceEditor.tsx` の `basicSetup.lineNumbers` / `highlightActiveLineGutter` を `showLineNumbers` で切替
 - [x] 63. WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン `lineNumbersPlugin` の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）
-- [ ] 64. 品質保証: `scripts/verify-line-numbers.mjs` の作成と `verify-all.mjs` / `verify-native-menu.mjs` への統合、全検証コマンドのパス確認、仕様書・ガードレールの件数更新
+- [x] 64. 品質保証: `scripts/verify-line-numbers.mjs` の作成と `verify-all.mjs` / `verify-native-menu.mjs` への統合、全検証コマンドのパス確認、仕様書・ガードレールの件数更新
 
 ## Phase 20: Mermaidダイアグラム機能
 - [ ] 65. パッケージ導入・基盤: `mermaid` パッケージの追加と、SVGレンダリング・テーマ切り替え・構文エラーハンドリングを行うユーティリティモジュール（`src/utils/mermaid.ts`）の実装

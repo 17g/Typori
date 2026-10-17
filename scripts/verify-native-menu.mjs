@@ -45,6 +45,20 @@ async function verifyNativeMenu() {
     "menu.rs must set accelerator 'CmdOrCtrl+/' for toggle_source_mode"
   );
 
+  // Check toggle_line_numbers
+  assert.ok(
+    menuRsContent.includes('"toggle_line_numbers"'),
+    "menu.rs must define 'toggle_line_numbers' item ID"
+  );
+  assert.ok(
+    menuRsContent.includes('"行番号を表示"'),
+    "menu.rs must set label '行番号を表示'"
+  );
+  assert.ok(
+    menuRsContent.includes('Some("CmdOrCtrl+Alt+L")'),
+    "menu.rs must set accelerator 'CmdOrCtrl+Alt+L' for toggle_line_numbers"
+  );
+
   // Check inclusion in view_menu
   assert.ok(
     menuRsContent.includes("&toggle_source_mode"),
@@ -53,6 +67,10 @@ async function verifyNativeMenu() {
   assert.ok(
     menuRsContent.includes("&toggle_tabs"),
     "view_menu must include &toggle_tabs"
+  );
+  assert.ok(
+    menuRsContent.includes("&toggle_line_numbers"),
+    "view_menu must include &toggle_line_numbers"
   );
   console.log("✓ Menu item definitions and accelerator shortcuts verified.");
 
@@ -69,6 +87,12 @@ async function verifyNativeMenu() {
       menuRsContent
     ),
     "handle_menu_event must emit 'menu:toggle_source_mode'"
+  );
+  assert.ok(
+    /\"toggle_line_numbers\"\s*=>\s*\{\s*let _ = app\.emit\(\"menu:toggle_line_numbers\",\s*\(\)\);/m.test(
+      menuRsContent
+    ),
+    "handle_menu_event must emit 'menu:toggle_line_numbers'"
   );
   console.log("✓ Native menu event emissions verified.");
 
@@ -90,6 +114,15 @@ async function verifyNativeMenu() {
   assert.ok(
     appTsxContent.includes("handleToggleSourceModeRef.current()"),
     "App.tsx must invoke handleToggleSourceModeRef.current() on menu:toggle_source_mode"
+  );
+
+  assert.ok(
+    appTsxContent.includes('listen("menu:toggle_line_numbers"'),
+    "App.tsx must listen to 'menu:toggle_line_numbers'"
+  );
+  assert.ok(
+    appTsxContent.includes("toggleLineNumbersRef.current()"),
+    "App.tsx must invoke toggleLineNumbersRef.current() on menu:toggle_line_numbers"
   );
   console.log("✓ Frontend event listeners and handler invocations verified.");
 
@@ -124,6 +157,17 @@ async function verifyNativeMenu() {
   assert.equal(syncedContent, "# Test Content", "Content successfully synced to source editor");
   toggleSourceMode();
   assert.equal(isSourceMode, false, "Returned to WYSIWYG mode");
+
+  // Simulate line numbers toggle behavior (default true)
+  let isLineNumbersEnabled = true;
+  const toggleLineNumbers = () => {
+    isLineNumbersEnabled = !isLineNumbersEnabled;
+  };
+  assert.equal(isLineNumbersEnabled, true, "Line numbers initially enabled (default)");
+  toggleLineNumbers();
+  assert.equal(isLineNumbersEnabled, false, "Line numbers disabled after toggle");
+  toggleLineNumbers();
+  assert.equal(isLineNumbersEnabled, true, "Line numbers re-enabled after second toggle");
   console.log("✓ State transition and synchronization simulation verified.");
 
   console.log("\n>>> ALL NATIVE MENU & EVENT WIRING TESTS PASSED SUCCESSFULLY! <<<");
