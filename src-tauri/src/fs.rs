@@ -9,6 +9,16 @@ pub struct FileEntry {
     pub is_dir: bool,
 }
 
+/// 起動時ワークスペース初期化結果の情報
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkspaceInitResult {
+    pub current_dir: String,
+    pub entries: Vec<FileEntry>,
+    pub initial_file_path: Option<String>,
+    pub initial_file_content: Option<String>,
+    pub initial_file_error: Option<String>,
+}
+
 /// 指定されたパスのファイルをUTF-8文字列として読み込みます。
 #[tauri::command]
 pub fn open_file(path: String) -> Result<String, String> {
@@ -680,6 +690,101 @@ pub fn export_to_pdf_html(
     export_to_html(path, markdown, title, theme)
 }
 
+/// 起動時ワークスペース初期化の内部処理ロジック。
+/// CLI引数またはカスタムパスからワークスペースディレクトリと初期対象ファイルを決定し、
+/// ディレクトリエントリ一覧とファイル内容を1回で集約して返却します。
+pub fn init_workspace_internal(
+    args: &[String],
+    custom_path: Option<String>,
+) -> Result<WorkspaceInitResult, String> {
+    let mut target_file_path: Option<String> = None;
+    let mut target_dir: Option<String> = None;
+
+    if let Some(cp) = custom_path.filter(|s| !s.trim().is_empty()) {
+        let p = std::path::Path::new(&cp);
+        if p.is_dir() {
+            target_dir = Some(cp);
+        } else {
+            if let Some(parent) = p.parent() {
+                if !parent.as_os_str().is_empty() {
+                    target_dir = Some(parent.to_string_lossy().to_string());
+                }
+            }
+            target_file_path = Some(cp);
+        }
+    } else {
+        // CLI引数のチェック（第1引数以降を走査）
+        for arg in args.iter().skip(1) {
+            let lower = arg.to_lowercase();
+            if lower.ends_with(".md") || lower.ends_with(".txt") || lower.ends_with(".markdown") {
+                let p = std::path::Path::new(arg);
+                target_file_path = Some(arg.clone());
+                if let Some(parent) = p.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        target_dir = Some(parent.to_string_lossy().to_string());
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    let cwd = match target_dir {
+        Some(dir) => dir,
+        None => std::env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .map_err(|e| format!("Failed to get current directory: {}", e))?,
+    };
+
+    let entries = read_dir(cwd.clone())?;
+
+    let (initial_file_content, initial_file_error) = match target_file_path.as_deref() {
+        Some(path) => {
+            let path_obj = std::path::Path::new(path);
+            let read_target = if path_obj.exists() {
+                path_obj.to_path_buf()
+            } else if path_obj.is_relative() {
+                let joined = std::path::Path::new(&cwd).join(path_obj);
+                if joined.exists() {
+                    joined
+                } else if let Some(fname) = path_obj.file_name() {
+                    std::path::Path::new(&cwd).join(fname)
+                } else {
+                    path_obj.to_path_buf()
+                }
+            } else {
+                path_obj.to_path_buf()
+            };
+
+            match fs::read_to_string(&read_target) {
+                Ok(content) => {
+                    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
+                    (Some(normalized), None)
+                }
+                Err(e) => (None, Some(format!("Failed to read file '{}': {}", path, e))),
+            }
+        }
+        None => (None, None),
+    };
+
+    Ok(WorkspaceInitResult {
+        current_dir: cwd,
+        entries,
+        initial_file_path: target_file_path,
+        initial_file_content,
+        initial_file_error,
+    })
+}
+
+/// 起動時のワークスペースを一括で初期化します。
+/// CLI引数または指定パスを解析し、カレントディレクトリの特定、ディレクトリエントリ一覧の走査、
+/// および初期対象ファイルの読み込みを1回のIPC呼び出しで集約して返却します。
+#[tauri::command]
+pub fn init_workspace(custom_path: Option<String>) -> Result<WorkspaceInitResult, String> {
+    let args: Vec<String> = std::env::args().collect();
+    init_workspace_internal(&args, custom_path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1174,6 +1279,110 @@ mod tests {
         assert!(read_html.contains("@media print"));
 
         let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_init_workspace_internal_default_no_args() {
+        let args: Vec<String> = vec!["typori".to_string()];
+        let res = init_workspace_internal(&args, None);
+        assert!(res.is_ok());
+        let ws = res.unwrap();
+        assert!(!ws.current_dir.is_empty());
+        assert!(ws.initial_file_path.is_none());
+        assert!(ws.initial_file_content.is_none());
+        assert!(ws.initial_file_error.is_none());
+    }
+
+    #[test]
+    fn test_init_workspace_internal_cli_markdown_file() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = temp_dir.join(format!("typori_ws_test_{}", timestamp));
+        fs::create_dir_all(&test_dir).unwrap();
+
+        let file_path = test_dir.join("test_doc.md");
+        fs::write(&file_path, "# Header\r\nLine 2").unwrap();
+
+        let args: Vec<String> = vec![
+            "typori".to_string(),
+            file_path.to_string_lossy().to_string(),
+        ];
+        let res = init_workspace_internal(&args, None);
+        assert!(res.is_ok());
+        let ws = res.unwrap();
+        assert_eq!(
+            std::path::Path::new(&ws.current_dir),
+            std::path::Path::new(&test_dir)
+        );
+        assert_eq!(
+            ws.initial_file_path,
+            Some(file_path.to_string_lossy().to_string())
+        );
+        assert_eq!(ws.initial_file_content, Some("# Header\nLine 2".to_string()));
+        assert!(ws.initial_file_error.is_none());
+        assert!(ws.entries.iter().any(|e| e.name == "test_doc.md"));
+
+        let _ = fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn test_init_workspace_internal_file_not_found() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let non_existent_file = temp_dir.join(format!("typori_nonexistent_{}.md", timestamp));
+        let args: Vec<String> = vec![
+            "typori".to_string(),
+            non_existent_file.to_string_lossy().to_string(),
+        ];
+        let res = init_workspace_internal(&args, None);
+        assert!(res.is_ok());
+        let ws = res.unwrap();
+        assert_eq!(
+            ws.initial_file_path,
+            Some(non_existent_file.to_string_lossy().to_string())
+        );
+        assert!(ws.initial_file_content.is_none());
+        assert!(ws.initial_file_error.is_some());
+        assert!(ws
+            .initial_file_error
+            .unwrap()
+            .contains("Failed to read file"));
+    }
+
+    #[test]
+    fn test_init_workspace_internal_custom_path_directory() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = temp_dir.join(format!("typori_ws_custom_dir_{}", timestamp));
+        fs::create_dir_all(&test_dir).unwrap();
+
+        let sub_file = test_dir.join("sample.txt");
+        fs::write(&sub_file, "sample text").unwrap();
+
+        let res = init_workspace_internal(
+            &["typori".to_string()],
+            Some(test_dir.to_string_lossy().to_string()),
+        );
+        assert!(res.is_ok());
+        let ws = res.unwrap();
+        assert_eq!(
+            std::path::Path::new(&ws.current_dir),
+            std::path::Path::new(&test_dir)
+        );
+        assert!(ws.initial_file_path.is_none());
+        assert!(ws.initial_file_content.is_none());
+        assert!(ws.entries.iter().any(|e| e.name == "sample.txt"));
+
+        let _ = fs::remove_dir_all(&test_dir);
     }
 }
 

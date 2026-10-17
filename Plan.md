@@ -116,7 +116,7 @@
 - [ ] 70. 品質保証/自動テスト: Mermaid描画・構文エラー耐性・テーマ追従・エクスポート・チートシート整合性を網羅検証する自動テストスクリプト（`scripts/verify-mermaid-diagrams.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合・全検証パス確認
 
 ## Phase 21: 起動高速化・ホワイトブランク完全解消
-- [ ] 71. バックエンド/IPC一括化: Rust `init_workspace` コマンド（`WorkspaceInitResult` 返却、CLI引数・カレント/親ディレクトリ走査・ファイル初期読み込みを1往復で集約）の実装と単体テスト・登録（`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`）
+- [x] 71. バックエンド/IPC一括化: Rust `init_workspace` コマンド（`WorkspaceInitResult` 返却、CLI引数・カレント/親ディレクトリ走査・ファイル初期読み込みを1往復で集約）の実装と単体テスト・登録（`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`）
 - [ ] 72. ウィンドウ設定 & Capabilities: Tauri 初期非表示（`tauri.conf.json` での `"visible": false`・`backgroundColor`）とフロントエンド表示権限（`capabilities/default.json` での `core:window:allow-show`）の設定
 - [ ] 73. ゼロフラッシュ基盤: `index.html` の `<head>` 内インラインスクリプトによる0msテーマ判定（`typori-theme` / システム配色）、初期背景色/スケルトン配置による起動時白フラッシュ完全防止
 - [ ] 74. 表示タイミング制御 & フォールバック: `App.tsx` での `init_workspace` 呼び出しへの移行、初回描画完了時の `getCurrentWindow().show()` 呼び出し、および起動遅延/エラー時の自動 `show()` セーフティフォールバック（フロント＆Rust）の実装

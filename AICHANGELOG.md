@@ -1,3 +1,30 @@
+- 2026-10-18: タスク71「バックエンド/IPC一括化: Rust `init_workspace` コマンド（`WorkspaceInitResult` 返却、CLI引数・カレント/親ディレクトリ走査・ファイル初期読み込みを1往復で集約）の実装と単体テスト・登録（`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、従来 `App.tsx` の起動時 `useEffect` 内で直列に最大5往復していたIPC通信（`get_cli_args` → `get_parent_dir` → `get_current_dir` → `read_dir` → `open_file`）を、Rust内部で一括処理して1回のIPC往復で返却する `init_workspace` コマンドを新設・登録し、初期起動時のIPCオーバーヘッドを削減するため。
+  - **Before**:
+    - `src-tauri/src/fs.rs`:
+      - `WorkspaceInitResult` 構造体および `init_workspace` / `init_workspace_internal` 関数が存在しなかった。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `fs::init_workspace` が登録されていなかった。
+    - `src/api/fs.ts`:
+      - `WorkspaceInitResult` インターフェースおよび `initWorkspace` API関数が存在しなかった。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - `WorkspaceInitResult` 構造体を新設（`current_dir: String`, `entries: Vec<FileEntry>`, `initial_file_path: Option<String>`, `initial_file_content: Option<String>`, `initial_file_error: Option<String>`）。
+      - `init_workspace_internal` 関数を実装: CLI引数（第1引数以降の `.md` / `.txt` / `.markdown`）およびカスタムパスを解析し、ディレクトリの特定・`read_dir` 実行・対象ファイルの安全読み込み（CRLF正規化含む）を1回で集約。
+      - `#[tauri::command] pub fn init_workspace(custom_path: Option<String>)` を実装。
+      - 単体テスト4件を追加（デフォルト引数なし、CLI引数マークダウン指定、存在しないファイル指定時のエラー格納、カスタムディレクトリ指定）。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `fs::init_workspace` を登録。
+    - `src/api/fs.ts`:
+      - `WorkspaceInitResult` インターフェースを定義・エクスポート。
+      - `initWorkspace(customPath?: string): Promise<WorkspaceInitResult>` を実装・エクスポート（`initial_file_content` の改行コードLF正規化を含む）。
+    - 検証結果:
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: 全28件パス（単体テスト4件追加）。
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: 警告0件。
+      - `pnpm run build`: TypeScript型検査およびViteプロダクションビルド成功。
+      - `pnpm test`: 総合結合テストスイート全32件すべて合格。
+  - **影響範囲**: `src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: 計画策定（/plan）: `for_agent/architecture.md` の Phase 20 Mermaidダイアグラム機能仕様を分析し、`Plan.md` にタスク65〜70を追加・マージ。
   - **変更理由**: 仕様書に追加されたMermaidダイアグラム機能（Phase 20）について、自律ループ（1イテレーション = 1タスク）で確実に実装・検証可能な最小粒度（タスク65〜70）へ分解し、既存の完了済みタスク（Phase 1〜19）を完全保護した上で計画を同期するため。
   - **Before**:

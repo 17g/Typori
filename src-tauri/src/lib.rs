@@ -49,6 +49,7 @@ pub fn run() {
             fs::convert_markdown_to_html,
             fs::export_to_html,
             fs::export_to_pdf_html,
+            fs::init_workspace,
             menu::set_line_numbers_menu_checked
         ])
         .run(tauri::generate_context!())
