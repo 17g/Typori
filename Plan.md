@@ -115,3 +115,6 @@
 - [x] 69. エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装
 - [x] 70. 品質保証/自動テスト: Mermaid描画・構文エラー耐性・テーマ追従・エクスポート・チートシート整合性を網羅検証する自動テストスクリプト（`scripts/verify-mermaid-diagrams.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合・全検証パス確認
 
+## Phase 21: リリースビルドの準備と成果物検証
+- [x] 71. 設定・整合性点検: バージョン番号（package.json / tauri.conf.json / Cargo.toml）、ビルド設定、アイコンアセットの整合性確認
+- [x] 72. リリースビルド実行・検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と成果物確認

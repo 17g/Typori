@@ -1,3 +1,33 @@
+- 2026-10-17: Phase 21「リリースビルドの準備と成果物検証」（タスク71〜72）を完了。
+  - **変更理由**: Phase 20までの全機能開発および総合レビュー完了を受け、ユーザーからのリリースビルド準備要求に基づき、アプリケーションのバージョン番号（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）やバンドル設定・アイコンアセット・リリース最適化設定の整合性を点検する自動検証スクリプト（`scripts/verify-release-config.mjs`）を作成して総合結合テストスイート（`scripts/verify-all.mjs`）へ統合するとともに、フルリリースビルド（`pnpm run build:release`）を実行して、最新コードベースに基づくWindowsリリースバイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）の正常生成とSHA-256チェックサムの完全性を検証（`scripts/verify-release-bundle.mjs`）するため。
+  - **Before**:
+    - `Plan.md`: Phase 20までの計画しか存在せず、リリースビルド準備タスクが存在しなかった。
+    - `scripts/verify-release-config.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-release-bundle.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が38件だった。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明が「全個別機能テスト（38件）」となっていた。
+    - `src-tauri/target/release/bundle/`: 過去（10月3日時点）の古いビルド成果物のままだった。
+  - **After**:
+    - `Plan.md`: 「Phase 21: リリースビルドの準備と成果物検証」を追加し、タスク71およびタスク72を完了（`- [x]`）に更新。
+    - `scripts/verify-release-config.mjs`: 新規作成。以下を網羅検証:
+      1. 各設定ファイル（`package.json`, `tauri.conf.json`, `Cargo.toml`）の存在とバージョン番号（`v0.1.0`）の完全一致
+      2. アプリケーション識別情報（`productName: "Typori"`, `identifier: "com.typori.editor"`）、バンドル設定（`active: true`）、ビルド前コマンド（`beforeBuildCommand: "pnpm build"`）の正常性
+      3. 全5件のアイコンアセット（`32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, `icon.ico`）の存在
+      4. `Cargo.toml` のリリース最適化プロファイル（`opt-level = 3`, `lto = true`, `panic = "abort"`, `strip = true`, `codegen-units = 1`）の設定
+      5. `package.json` の `build:release` スクリプトの存在
+    - `scripts/verify-release-bundle.mjs`: 新規作成。生成された3成果物（`typori.exe`, NSISインストーラ, MSIインストーラ）の存在、1MB以上のファイルサイズ、およびSHA-256チェックサムを検証。
+    - `scripts/verify-all.mjs`: `verify-release-config.mjs` を追加し、全39件の個別機能テストに拡充。
+    - `for_agent/guardrails.md` / `for_agent/architecture.md`: テスト件数を「全個別機能テスト（39件）」に同期。
+    - `pnpm run build:release`: 正常完了（Exit Code 0）。
+      - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.17 MB / SHA256: `fd1242143530b5690af1631afde123dedf4fc92d1ba988952ce85e03700ba568`)
+      - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_0.1.0_x64-setup.exe` (3.23 MB / SHA256: `75975c665578552f5038131181e5fe95385d637a52c63464391751418345f558`)
+      - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_0.1.0_x64_en-US.msi` (3.88 MB / SHA256: `430ea51e73487bf774faf3ce54644dc8921ddf2df07991d4a0e1130823aed8bb`)
+    - 検証結果:
+      - `node scripts/verify-release-config.mjs`: Exit Code 0 (全項目合格)
+      - `node scripts/verify-release-bundle.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test`: Exit Code 0 (全39個別テスト合格、全14+1 IPCコマンド整合、全17ネイティブメニューイベント整合、ショートカット定義競合なし)
+  - **影響範囲**: `Plan.md`, `scripts/verify-release-config.mjs`, `scripts/verify-release-bundle.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `AICHANGELOG.md`, `src-tauri/target/release/`。
+
 - 2026-10-17: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜20、全70タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（24件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全38個別テスト、IPC 14+1コマンド、ネイティブメニュー 17イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様書の記述整合性（総合テスト件数・IPCコマンド・メニューイベント表記）を最新化・同期。
   - **変更理由**: Phase 20までの全実装（全70タスク）が完了したことを受け、仕様書（`for_agent/architecture.md`、`for_agent/guardrails.md`）と実装コード全体の突き合わせを行い、要件の網羅性、エッジケースの考慮、仕様書の記述不整合（全体結合テストの件数表記等）を解消し、プロジェクト全体のフルビルドおよび全テストスイートの正常終了（Exit Code 0）を客観的根拠（Ground Truth）に基づいて確認・保証するため。
   - **Before**:
