@@ -109,7 +109,7 @@
 
 ## Phase 20: Mermaidダイアグラム機能
 - [x] 65. パッケージ導入・基盤: `mermaid` パッケージの追加と、SVGレンダリング・テーマ切り替え・構文エラーハンドリングを行うユーティリティモジュール（`src/utils/mermaid.ts`）の実装
-- [ ] 66. チートシート連携: `CheatSheetModal/data.ts` に代表的なMermaid記法（`graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）の構文サンプルと説明を追加
+- [x] 66. チートシート連携: `CheatSheetModal/data.ts` に代表的なMermaid記法（`graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）の構文サンプルと説明を追加
 - [ ] 67. WYSIWYGモード: ```mermaid コードブロックを検知し、TyporaライクなSVGプレビュー表示＆クリック編集＆エラー表示を行う ProseMirror ノードビュー/プラグインの実装
 - [ ] 68. テーマ連動: アプリケーションのライト/ダークテーマ切り替えに連動したMermaidダイアグラムの動的再レンダリング処理の実装
 - [ ] 69. エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装

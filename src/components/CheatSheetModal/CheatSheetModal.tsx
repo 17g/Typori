@@ -385,7 +385,7 @@ export const CheatSheetModal: FC<CheatSheetModalProps> = ({
                     </p>
                   </div>
 
-                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-700/80 rounded-md p-2 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 overflow-x-auto whitespace-pre">
+                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-700/80 rounded-md p-2 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre">
                     {item.syntax}
                   </div>
                 </div>

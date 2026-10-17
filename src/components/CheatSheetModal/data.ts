@@ -249,6 +249,36 @@ export const MARKDOWN_SYNTAX_ITEMS: MarkdownSyntaxItem[] = [
     description: "行と列による表組み（GFM仕様）を作成します。（WYSIWYGモードでは ショートカット Ctrl+Alt+T またはツールバーから挿入してください）",
     category: "advanced",
   },
+
+  // Mermaidダイアグラム
+  {
+    id: "mermaid_flowchart",
+    name: "フローチャート (graph TB)",
+    syntax: "```mermaid\ngraph TB\n  A[開始] --> B{判定}\n  B -- Yes --> C[処理]\n  B -- No --> D[終了]\n  C --> D\n```",
+    description: "上から下（Top to Bottom）へのフローチャートや決定木図を作成します",
+    category: "mermaid",
+  },
+  {
+    id: "mermaid_sequence",
+    name: "シーケンス図 (sequenceDiagram)",
+    syntax: "```mermaid\nsequenceDiagram\n  autonumber\n  actor User as ユーザー\n  participant Client as Typori\n  participant Server as バックエンド\n  User->>Client: 操作リクエスト\n  Client->>Server: IPCコマンド呼び出し\n  Server-->>Client: 実行結果返却\n  Client-->>User: 画面更新\n```",
+    description: "参加者間の時系列メッセージのやりとりや相互作用を表現します",
+    category: "mermaid",
+  },
+  {
+    id: "mermaid_er",
+    name: "ER図 (erDiagram)",
+    syntax: "```mermaid\nerDiagram\n  USER ||--o{ DOCUMENT : owns\n  DOCUMENT ||--|{ SECTION : contains\n  USER {\n    string id PK\n    string name\n  }\n  DOCUMENT {\n    string id PK\n    string title\n    string author FK\n  }\n```",
+    description: "エンティティ（実体）とリレーション（関連・多重度）を定義するデータ構造図を作成します",
+    category: "mermaid",
+  },
+  {
+    id: "mermaid_gantt",
+    name: "ガントチャート (gantt)",
+    syntax: "```mermaid\ngantt\n  title プロジェクト進捗\n  dateFormat YYYY-MM-DD\n  section 設計\n    要件定義 :done, des1, 2026-10-01, 2026-10-05\n    詳細設計 :active, des2, 2026-10-06, 5d\n  section 実装\n    エディタ機能 :crit, dev1, after des2, 7d\n```",
+    description: "タスクのスケジュール・依存関係・マイルストーンを可視化する工程管理図を作成します",
+    category: "mermaid",
+  },
 ];
 
 export const SHORTCUT_CATEGORIES = [
@@ -265,4 +295,5 @@ export const MARKDOWN_CATEGORIES = [
   { id: "lists", label: "リスト・タスク" },
   { id: "blocks", label: "ブロック・引用" },
   { id: "advanced", label: "リンク・表・画像" },
+  { id: "mermaid", label: "Mermaid図" },
 ] as const;

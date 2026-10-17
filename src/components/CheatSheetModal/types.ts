@@ -11,7 +11,7 @@ export interface MarkdownSyntaxItem {
   name: string;
   syntax: string; // 記述例 (例: "**太字**")
   description: string;
-  category: "basic" | "lists" | "blocks" | "advanced";
+  category: "basic" | "lists" | "blocks" | "advanced" | "mermaid";
 }
 
 export type CheatSheetTab = "shortcuts" | "markdown";

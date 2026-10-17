@@ -32,7 +32,17 @@ async function verifyCheatSheet() {
   assert.ok(dataContent.includes("heading_1"), "MARKDOWN_SYNTAX_ITEMS must include headings");
   assert.ok(dataContent.includes("task_list"), "MARKDOWN_SYNTAX_ITEMS must include task list");
   assert.ok(dataContent.includes("table"), "MARKDOWN_SYNTAX_ITEMS must include table");
-  console.log("✓ CheatSheet items properly defined.");
+  assert.ok(dataContent.includes("mermaid_flowchart"), "MARKDOWN_SYNTAX_ITEMS must include mermaid_flowchart");
+  assert.ok(dataContent.includes("mermaid_sequence"), "MARKDOWN_SYNTAX_ITEMS must include mermaid_sequence");
+  assert.ok(dataContent.includes("mermaid_er"), "MARKDOWN_SYNTAX_ITEMS must include mermaid_er");
+  assert.ok(dataContent.includes("mermaid_gantt"), "MARKDOWN_SYNTAX_ITEMS must include mermaid_gantt");
+  assert.ok(dataContent.includes("graph TB"), "data.ts must include graph TB syntax");
+  assert.ok(dataContent.includes("sequenceDiagram"), "data.ts must include sequenceDiagram syntax");
+  assert.ok(dataContent.includes("erDiagram"), "data.ts must include erDiagram syntax");
+  assert.ok(dataContent.includes("gantt"), "data.ts must include gantt syntax");
+  assert.ok(dataContent.includes('"mermaid"'), "MARKDOWN_CATEGORIES must include mermaid category");
+  assert.ok(dataContent.includes("Mermaid図"), "MARKDOWN_CATEGORIES must include Mermaid図 label");
+  console.log("✓ CheatSheet items properly defined (including Mermaid diagrams).");
 
   // 3. Verify Modal component UI elements & behaviors
   console.log("3. Verifying CheatSheetModal UI features...");

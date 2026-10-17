@@ -1,3 +1,31 @@
+- 2026-10-17: タスク66「チートシート連携: CheatSheetModal/data.ts に代表的なMermaid記法（graph TB, sequenceDiagram, erDiagram, gantt）の構文サンプルと説明を追加」を完了。
+  - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、Markdown記法チートシート（F1キー）にMermaid記法の専用カテゴリ「Mermaid図（`mermaid`）」を追加し、代表的な4形式（フローチャート `graph TB`、シーケンス図 `sequenceDiagram`、ER図 `erDiagram`、ガントチャート `gantt`）の完全な構文サンプルと説明文を掲載して、ユーザーがワンクリックでコードをコピーしてエディタに貼り付けられるようにするため。
+  - **Before**:
+    - `src/components/CheatSheetModal/types.ts`: `MarkdownSyntaxItem` の `category` 型が `"basic" | "lists" | "blocks" | "advanced"` のみで、`"mermaid"` が含まれていなかった。
+    - `src/components/CheatSheetModal/data.ts`: `MARKDOWN_CATEGORIES` に Mermaid カテゴリがなく、`MARKDOWN_SYNTAX_ITEMS` に Mermaid 記法サンプルが定義されていなかった。
+    - `src/components/CheatSheetModal/CheatSheetModal.tsx`: シンタックス表示領域に縦スクロール上限が指定されておらず、行数の多い構文カードで過度な高さ伸長が発生しうる状態だった。
+    - `scripts/verify-cheatsheet.mjs`: Mermaid 記法項目やカテゴリの検証が存在しなかった。
+    - `Plan.md`: タスク66が未完了（`- [ ]`）だった。
+  - **After**:
+    - `src/components/CheatSheetModal/types.ts`: `MarkdownSyntaxItem` の `category` 型に `"mermaid"` を追加。
+    - `src/components/CheatSheetModal/data.ts`:
+      - `MARKDOWN_CATEGORIES` に `{ id: "mermaid", label: "Mermaid図" }` を追加。
+      - `MARKDOWN_SYNTAX_ITEMS` に以下4つのMermaid記法サンプルと詳細説明を追加:
+        1. `mermaid_flowchart`: フローチャート (`graph TB`) サンプル（開始・判定・処理・終了の決定木）
+        2. `mermaid_sequence`: シーケンス図 (`sequenceDiagram`) サンプル（autonumber, actor, participant, 同期/非同期メッセージ）
+        3. `mermaid_er`: ER図 (`erDiagram`) サンプル（USER/DOCUMENT/SECTION のリレーションおよび属性定義）
+        4. `mermaid_gantt`: ガントチャート (`gantt`) サンプル（title, dateFormat, section, done/active/crit タスク工程）
+    - `src/components/CheatSheetModal/CheatSheetModal.tsx`: シンタックス表示コンテナに `max-h-48 overflow-y-auto` を付与し、複数行にわたるダイアグラム記法もコンパクトかつ見やすくスクロール表示可能に改善。
+    - `scripts/verify-cheatsheet.mjs`: Mermaid 記法の全4形式（`mermaid_flowchart`, `mermaid_sequence`, `mermaid_er`, `mermaid_gantt` / `graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）およびカテゴリ定義（`"mermaid"`, `Mermaid図`）の存在検証アサーションを追加。
+    - `Plan.md`: タスク66を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-cheatsheet.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test`: Exit Code 0 (34/34個別テスト、全IPCコマンド、全メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/CheatSheetModal/types.ts`, `src/components/CheatSheetModal/data.ts`, `src/components/CheatSheetModal/CheatSheetModal.tsx`, `scripts/verify-cheatsheet.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク65「パッケージ導入・基盤: mermaid パッケージの追加と、SVGレンダリング・テーマ切り替え・構文エラーハンドリングを行うユーティリティモジュール（src/utils/mermaid.ts）の実装」を完了。
   - **変更理由**: Phase 20「Mermaidダイアグラム機能」の基盤として、`mermaid` パッケージ（v12.2.0）を導入し、Markdown 内の ```mermaid コードブロックに対する SVG レンダリング、ライト/ダークテーマ動的切り替え、構文エラー耐性ハンドリング、ダイアグラム種別検出、言語判定、および一時 DOM 要素の自動クリーンアップを行うユーティリティモジュール（`src/utils/mermaid.ts`）を提供するため。
   - **Before**:
