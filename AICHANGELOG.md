@@ -1,3 +1,34 @@
+- 2026-10-18: タスク75「バンドル最適化 & 遅延ロード: `App.tsx` および関連コンポーネントでの重いモジュール（`SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`）の `React.lazy()` 分割と `vite.config.ts` でのチャンク最適化」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、初期起動時（WYSIWYGモードかつモーダル非表示状態）に即座に必要としない重いモジュール群（CodeMirror 6 一式を含む `SourceEditor`、各種モーダル `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal`）を `React.lazy()` および動的 `import()` によりコード分割（Code Splitting）し、`vite.config.ts` でのチャンク最適化（`manualChunks`）と併せて初期エントリチャンクを激減（1.46MB → 113KB）させ、起動時のスクリプト解析・実行負荷を最小化するため。
+  - **Before**:
+    - `src/App.tsx`:
+      - `SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal` が静的にインポートされ、メインバンドル（単一の `index-*.js`、約1.46MB）にすべて同梱されていた。
+      - 各モーダルおよび `SourceEditor` が `<Suspense>` なしで直接レンダリングされていた。
+    - `vite.config.ts`:
+      - `build` 設定が存在せず、全コード・依存ライブラリが単一チャンクに集約され、500kB 超過警告が発生していた。
+    - `src/components/Editor/index.ts`:
+      - `export * from "./SourceEditor"` により、Editor インポート時に SourceEditor および CodeMirror 6 が静的に引き込まれていた。
+    - `src/hooks/useShortcutSettings.ts`:
+      - `../components/ShortcutSettingsModal`（index.ts）から直接インポートしていたため、モーダルUIコンポーネントが静的に引き込まれていた。
+  - **After**:
+    - `src/App.tsx`:
+      - `lazy`, `Suspense` を導入し、`SourceEditor`, `CheatSheetModal`, `ShortcutSettingsModal`, `ExportModal` を `React.lazy()` による動的インポートに移行。
+      - `isSourceMode ? (<Suspense fallback={...}><SourceEditor ... /></Suspense>)` としてソースコードエディタをオンデマンド描画。
+      - 各モーダルを `isCheatSheetOpen && (<Suspense fallback={null}><CheatSheetModal ... /></Suspense>)` のように表示フラグが true の時のみ遅延マウント・遅延フェッチするよう改修。
+      - ユーティリティ関数（`isShortcutEvent`, `formatKeys`, `areKeysEqual`）および型（`ExportFormat`）をサブパス/型インポートへ最適化。
+    - `src/components/Editor/index.ts`:
+      - `export type * from "./SourceEditor"` に変更し、ランタイムコードの静的インポートを排除。
+    - `src/hooks/useShortcutSettings.ts`:
+      - `types.ts` および `utils.ts` から直接インポートするよう変更し、モーダルコンポーネント本体の静的インポートを排除。
+    - `vite.config.ts`:
+      - `build.rollupOptions.output.manualChunks` を構成し、`editor-milkdown`, `editor-codemirror`, `vendor-react`, `tauri` 等のチャンクに分離。`chunkSizeWarningLimit: 1000` を設定。
+    - 検証結果:
+      - `pnpm run build`: メインエントリが 1.46MB から 113.18 kB (gzip 29.12 kB) へ激減。CodeMirror 6（624 kB）や各モーダルが独立チャンクへ完全に分離され、警告0件でビルド成功（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト全32件合格（Exit Code 0）。
+      - `cargo test`: 全28件パス（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告0件（Exit Code 0）。
+  - **影響範囲**: `src/App.tsx`, `vite.config.ts`, `src/components/Editor/index.ts`, `src/hooks/useShortcutSettings.ts`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク74「表示タイミング制御 & フォールバック: `App.tsx` での `init_workspace` 呼び出しへの移行、初回描画完了時の `getCurrentWindow().show()` 呼び出し、および起動遅延/エラー時の自動 `show()` セーフティフォールバック（フロント＆Rust）の実装」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、フロントエンド初期化における直列IPC通信を `init_workspace` 一括APIへ置き換えて起動速度を最大化するとともに、DOM初回描画が確定したフレームで `getCurrentWindow().show()` を呼び出して完成UIで瞬時にウィンドウを表示し、万一の初期化遅延やハング時にもウィンドウが非表示のまま残らないようフロントエンド（400ms）およびRustバックエンド（500ms）の双方にセーフティフォールバック機構を導入するため。
   - **Before**:

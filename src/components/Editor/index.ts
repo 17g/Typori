@@ -1,4 +1,4 @@
 export * from "./Editor";
-export * from "./SourceEditor";
+export type * from "./SourceEditor";
 export { default } from "./Editor";
 

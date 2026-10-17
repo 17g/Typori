@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
+import type { ShortcutConfig } from "../components/ShortcutSettingsModal/types";
+import { SHORTCUT_ITEMS } from "../components/ShortcutSettingsModal/types";
 import {
-  ShortcutConfig,
   getDefaultShortcutConfig,
   mergeWithDefaultConfig,
-  SHORTCUT_ITEMS,
-} from "../components/ShortcutSettingsModal";
+} from "../components/ShortcutSettingsModal/utils";
+
 
 export const SHORTCUT_SETTINGS_STORAGE_KEY = "typori:shortcuts_config";
 export const SHORTCUTS_CHANGED_EVENT = "typori:shortcuts_changed";

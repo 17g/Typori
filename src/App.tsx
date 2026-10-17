@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import TyporiEditor, { EditorRef, SourceEditor } from "./components/Editor";
+import TyporiEditor, { EditorRef } from "./components/Editor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import OutlineSidebar, { OutlineItem } from "./components/OutlineSidebar";
 import {
@@ -22,14 +22,27 @@ import { useShortcutSettings } from "./hooks/useShortcutSettings";
 import { normalizeLineEndings, isContentDirty } from "./utils/text";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
-import { CheatSheetModal } from "./components/CheatSheetModal";
 import {
-  ShortcutSettingsModal,
   isShortcutEvent,
   formatKeys,
   areKeysEqual,
-} from "./components/ShortcutSettingsModal";
-import { ExportModal, ExportFormat } from "./components/ExportModal";
+} from "./components/ShortcutSettingsModal/utils";
+import type { ExportFormat } from "./components/ExportModal";
+
+// 重いコンポーネントの遅延ロード (Code Splitting / Lazy Loading)
+const SourceEditor = lazy(() => import("./components/Editor/SourceEditor"));
+const CheatSheetModal = lazy(() =>
+  import("./components/CheatSheetModal").then((m) => ({ default: m.CheatSheetModal }))
+);
+const ShortcutSettingsModal = lazy(() =>
+  import("./components/ShortcutSettingsModal/ShortcutSettingsModal").then((m) => ({
+    default: m.ShortcutSettingsModal,
+  }))
+);
+const ExportModal = lazy(() =>
+  import("./components/ExportModal").then((m) => ({ default: m.ExportModal }))
+);
+
 
 function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -2029,19 +2042,27 @@ function App() {
               </div>
             </div>
           ) : isSourceMode ? (
-            <SourceEditor
-              key={selectedPath ?? "__source__"}
-              content={fileContent ?? ""}
-              theme={resolvedTheme}
-              onChange={handleContentChange}
-              onSave={handleSave}
-              onExitSourceMode={() => setIsSourceMode(false)}
-              onToggleSourceMode={handleToggleSourceMode}
-              isFocusMode={isFocusMode}
-              onToggleFocusMode={handleToggleFocusMode}
-              showLineNumbers={isLineNumbersEnabled}
-              filePath={selectedPath}
-            />
+            <Suspense
+              fallback={
+                <div className="h-full w-full flex items-center justify-center text-xs text-zinc-400 dark:text-zinc-500">
+                  ソースエディタを読み込み中...
+                </div>
+              }
+            >
+              <SourceEditor
+                key={selectedPath ?? "__source__"}
+                content={fileContent ?? ""}
+                theme={resolvedTheme}
+                onChange={handleContentChange}
+                onSave={handleSave}
+                onExitSourceMode={() => setIsSourceMode(false)}
+                onToggleSourceMode={handleToggleSourceMode}
+                isFocusMode={isFocusMode}
+                onToggleFocusMode={handleToggleFocusMode}
+                showLineNumbers={isLineNumbersEnabled}
+                filePath={selectedPath}
+              />
+            </Suspense>
           ) : (
             <TyporiEditor
               ref={editorRef}
@@ -2112,29 +2133,41 @@ function App() {
 
 
       {/* チートシートモーダル */}
-      <CheatSheetModal
-        isOpen={isCheatSheetOpen}
-        onClose={() => setIsCheatSheetOpen(false)}
-        shortcutConfig={shortcutConfig}
-      />
+      {isCheatSheetOpen && (
+        <Suspense fallback={null}>
+          <CheatSheetModal
+            isOpen={isCheatSheetOpen}
+            onClose={() => setIsCheatSheetOpen(false)}
+            shortcutConfig={shortcutConfig}
+          />
+        </Suspense>
+      )}
 
       {/* ショートカットキー設定モーダル */}
-      <ShortcutSettingsModal
-        isOpen={isShortcutSettingsOpen}
-        onClose={() => setIsShortcutSettingsOpen(false)}
-        currentConfig={shortcutConfig}
-        onSave={saveShortcutConfig}
-      />
+      {isShortcutSettingsOpen && (
+        <Suspense fallback={null}>
+          <ShortcutSettingsModal
+            isOpen={isShortcutSettingsOpen}
+            onClose={() => setIsShortcutSettingsOpen(false)}
+            currentConfig={shortcutConfig}
+            onSave={saveShortcutConfig}
+          />
+        </Suspense>
+      )}
 
       {/* エクスポートモーダル (HTML / PDF) */}
-      <ExportModal
-        isOpen={isExportModalOpen}
-        onClose={handleCloseExportModal}
-        currentFilePath={selectedPath}
-        currentDirectory={currentDirectory}
-        markdownContent={getCurrentMarkdown()}
-        initialFormat={exportModalFormat}
-      />
+      {isExportModalOpen && (
+        <Suspense fallback={null}>
+          <ExportModal
+            isOpen={isExportModalOpen}
+            onClose={handleCloseExportModal}
+            currentFilePath={selectedPath}
+            currentDirectory={currentDirectory}
+            markdownContent={getCurrentMarkdown()}
+            initialFormat={exportModalFormat}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
