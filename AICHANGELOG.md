@@ -1,3 +1,22 @@
+- 2026-10-18: タスク72「ウィンドウ設定 & Capabilities: Tauri 初期非表示（`tauri.conf.json` での `"visible": false`・`backgroundColor`）とフロントエンド表示権限（`capabilities/default.json` での `core:window:allow-show`）の設定」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、WebView2初期化中の空ウィンドウ露出（ホワイトブランク）を防止するためウィンドウを初期非表示（`visible: false`）に設定し、描画前露出に備えた背景色（`backgroundColor: "#ffffff"`）と、フロントエンドから描画完了時にウィンドウを表示するための権限（`core:window:allow-show`, `core:window:allow-set-focus`）を付与するため。
+  - **Before**:
+    - `src-tauri/tauri.conf.json`:
+      - メインウィンドウ設定に `visible` および `backgroundColor` が明示指定されておらず、デフォルトで起動直後からウィンドウが表示されていた。
+    - `src-tauri/capabilities/default.json`:
+      - permissions に `core:window:allow-show` および `core:window:allow-set-focus` が含まれていなかった。
+  - **After**:
+    - `src-tauri/tauri.conf.json`:
+      - メインウィンドウ設定に `"visible": false` および `"backgroundColor": "#ffffff"` を追加。
+    - `src-tauri/capabilities/default.json`:
+      - permissions に `"core:window:allow-show"` と `"core:window:allow-set-focus"` を追加。
+    - 検証結果:
+      - `cargo check --manifest-path src-tauri/Cargo.toml`: Tauri v2 設定スキーマバリデーションおよびコンパイル成功（Exit Code 0）。
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: 全28件パス（Exit Code 0）。
+      - `pnpm run build`: TypeScript型検査およびViteビルド成功（Exit Code 0）。
+      - `pnpm test`: 総合結合テスト全32件すべて合格（Exit Code 0）。
+  - **影響範囲**: `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク71「バックエンド/IPC一括化: Rust `init_workspace` コマンド（`WorkspaceInitResult` 返却、CLI引数・カレント/親ディレクトリ走査・ファイル初期読み込みを1往復で集約）の実装と単体テスト・登録（`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`）」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」に基づき、従来 `App.tsx` の起動時 `useEffect` 内で直列に最大5往復していたIPC通信（`get_cli_args` → `get_parent_dir` → `get_current_dir` → `read_dir` → `open_file`）を、Rust内部で一括処理して1回のIPC往復で返却する `init_workspace` コマンドを新設・登録し、初期起動時のIPCオーバーヘッドを削減するため。
   - **Before**:
