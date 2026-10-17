@@ -1,3 +1,19 @@
+- 2026-10-17: 全体レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜20、全70タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（24件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全38個別テスト、IPC 14+1コマンド、ネイティブメニュー 17イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様書の記述整合性（総合テスト件数・IPCコマンド・メニューイベント表記）を最新化・同期。
+  - **変更理由**: Phase 20までの全実装（全70タスク）が完了したことを受け、仕様書（`for_agent/architecture.md`、`for_agent/guardrails.md`）と実装コード全体の突き合わせを行い、要件の網羅性、エッジケースの考慮、仕様書の記述不整合（全体結合テストの件数表記等）を解消し、プロジェクト全体のフルビルドおよび全テストスイートの正常終了（Exit Code 0）を客観的根拠（Ground Truth）に基づいて確認・保証するため。
+  - **Before**:
+    - `for_agent/architecture.md`: 79行目の全体結合テスト説明で「全32項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（14コマンド）、OSネイティブメニューイベント双方向整合性（16イベント）」と古い件数が記載されていた。
+    - `for_agent/architecture.md`: 改訂履歴に全体レビュー（/review）の実施記録が追記されていなかった。
+  - **After**:
+    - `for_agent/architecture.md`: 79行目の全体結合テスト説明を「全38項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（14コマンド＋menu 1コマンド）、OSネイティブメニューイベント双方向整合性（17イベント）」に最新化。
+    - `for_agent/architecture.md`: 改訂履歴に全体レビュー（/review）の実施記録を追記。
+    - 検証結果:
+      - `pnpm test` (`node scripts/verify-all.mjs`): Exit Code 0 (全38個別テスト合格、全14+1 IPCコマンド整合、全17ネイティブメニューイベント整合、ショートカット定義競合なし)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo check`: Exit Code 0 (エラー0件)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク70「品質保証/自動テスト: Mermaid描画・構文エラー耐性・テーマ追従・エクスポート・チートシート整合性を網羅検証する自動テストスクリプト（`scripts/verify-mermaid-diagrams.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合・全検証パス確認」を完了。
   - **変更理由**: Phase 20「Mermaidダイアグラム機能」の全要件（Mermaid描画基盤、構文検出、WYSIWYG Typoraライクノードビュー、構文エラー耐性・クラッシュ防止、ライト/ダークテーマ連動・三重の動的再描画機構、HTML/PDFエクスポート連携・印刷ハンドシェイク、チートシートへの4大ダイアグラム掲載・UIスクロール最適化）をワンストップで包括検証する自動統合テストスクリプトを整備し、総合結合テストスイート（`scripts/verify-all.mjs`）に統合して、すべての品質保証基準およびプロジェクト検証コマンド（Exit Code 0）を完全に満たすため。
   - **Before**:
