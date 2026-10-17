@@ -1,3 +1,25 @@
+- 2026-10-18: Phase 22「リリースビルドの準備と成果物検証（タスク77〜78）」を完了。
+  - **変更理由**: Phase 21（起動高速化・ゼロフラッシュ・コード分割）マージ後の最新コードベースにおいて、リリース設定（バージョン0.1.0、アイコンアセット、NSIS/MSI設定、LTO最適化プロファイル等）の整合性確認、ドキュメント・テスト件数表記の同期、および最新バイナリ・インストーラのビルドと成果物完全性検証を実施するため。
+  - **Before**:
+    - `scripts/verify-all.mjs` 内で `verify-release-config.mjs` の説明が `(Phase 21)` となっていた。
+    - `docs/RELEASE.md` の単体テスト件数（24件）および総合テスト件数が古い表記のままであり、配布前チェックリストに Phase 19〜21 で追加された新機能（行番号表示、Mermaidダイアグラム、ゼロフラッシュ起動）が含まれていなかった。
+    - `for_agent/architecture.md` の総合テスト項目数表記が「全39項目」のままであった。
+    - `src-tauri/target/release` の成果物が Phase 21 マージ前の古いバイナリのままであった。
+  - **After**:
+    - `scripts/verify-all.mjs`: `verify-release-config.mjs` の表記を `(Phase 22)` に更新。
+    - `docs/RELEASE.md`:
+      - 単体テスト（28件全パス）、総合結合テスト（40件全パス、IPC 15コマンド、メニュー 17イベント）に最新化。
+      - 配布前チェックリストにゼロフラッシュ起動、行番号表示、Mermaidダイアグラム描画・編集・テーマ連動の確認項目を追加。
+    - `for_agent/architecture.md`:
+      - 総合テスト項目数表記を「全40項目、IPC 15コマンド」に更新し、改訂履歴に Phase 22 を追記。
+    - リリースビルドの実行と成果物検証:
+      - `pnpm run build:release` により、全40件テスト・IPC/メニュー整合性検証を自動通過後、TypeScript型検査、Viteチャンク分割ビルド、Rust LTO最適化コンパイル、NSISインストーラおよびWiX MSIインストーラの生成を完了（Exit Code 0）。
+      - `node scripts/verify-release-bundle.mjs` による成果物検証:
+        - `typori.exe`: 6.03 MB (6,324,224 bytes, SHA-256: `d9639765c5b08deb930cd7eb7964c4db98710ffc6f6bad43031349c191f6098b`)
+        - `Typori_0.1.0_x64-setup.exe` (NSIS): 3.09 MB (3,238,491 bytes, SHA-256: `de3583a5acc5760d737fcdba37c8c392ae06f1ed595acb0fb98dfdeb40a5c4b9`)
+        - `Typori_0.1.0_x64_en-US.msi` (MSI): 3.74 MB (3,919,872 bytes, SHA-256: `a3d798fe0370f025be215efdeef6c241e0e75b9cfa82f79251e0a8cd940b627e`)
+  - **影響範囲**: `scripts/verify-all.mjs`, `docs/RELEASE.md`, `for_agent/architecture.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク76「品質保証/自動テスト: `init_workspace` IPCコマンド、ウィンドウ初期非表示/表示ハンドシェイク、0msテーマ判定・スケルトン、コード分割/遅延読み込みを網羅検証する自動テストスクリプト（`scripts/verify-startup-acceleration.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「起動高速化・ホワイトブランク完全解消仕様 (Phase 21)」で実装されたバックエンド一括IPC（`init_workspace`）、ウィンドウ初期非表示（`visible: false`）と表示権限（`core:window:allow-show`）、0msテーマ同期インラインスクリプトおよびゼロフラッシュ初期スケルトン、React側での表示ハンドシェイクとセーフティフォールバック（400ms/500ms）、重いモジュールの `React.lazy()` 遅延ロードおよび `vite.config.ts` のコード分割設定について、回帰防止と仕様準拠を恒久的に自動検証するテストスイートを整備し、総合テスト（`pnpm test`）に統合するため。
   - **Before**:

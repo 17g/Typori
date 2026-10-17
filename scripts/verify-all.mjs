@@ -52,7 +52,7 @@ const testScripts = [
   { name: "Mermaid テーマ連動 & 動的再レンダリング (Phase 20)", file: "verify-mermaid-theme.mjs" },
   { name: "Mermaid エクスポート連携 (HTML/PDF印刷) (Phase 20)", file: "verify-mermaid-export.mjs" },
   { name: "Mermaid ダイアグラム機能総合統合テスト (Phase 20)", file: "verify-mermaid-diagrams.mjs" },
-  { name: "リリースビルド設定 & バージョン整合性検証 (Phase 21)", file: "verify-release-config.mjs" },
+  { name: "リリースビルド設定 & バージョン整合性検証 (Phase 22)", file: "verify-release-config.mjs" },
   { name: "起動高速化 & ゼロフラッシュ・コード分割 (Phase 21)", file: "verify-startup-acceleration.mjs" },
 ];
 
