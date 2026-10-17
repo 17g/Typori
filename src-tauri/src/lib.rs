@@ -48,7 +48,8 @@ pub fn run() {
             fs::search_files,
             fs::convert_markdown_to_html,
             fs::export_to_html,
-            fs::export_to_pdf_html
+            fs::export_to_pdf_html,
+            menu::set_line_numbers_menu_checked
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

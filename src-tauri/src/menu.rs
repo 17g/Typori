@@ -1,5 +1,5 @@
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     AppHandle, Emitter, Wry,
 };
 
@@ -112,6 +112,14 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+Shift+T"),
     )?;
+    let toggle_line_numbers = CheckMenuItem::with_id(
+        app,
+        "toggle_line_numbers",
+        "行番号を表示",
+        true,
+        true,
+        Some("CmdOrCtrl+Alt+L"),
+    )?;
     let view_menu = Submenu::with_items(
         app,
         "表示",
@@ -122,6 +130,7 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &toggle_source_mode,
             &toggle_focus_mode,
             &toggle_tabs,
+            &toggle_line_numbers,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::fullscreen(app, Some("全画面表示の切替"))?,
         ],
@@ -202,6 +211,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "toggle_tabs" => {
             let _ = app.emit("menu:toggle_tabs", ());
         }
+        "toggle_line_numbers" => {
+            let _ = app.emit("menu:toggle_line_numbers", ());
+        }
         "open_cheatsheet" => {
             let _ = app.emit("menu:open_cheatsheet", ());
         }
@@ -210,6 +222,18 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         }
         _ => {}
     }
+}
+
+#[tauri::command]
+pub fn set_line_numbers_menu_checked(app: AppHandle, checked: bool) -> Result<(), String> {
+    if let Some(menu) = app.menu() {
+        if let Some(item) = menu.get("toggle_line_numbers") {
+            if let Some(check_item) = item.as_check_menuitem() {
+                check_item.set_checked(checked).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -230,6 +254,7 @@ mod tests {
         assert_eq!("toggle_focus_mode", "toggle_focus_mode");
         assert_eq!("toggle_source_mode", "toggle_source_mode");
         assert_eq!("toggle_tabs", "toggle_tabs");
+        assert_eq!("toggle_line_numbers", "toggle_line_numbers");
         assert_eq!("open_cheatsheet", "open_cheatsheet");
         assert_eq!("open_shortcuts_settings", "open_shortcuts_settings");
     }

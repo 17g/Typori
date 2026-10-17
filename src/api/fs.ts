@@ -273,4 +273,12 @@ export async function printMarkdownDocument(options: {
   await printHtmlContent(htmlContent);
 }
 
+/**
+ * OSネイティブメニュー「行番号を表示」のチェック状態を同期します。
+ * @param checked チェック状態（true: 有効, false: 無効）
+ */
+export async function setLineNumbersMenuChecked(checked: boolean): Promise<void> {
+  return await invoke<void>("set_line_numbers_menu_checked", { checked });
+}
+
 

@@ -14,6 +14,7 @@ import {
   getCliArgs,
   saveImageFile,
   isImageFilePath,
+  setLineNumbersMenuChecked,
 } from "./api/fs";
 import { useTheme } from "./hooks/useTheme";
 import { useTabSettings } from "./hooks/useTabSettings";
@@ -724,6 +725,13 @@ function App() {
 
   const toggleLineNumbersRef = useRef(toggleLineNumbers);
   toggleLineNumbersRef.current = toggleLineNumbers;
+
+  // 行番号表示設定の変更をOSネイティブメニューのチェック状態に同期
+  useEffect(() => {
+    setLineNumbersMenuChecked(isLineNumbersEnabled).catch((err) => {
+      console.warn("Failed to sync line numbers menu checked state:", err);
+    });
+  }, [isLineNumbersEnabled]);
 
   const handleOpenExportModal = useCallback((format: ExportFormat = "html") => {
     setExportModalFormat(format);
@@ -1589,6 +1597,12 @@ function App() {
         });
         if (isMounted) unlistens.push(uToggleTabs);
         else uToggleTabs();
+
+        const uToggleLineNumbers = await listen("menu:toggle_line_numbers", () => {
+          toggleLineNumbersRef.current();
+        });
+        if (isMounted) unlistens.push(uToggleLineNumbers);
+        else uToggleLineNumbers();
 
         const uCheatSheet = await listen("menu:open_cheatsheet", () => {
           setIsCheatSheetOpen(true);

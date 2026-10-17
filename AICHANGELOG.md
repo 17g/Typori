@@ -1,3 +1,31 @@
+- 2026-10-17: タスク61「OS連携: 表示メニューへのチェック付き「行番号を表示」（CheckMenuItem）追加、`menu:toggle_line_numbers` イベント連携、チェック状態同期コマンド `set_line_numbers_menu_checked`（menu.rs / lib.rs / fs.ts / App.tsx）の実装」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、OSネイティブメニューの「表示」メニューから行番号の表示/非表示をチェックマーク（✓）付きで切り替え可能にし、フロントエンド（ショートカット・設定復元など）での状態変更時にもOSネイティブメニューのチェック状態をリアルタイムに同期するため。
+  - **Before**:
+    - `src-tauri/src/menu.rs`: 表示メニューに行番号表示トグル項目が存在せず、`handle_menu_event` に `toggle_line_numbers` のハンドラが存在しなかった。
+    - `src-tauri/src/lib.rs`: メニューのチェック状態を同期するコマンドが登録されていなかった。
+    - `src/api/fs.ts`: メニューのチェック状態を同期する IPC ラッパー関数 `setLineNumbersMenuChecked` が存在しなかった。
+    - `src/App.tsx`: `menu:toggle_line_numbers` イベントのリスナーが存在せず、`isLineNumbersEnabled` の変化時にメニューのチェック状態を同期するロジックが存在しなかった。
+  - **After**:
+    - `src-tauri/src/menu.rs`:
+      - 表示メニューに `CheckMenuItem::with_id(app, "toggle_line_numbers", "行番号を表示", true, true, Some("CmdOrCtrl+Alt+L"))` を追加。
+      - `handle_menu_event` で `"toggle_line_numbers"` を受信した際に `app.emit("menu:toggle_line_numbers", ())` を送出するよう実装。
+      - コマンド `set_line_numbers_menu_checked(app: AppHandle, checked: bool) -> Result<(), String>` を実装し、メニュー内の `toggle_line_numbers` のチェック状態（`check_item.set_checked(checked)`）を同期可能にした。
+      - 単体テスト `test_menu_event_ids` に `toggle_line_numbers` を追加。
+    - `src-tauri/src/lib.rs`:
+      - `tauri::generate_handler!` に `menu::set_line_numbers_menu_checked` を登録。
+    - `src/api/fs.ts`:
+      - `setLineNumbersMenuChecked(checked: boolean): Promise<void>` を実装し、`set_line_numbers_menu_checked` IPC コマンドを呼び出すよう定義。
+    - `src/App.tsx`:
+      - `setLineNumbersMenuChecked` をインポート。
+      - `setupMenuListeners` 内に `listen("menu:toggle_line_numbers", () => { toggleLineNumbersRef.current(); })` を追加。
+      - `useEffect` を追加し、`isLineNumbersEnabled` の変更時に `setLineNumbersMenuChecked(isLineNumbersEnabled)` を実行してメニューのチェック状態を自動同期。
+    - 検証結果:
+      - `pnpm test`: 全32個別機能テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性チェックがすべて合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src-tauri/src/menu.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`, `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク60「ショートカット: toggle_line_numbers（デフォルト Ctrl+Alt+L）を SHORTCUT_ITEMS（設定画面）・チートシート data.ts に登録し、App.tsx の keydown ハンドラで切替を実装」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、行番号表示のトグル操作をユーザーが素早く実行できるよう、デフォルトショートカット `Ctrl + Alt + L`（macOS では `Cmd + Option + L`）を登録し、ショートカット設定画面（`ShortcutSettingsModal`）でのカスタマイズ・競合検知、チートシートモーダル（`CheatSheetModal`）への動的反映、および `App.tsx` のグローバル `keydown` ハンドラでの切替トグルを実装するため。
   - **Before**:
