@@ -25,6 +25,7 @@ export function SourceEditor({
   onToggleSourceMode,
   isFocusMode = false,
   onToggleFocusMode,
+  showLineNumbers = true,
   placeholder = "Markdownを入力...",
 }: SourceEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
@@ -170,6 +171,34 @@ export function SourceEditor({
     ];
   }, [domEventExtension, keymapExtension, customTheme]);
 
+  const basicSetupOptions = useMemo(
+    () => ({
+      lineNumbers: showLineNumbers,
+      highlightActiveLineGutter: showLineNumbers,
+      highlightSpecialChars: true,
+      history: true,
+      foldGutter: true,
+      drawSelection: true,
+      dropCursor: true,
+      allowMultipleSelections: true,
+      indentOnInput: true,
+      bracketMatching: true,
+      closeBrackets: true,
+      autocompletion: true,
+      rectangularSelection: true,
+      crosshairCursor: true,
+      highlightActiveLine: true,
+      highlightSelectionMatches: true,
+      closeBracketsKeymap: true,
+      defaultKeymap: true,
+      searchKeymap: true,
+      historyKeymap: true,
+      foldKeymap: true,
+      completionKeymap: true,
+    }),
+    [showLineNumbers]
+  );
+
   const handleChange = useCallback(
     (value: string) => {
       onChange(value);
@@ -243,30 +272,7 @@ export function SourceEditor({
           extensions={extensions}
           onChange={handleChange}
           placeholder={placeholder}
-          basicSetup={{
-            lineNumbers: true,
-            highlightActiveLineGutter: true,
-            highlightSpecialChars: true,
-            history: true,
-            foldGutter: true,
-            drawSelection: true,
-            dropCursor: true,
-            allowMultipleSelections: true,
-            indentOnInput: true,
-            bracketMatching: true,
-            closeBrackets: true,
-            autocompletion: true,
-            rectangularSelection: true,
-            crosshairCursor: true,
-            highlightActiveLine: true,
-            highlightSelectionMatches: true,
-            closeBracketsKeymap: true,
-            defaultKeymap: true,
-            searchKeymap: true,
-            historyKeymap: true,
-            foldKeymap: true,
-            completionKeymap: true,
-          }}
+          basicSetup={basicSetupOptions}
           className="h-full text-sm"
         />
       </div>

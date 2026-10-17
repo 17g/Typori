@@ -1,3 +1,19 @@
+- 2026-10-17: タスク62「ソース直接編集モード: SourceEditor.tsx の basicSetup.lineNumbers / highlightActiveLineGutter を showLineNumbers で切替」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、Markdownソース直接編集モード（CodeMirror 6）において、行番号の表示/非表示設定（`showLineNumbers`）に応じて行番号ガター（`lineNumbers`）およびアクティブ行ガターハイライト（`highlightActiveLineGutter`）を動的に切り替え可能にするため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx` の関数引数分割代入で `showLineNumbers` プロパティが受け取られておらず、CodeMirror の `basicSetup` に `lineNumbers: true, highlightActiveLineGutter: true` が固定でハードコードされていた。そのため、行番号表示を無効に設定してもソースモードで行番号ガターが表示され続けていた。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `SourceEditor` の引数に `showLineNumbers = true` を追加。
+      - `showLineNumbers` を依存配列とする `basicSetupOptions` を `useMemo` で定義し、`lineNumbers: showLineNumbers` および `highlightActiveLineGutter: showLineNumbers` を設定。
+      - `CodeMirror` の `basicSetup` プロパティに `basicSetupOptions` を渡すよう更新。
+    - 検証結果:
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `pnpm test`: 全32個別機能テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性チェックがすべて合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク61「OS連携: 表示メニューへのチェック付き「行番号を表示」（CheckMenuItem）追加、`menu:toggle_line_numbers` イベント連携、チェック状態同期コマンド `set_line_numbers_menu_checked`（menu.rs / lib.rs / fs.ts / App.tsx）の実装」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、OSネイティブメニューの「表示」メニューから行番号の表示/非表示をチェックマーク（✓）付きで切り替え可能にし、フロントエンド（ショートカット・設定復元など）での状態変更時にもOSネイティブメニューのチェック状態をリアルタイムに同期するため。
   - **Before**:
