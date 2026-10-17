@@ -106,3 +106,12 @@
 - [x] 62. ソース直接編集モード: `SourceEditor.tsx` の `basicSetup.lineNumbers` / `highlightActiveLineGutter` を `showLineNumbers` で切替
 - [x] 63. WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン `lineNumbersPlugin` の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）
 - [ ] 64. 品質保証: `scripts/verify-line-numbers.mjs` の作成と `verify-all.mjs` / `verify-native-menu.mjs` への統合、全検証コマンドのパス確認、仕様書・ガードレールの件数更新
+
+## Phase 20: Mermaidダイアグラム機能
+- [ ] 65. パッケージ導入・基盤: `mermaid` パッケージの追加と、SVGレンダリング・テーマ切り替え・構文エラーハンドリングを行うユーティリティモジュール（`src/utils/mermaid.ts`）の実装
+- [ ] 66. チートシート連携: `CheatSheetModal/data.ts` に代表的なMermaid記法（`graph TB`, `sequenceDiagram`, `erDiagram`, `gantt`）の構文サンプルと説明を追加
+- [ ] 67. WYSIWYGモード: ```mermaid コードブロックを検知し、TyporaライクなSVGプレビュー表示＆クリック編集＆エラー表示を行う ProseMirror ノードビュー/プラグインの実装
+- [ ] 68. テーマ連動: アプリケーションのライト/ダークテーマ切り替えに連動したMermaidダイアグラムの動的再レンダリング処理の実装
+- [ ] 69. エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装
+- [ ] 70. 品質保証/自動テスト: Mermaid描画・構文エラー耐性・テーマ追従・エクスポート・チートシート整合性を網羅検証する自動テストスクリプト（`scripts/verify-mermaid-diagrams.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合・全検証パス確認
+

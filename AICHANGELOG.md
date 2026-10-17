@@ -1,3 +1,19 @@
+- 2026-10-17: 計画策定（/plan）: `for_agent/architecture.md` の Phase 20 Mermaidダイアグラム機能仕様を分析し、`Plan.md` にタスク65〜70を追加・マージ。
+  - **変更理由**: 仕様書に追加されたMermaidダイアグラム機能（Phase 20）について、自律ループ（1イテレーション = 1タスク）で確実に実装・検証可能な最小粒度（タスク65〜70）へ分解し、既存の完了済みタスク（Phase 1〜19）を完全保護した上で計画を同期するため。
+  - **Before**:
+    - `Plan.md`:
+      - Phase 19（タスク59〜64）までの計画しか存在せず、Mermaid機能のタスクが存在しなかった。
+  - **After**:
+    - `Plan.md`:
+      - 既存の完了済みタスク（1〜63）および未完了タスク（64）を完全保持した上で、「Phase 20: Mermaidダイアグラム機能」を追加:
+        - タスク65: パッケージ導入・基盤（`mermaid` 導入、`src/utils/mermaid.ts` 実装）
+        - タスク66: チートシート連携（`CheatSheetModal/data.ts` へのMermaid記法サンプル・説明追加）
+        - タスク67: WYSIWYGモード（```mermaid ブロックのTyporaライクなSVGプレビュー・クリック編集・エラー表示ノードビュー/プラグイン実装）
+        - タスク68: テーマ連動（ライト/ダーク切り替え時のダイアグラム動的再レンダリング）
+        - タスク69: エクスポート連携（HTML/PDFエクスポート時SVG描画・印刷待機ハンドシェイク）
+        - タスク70: 品質保証/自動テスト（網羅検証スクリプト `verify-mermaid-diagrams.mjs` 作成、`verify-all.mjs` 統合、全検証パス）
+  - **影響範囲**: `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: 要件定義（/requirements）: Mermaidダイアグラム機能仕様（Phase 20）を策定し、`for_agent/architecture.md` を更新。
   - **変更理由**: ユーザーからの要求に基づき、Mermaid記法によるダイアグラム（`erDiagram`, `sequenceDiagram`, `graph TB/TD`, `gantt` 等のMermaid標準記法全般）のWYSIWYG表示・編集、ライト/ダークテーマ連動、HTML/PDFエクスポート連携、およびチートシート掲載の要件を明確化し、仕様書正本へ反映するため。
   - **Before**:
