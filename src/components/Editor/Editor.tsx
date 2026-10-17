@@ -60,6 +60,285 @@ export const focusModePlugin = $prose(() => {
   });
 });
 
+export interface TargetBlockInfo {
+  index: number;
+  pos: number;
+  size: number;
+  type: string;
+}
+
+/**
+ * ProseMirrorドキュメントから「テキストを持つ最小単位のブロック」を走査・特定する
+ * 段落、見出し、リスト項目内段落、引用内段落、コードブロック、表、水平線、画像（ブロック画像）をそれぞれ1ブロックとして連番を付与する。
+ * コンテナブロック（doc, blockquote, bullet_list, ordered_list, list_item）自体はスキップし、表・コードブロックは内部構造によらず1ブロックとする。
+ */
+export function getTargetBlocks(doc: any): TargetBlockInfo[] {
+  const blocks: TargetBlockInfo[] = [];
+  if (!doc) return blocks;
+
+  doc.descendants((node: any, pos: number) => {
+    if (!node.isBlock) {
+      return false;
+    }
+
+    const typeName = node.type?.name ?? "";
+
+    // 表 (table): 内部の行・セルにかかわらず表全体で1ブロック
+    if (typeName === "table") {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // コードブロック (code_block / fence): 内部行数にかかわらず1ブロック
+    if (typeName === "code_block" || typeName === "fence") {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // 水平線 (hr)
+    if (typeName === "hr") {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // ブロック画像 (image)
+    if (typeName === "image") {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // 見出し (heading)
+    if (typeName === "heading") {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // 段落 (paragraph): 通常段落、リスト項目内の段落、引用内の段落
+    if (typeName === "paragraph") {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // その他のテキストブロック
+    if (node.isTextblock) {
+      blocks.push({
+        index: blocks.length + 1,
+        pos,
+        size: node.nodeSize,
+        type: typeName,
+      });
+      return false;
+    }
+
+    // コンテナノード（doc, blockquote, bullet_list, ordered_list, list_item 等）は子ノードへ潜る
+    return true;
+  });
+
+  return blocks;
+}
+
+/**
+ * 選択範囲のヘッド（キャレット位置）が含まれるブロックのインデックス（0-based）を取得する
+ */
+export function getActiveBlockIndex(blocks: TargetBlockInfo[], targetPos: number): number {
+  if (blocks.length === 0) return -1;
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const isLast = i === blocks.length - 1;
+    const end = block.pos + block.size;
+    if (isLast) {
+      if (targetPos >= block.pos && targetPos <= end) {
+        return i;
+      }
+    } else {
+      if (targetPos >= block.pos && targetPos < end) {
+        return i;
+      }
+    }
+  }
+
+  if (targetPos >= blocks[blocks.length - 1].pos) {
+    return blocks.length - 1;
+  }
+  return 0;
+}
+
+let globalShowLineNumbers = true;
+export function setGlobalShowLineNumbers(enabled: boolean) {
+  globalShowLineNumbers = enabled;
+}
+export function getGlobalShowLineNumbers(): boolean {
+  return globalShowLineNumbers;
+}
+
+export const lineNumbersPluginKey = new PluginKey("lineNumbersPlugin");
+
+export const lineNumbersPlugin = $prose(() => {
+  return new Plugin({
+    key: lineNumbersPluginKey,
+    state: {
+      init(_, state) {
+        const blocks = getTargetBlocks(state.doc);
+        const head = (state.selection as any).head ?? state.selection.from;
+        const activeIndex = getActiveBlockIndex(blocks, head);
+        return {
+          blocks,
+          activeIndex,
+          enabled: getGlobalShowLineNumbers(),
+        };
+      },
+      apply(tr, prev, _oldState, newState) {
+        const meta = tr.getMeta(lineNumbersPluginKey);
+        const enabled =
+          meta?.showLineNumbers !== undefined ? Boolean(meta.showLineNumbers) : getGlobalShowLineNumbers();
+
+        if (!tr.docChanged && !tr.selectionSet && meta === undefined && prev.enabled === enabled) {
+          return prev;
+        }
+
+        const blocks = tr.docChanged ? getTargetBlocks(newState.doc) : prev.blocks;
+        const head = (newState.selection as any).head ?? newState.selection.from;
+        const activeIndex = getActiveBlockIndex(blocks, head);
+
+        return {
+          blocks,
+          activeIndex,
+          enabled,
+        };
+      },
+    },
+    view(editorView) {
+      let gutterEl: HTMLDivElement | null = null;
+      let resizeObserver: ResizeObserver | null = null;
+
+      const ensureGutter = () => {
+        if (gutterEl && gutterEl.isConnected) return gutterEl;
+        const milkdownEl = editorView.dom.parentElement;
+        if (!milkdownEl) return null;
+
+        milkdownEl.style.position = "relative";
+        gutterEl = document.createElement("div");
+        gutterEl.className = "typori-prosemirror-gutter";
+        gutterEl.setAttribute("aria-hidden", "true");
+        milkdownEl.insertBefore(gutterEl, editorView.dom);
+        return gutterEl;
+      };
+
+      const updateGutter = (view: any) => {
+        const pluginState = lineNumbersPluginKey.getState(view.state);
+        const enabled = pluginState ? pluginState.enabled : getGlobalShowLineNumbers();
+
+        const gutter = ensureGutter();
+        if (!gutter) return;
+
+        if (!enabled) {
+          gutter.style.display = "none";
+          gutter.innerHTML = "";
+          view.dom.classList.remove("has-line-numbers");
+          return;
+        }
+
+        gutter.style.display = "block";
+        view.dom.classList.add("has-line-numbers");
+
+        const blocks = pluginState?.blocks ?? getTargetBlocks(view.state.doc);
+        const activeIndex = pluginState?.activeIndex ?? 0;
+
+        gutter.innerHTML = "";
+        const milkdownEl = view.dom.parentElement;
+        const parentRect = milkdownEl ? milkdownEl.getBoundingClientRect() : view.dom.getBoundingClientRect();
+
+        for (let i = 0; i < blocks.length; i++) {
+          const block = blocks[i];
+          const item = document.createElement("div");
+          item.className = "typori-line-number-item";
+          item.setAttribute("data-line-number", String(block.index));
+          if (i === activeIndex) {
+            item.classList.add("typori-line-number-active");
+          }
+          item.textContent = String(block.index);
+
+          try {
+            const coords = view.coordsAtPos(block.pos);
+            const top = coords.top - parentRect.top;
+            item.style.top = `${Math.max(0, top)}px`;
+          } catch {
+            // fallback if coordsAtPos fails
+          }
+
+          gutter.appendChild(item);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        updateGutter(editorView);
+      }, 0);
+
+      const handleResize = () => {
+        updateGutter(editorView);
+      };
+      window.addEventListener("resize", handleResize);
+
+      if (typeof ResizeObserver !== "undefined" && editorView.dom.parentElement) {
+        resizeObserver = new ResizeObserver(() => {
+          updateGutter(editorView);
+        });
+        resizeObserver.observe(editorView.dom);
+      }
+
+      return {
+        update(view) {
+          updateGutter(view);
+        },
+        destroy() {
+          clearTimeout(timer);
+          window.removeEventListener("resize", handleResize);
+          if (resizeObserver) {
+            resizeObserver.disconnect();
+            resizeObserver = null;
+          }
+          if (gutterEl) {
+            gutterEl.remove();
+            gutterEl = null;
+          }
+          editorView.dom.classList.remove("has-line-numbers");
+        },
+      };
+    },
+  });
+});
+
 export interface EditorRef {
   undo: () => boolean;
   redo: () => boolean;
@@ -167,6 +446,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       onToggleSourceMode,
       isFocusMode = false,
       onToggleFocusMode,
+      showLineNumbers = true,
       isRightSidebarOpen = false,
     },
     ref
@@ -394,6 +674,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           .use(history)
           .use(trailing)
           .use(focusModePlugin)
+          .use(lineNumbersPlugin)
           .use(listener);
       },
       []
@@ -974,6 +1255,23 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       }
     }, [filePath]);
 
+    // 行番号表示設定の変更をProseMirrorプラグインへ動的反映
+    useEffect(() => {
+      setGlobalShowLineNumbers(showLineNumbers);
+      if (loading) return;
+      const editor = getEditor();
+      if (!editor) return;
+      try {
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const tr = view.state.tr.setMeta(lineNumbersPluginKey, { showLineNumbers });
+          view.dispatch(tr);
+        });
+      } catch (err) {
+        console.warn("Failed to dispatch showLineNumbers transaction:", err);
+      }
+    }, [showLineNumbers, loading, getEditor]);
+
     return (
       <div className="typori-editor-root relative w-full h-full flex-1 flex flex-col overflow-hidden">
         {/* スクロールに影響されない固定/独立配置のクイックアクションツールバー */}
@@ -1009,6 +1307,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         <div
           ref={containerRef}
           className={`typori-editor-wrapper relative w-full h-full flex-1 overflow-y-auto px-8 py-6 transition-colors ${
+            showLineNumbers ? "typori-line-numbers-enabled" : ""
+          } ${
             isFocusMode ? "focus-mode" : ""
           } ${
             isDraggingOver ? "bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 inset-ring" : ""

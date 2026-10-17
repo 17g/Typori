@@ -104,5 +104,5 @@
 - [x] 60. ショートカット: `toggle_line_numbers`（デフォルト Ctrl+Alt+L）を `SHORTCUT_ITEMS`（設定画面）・チートシート `data.ts` に登録し、`App.tsx` の keydown ハンドラで切替を実装
 - [x] 61. OS連携: 表示メニューへのチェック付き「行番号を表示」（CheckMenuItem）追加、`menu:toggle_line_numbers` イベント連携、チェック状態同期コマンド `set_line_numbers_menu_checked`（menu.rs / lib.rs / fs.ts / App.tsx）の実装
 - [x] 62. ソース直接編集モード: `SourceEditor.tsx` の `basicSetup.lineNumbers` / `highlightActiveLineGutter` を `showLineNumbers` で切替
-- [ ] 63. WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン `lineNumbersPlugin` の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）
+- [x] 63. WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン `lineNumbersPlugin` の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）
 - [ ] 64. 品質保証: `scripts/verify-line-numbers.mjs` の作成と `verify-all.mjs` / `verify-native-menu.mjs` への統合、全検証コマンドのパス確認、仕様書・ガードレールの件数更新

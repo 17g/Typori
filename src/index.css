@@ -414,4 +414,75 @@
   animation: outline-highlight-pulse 1.4s ease-out;
 }
 
+/* ==========================================================================
+   Line Numbers Gutter (WYSIWYG Mode & Focus Mode Support)
+   ========================================================================== */
+
+/* WYSIWYG Mode (Milkdown / ProseMirror) Gutter */
+.typori-prosemirror-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+  border-right: 1px solid rgba(156, 163, 175, 0.15);
+}
+
+.dark .typori-prosemirror-gutter {
+  border-right-color: rgba(156, 163, 175, 0.1);
+}
+
+/* 行番号有効時の ProseMirror パディングインセット */
+.ProseMirror.has-line-numbers {
+  padding-left: 52px;
+}
+
+/* 個別行番号アイテム */
+.typori-line-number-item {
+  position: absolute;
+  right: 8px;
+  width: 32px;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.8rem;
+  line-height: 1.75;
+  color: #94a3b8;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background-color 0.15s ease, opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.dark .typori-line-number-item {
+  color: #64748b;
+}
+
+/* キャレットが存在するアクティブ行番号ハイライト */
+.typori-line-number-item.typori-line-number-active {
+  color: #4f46e5;
+  font-weight: 700;
+  background-color: rgba(99, 102, 241, 0.12);
+}
+
+.dark .typori-line-number-item.typori-line-number-active {
+  color: #818cf8;
+  font-weight: 700;
+  background-color: rgba(99, 102, 241, 0.22);
+}
+
+/* フォーカスモード適用時（WYSIWYGモード）の行番号連携 */
+.focus-mode .typori-line-number-item {
+  opacity: 0.35;
+}
+
+.focus-mode .typori-line-number-item.typori-line-number-active {
+  opacity: 1 !important;
+}
+
+
 

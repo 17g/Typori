@@ -1,3 +1,32 @@
+- 2026-10-17: タスク63「WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン lineNumbersPlugin の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、WYSIWYGモード（Milkdown / ProseMirror）において、段落・見出し・リスト内段落・引用内段落・コードブロック・表・水平線・画像を1ブロックとして数える連番の行番号オーバーレイガターをエディタ左端に表示し、キャレット（または選択範囲のヘッド）が存在するブロックの行番号ハイライト（濃色・太字・薄い背景色）、フォーカスモード時の減光非適用連携、およびライト/ダークテーマ追従を実装するため。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorProps` に `showLineNumbers` 定義はあったものの、`MilkdownEditorContent` の引数で受け取られておらず、ProseMirrorの行番号ガタープラグインが存在しなかった。
+      - WYSIWYGモードで行番号が表示されず、キャレット位置に連動したブロックハイライトも存在しなかった。
+    - `src/index.css`:
+      - WYSIWYGモード向けの行番号ガター（`.typori-prosemirror-gutter`）、パディングインセット（`.ProseMirror.has-line-numbers`）、行番号アイテム（`.typori-line-number-item`）、アクティブハイライト（`.typori-line-number-active`）、およびフォーカスモード・ダークモード連携のCSSスタイルが存在しなかった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - 純粋関数 `getTargetBlocks(doc)` を実装・エクスポート: ProseMirrorドキュメントツリーから「テキストを持つ最小単位のブロック」（段落、見出し、リスト項目内段落、引用内段落、コードブロック、表、水平線、画像）を走査し、コンテナ（doc, blockquote, bullet_list, ordered_list, list_item）や表・コードブロックの内部構造をスキップして各ブロックに1から連番を付与。
+      - 純粋関数 `getActiveBlockIndex(blocks, targetPos)` を実装・エクスポート: 選択範囲のヘッド（キャレット位置）が含まれるブロックインデックスを判定。
+      - ProseMirror プラグイン `lineNumbersPluginKey` / `lineNumbersPlugin` を実装:
+        - state (`init` / `apply`): ドキュメント変更時・選択範囲変更時・メタデータ通知時にブロック情報およびアクティブブロックインデックス、`enabled` フラグを更新。
+        - view: `.milkdown` 要素直下にオーバーレイガターDOM要素（`.typori-prosemirror-gutter`）を配置し、各ブロックの先頭行の高さ（`coordsAtPos`）に揃えて行番号アイテム（`.typori-line-number-item`）を描画。アクティブブロックに `.typori-line-number-active` を付与。リサイズ（`ResizeObserver` / `window.resize`）にも自動追従。
+      - `MilkdownEditorContent`: `showLineNumbers = true` を受け取り、`useEditor` のプラグインチェーンに `.use(lineNumbersPlugin)` を追加。設定変更時に `setMeta` トランザクションをディスパッチして即時反映。コンテナに `typori-line-numbers-enabled` を付与。
+    - `src/index.css`:
+      - `.typori-prosemirror-gutter`: 左端に絶対配置（幅44px）、右境界線、テキスト選択・コピー対象外（`user-select: none; pointer-events: none;`）。
+      - `.ProseMirror.has-line-numbers`: ガター表示時に本文左側に `padding-left: 52px` を確保。
+      - `.typori-line-number-item`: モノスペースフォント、右寄せ、行高1.75、テーマ連動カラー（Slate）。
+      - `.typori-line-number-active`: キャレットブロック行番号の文字色強調（Indigo、ライト: `#4f46e5`, ダーク: `#818cf8`）および薄い背景色（`rgba(99, 102, 241, 0.12)` / `0.22`）の付与。
+      - フォーカスモード連携: `.focus-mode .typori-line-number-item` は減光（`opacity: 0.35`）しつつ、アクティブ行番号は `opacity: 1 !important` で減光の影響を受けずに明瞭に表示。
+    - 検証結果:
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `pnpm test`: 全32個別機能テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性チェックがすべて合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+      - `cargo clippy -- -D warnings`: 警告ゼロ（Exit Code 0）。
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `src/index.css`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク62「ソース直接編集モード: SourceEditor.tsx の basicSetup.lineNumbers / highlightActiveLineGutter を showLineNumbers で切替」を完了。
   - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、Markdownソース直接編集モード（CodeMirror 6）において、行番号の表示/非表示設定（`showLineNumbers`）に応じて行番号ガター（`lineNumbers`）およびアクティブ行ガターハイライト（`highlightActiveLineGutter`）を動的に切り替え可能にするため。
   - **Before**:
