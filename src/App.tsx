@@ -722,6 +722,9 @@ function App() {
   const handleToggleShortcutSettingsRef = useRef(handleToggleShortcutSettings);
   handleToggleShortcutSettingsRef.current = handleToggleShortcutSettings;
 
+  const toggleLineNumbersRef = useRef(toggleLineNumbers);
+  toggleLineNumbersRef.current = toggleLineNumbers;
+
   const handleOpenExportModal = useCallback((format: ExportFormat = "html") => {
     setExportModalFormat(format);
     setIsExportModalOpen(true);
@@ -824,6 +827,19 @@ function App() {
       ) {
         e.preventDefault();
         handleToggleFocusModeRef.current();
+        return;
+      }
+      // 行番号表示切替 (デフォルト: Ctrl+Alt+L)
+      if (
+        isShortcutEvent(e, config.toggle_line_numbers || ["Ctrl", "Alt", "L"]) ||
+        (areKeysEqual(config.toggle_line_numbers || ["Ctrl", "Alt", "L"], ["Ctrl", "Alt", "L"]) &&
+          (e.ctrlKey || e.metaKey) &&
+          e.altKey &&
+          !e.shiftKey &&
+          (e.key.toLowerCase() === "l" || e.code === "KeyL"))
+      ) {
+        e.preventDefault();
+        toggleLineNumbersRef.current();
         return;
       }
       // 新規作成 (デフォルト: Ctrl+N)

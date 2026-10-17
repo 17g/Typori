@@ -74,6 +74,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     description: "Markdown記法とショートカットキーのチートシートを表示します",
     category: "view",
   },
+  {
+    id: "toggle_line_numbers",
+    name: "行番号表示切替",
+    keys: ["Ctrl", "Alt", "L"],
+    description: "エディタ左端の行番号表示・非表示を切り替えます",
+    category: "view",
+  },
 
   // Markdown挿入・書式
   {

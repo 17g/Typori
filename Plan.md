@@ -101,7 +101,7 @@
 
 ## Phase 19: エディタの行番号表示機能
 - [x] 59. 状態管理: 行番号表示設定フック `useLineNumberSettings`（localStorage `typori:line_numbers_enabled`、デフォルト有効）の実装と `App.tsx` への組込み・両エディタへの `showLineNumbers` 受け渡し
-- [ ] 60. ショートカット: `toggle_line_numbers`（デフォルト Ctrl+Alt+L）を `SHORTCUT_ITEMS`（設定画面）・チートシート `data.ts` に登録し、`App.tsx` の keydown ハンドラで切替を実装
+- [x] 60. ショートカット: `toggle_line_numbers`（デフォルト Ctrl+Alt+L）を `SHORTCUT_ITEMS`（設定画面）・チートシート `data.ts` に登録し、`App.tsx` の keydown ハンドラで切替を実装
 - [ ] 61. OS連携: 表示メニューへのチェック付き「行番号を表示」（CheckMenuItem）追加、`menu:toggle_line_numbers` イベント連携、チェック状態同期コマンド `set_line_numbers_menu_checked`（menu.rs / lib.rs / fs.ts / App.tsx）の実装
 - [ ] 62. ソース直接編集モード: `SourceEditor.tsx` の `basicSetup.lineNumbers` / `highlightActiveLineGutter` を `showLineNumbers` で切替
 - [ ] 63. WYSIWYGモード: ブロック単位の行番号オーバーレイガターとキャレットブロックハイライトを行う ProseMirror プラグイン `lineNumbersPlugin` の実装（Editor.tsx / index.css、フォーカスモード・テーマ対応）

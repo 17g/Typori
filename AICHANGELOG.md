@@ -1,3 +1,23 @@
+- 2026-10-17: タスク60「ショートカット: toggle_line_numbers（デフォルト Ctrl+Alt+L）を SHORTCUT_ITEMS（設定画面）・チートシート data.ts に登録し、App.tsx の keydown ハンドラで切替を実装」を完了。
+  - **変更理由**: 仕様書（`for_agent/architecture.md`）の「行番号表示機能仕様 (Phase 19)」に基づき、行番号表示のトグル操作をユーザーが素早く実行できるよう、デフォルトショートカット `Ctrl + Alt + L`（macOS では `Cmd + Option + L`）を登録し、ショートカット設定画面（`ShortcutSettingsModal`）でのカスタマイズ・競合検知、チートシートモーダル（`CheatSheetModal`）への動的反映、および `App.tsx` のグローバル `keydown` ハンドラでの切替トグルを実装するため。
+  - **Before**:
+    - `src/components/ShortcutSettingsModal/types.ts` の `SHORTCUT_ITEMS` に `toggle_line_numbers` が未定義であり、ショートカット設定画面でキー割り当ての確認やカスタマイズができなかった。
+    - `src/components/CheatSheetModal/data.ts` の `SHORTCUT_ITEMS` に `toggle_line_numbers` が未定義であり、チートシート一覧に表示されなかった。
+    - `src/App.tsx` の `handleKeyDown` ハンドラに行番号トグルの判定が存在せず、キーボードから行番号の表示/非表示を切り替えることができなかった。
+  - **After**:
+    - `src/components/ShortcutSettingsModal/types.ts`:
+      - `SHORTCUT_ITEMS` の `view` カテゴリに `id: "toggle_line_numbers"`, `name: "行番号表示切替"`, `defaultKeys: ["Ctrl", "Alt", "L"]` を追加。
+    - `src/components/CheatSheetModal/data.ts`:
+      - `SHORTCUT_ITEMS` の `view` カテゴリに `id: "toggle_line_numbers"`, `name: "行番号表示切替"`, `keys: ["Ctrl", "Alt", "L"]` を追加。
+    - `src/App.tsx`:
+      - `toggleLineNumbersRef` を作成し、`useLineNumberSettings` から提供される `toggleLineNumbers` 関数を常に最新参照で保持。
+      - `handleKeyDown` ハンドラに `toggle_line_numbers` の判定（`isShortcutEvent(e, config.toggle_line_numbers || ["Ctrl", "Alt", "L"])` およびデフォルトキーバインドのフォールバック）を追加し、キー押下時に `e.preventDefault()` を呼んで `toggleLineNumbersRef.current()` を実行。
+    - 検証結果:
+      - `pnpm test`: 全32個別機能テスト + IPCコマンド整合性 + ネイティブメニュー整合性 + ショートカット定義整合性チェックがすべて合格（Exit Code 0）。
+      - `pnpm run build`: TypeScript型チェック + Viteプロダクションビルド合格（Exit Code 0）。
+      - `cargo test`: 全24件のバックエンド単体テスト合格（Exit Code 0）。
+  - **影響範囲**: `src/components/ShortcutSettingsModal/types.ts`, `src/components/CheatSheetModal/data.ts`, `src/App.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-04: タスク58「品質保証/自動テスト: タブ有効時の「ファイル1編集 -> ファイル2オープン -> ファイル1切替 -> 未保存マーク（isDirty）維持 -> タブクローズ時警告判定」の挙動を網羅検証する自動テストスクリプト（`scripts/verify-tab-switch-dirty-retention.mjs`）を作成し、総合テスト（`pnpm test`）に統合して検証」を完了。
   - **変更理由**: タブ有効時に未保存変更を持つタブを安全に保護する一連のデータフロー（編集 -> 別ファイルオープン -> 元タブへ切替復帰 -> エディタ再マウント初期シリアライズ通知 -> 未保存マーク維持 -> タブクローズ時の保存確認ダイアログ発火・中断・承認）が将来にわたり回帰（リグレッション）しないことを客観的・自動的に保証するため。また、クリーンタブでの初回シリアライズ差異誤爆防止と未保存タブ保護ガードが共存できるよう `App.tsx` の `hasUnsavedChanges` 判定をリファクタリングし、網羅的な検証スイートを構築するため。
   - **Before**:

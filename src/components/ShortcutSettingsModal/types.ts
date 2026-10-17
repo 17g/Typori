@@ -98,6 +98,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     defaultKeys: ["F1"],
   },
   {
+    id: "toggle_line_numbers",
+    name: "行番号表示切替",
+    description: "エディタ左端の行番号表示・非表示を切り替えます",
+    category: "view",
+    defaultKeys: ["Ctrl", "Alt", "L"],
+  },
+  {
     id: "open_shortcuts_settings",
     name: "ショートカット設定表示",
     description: "ショートカットキーのカスタマイズ設定画面を表示します",
