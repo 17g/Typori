@@ -51,6 +51,7 @@ const testScripts = [
   { name: "WYSIWYG Mermaid ノードビュー & プラグイン (Phase 20)", file: "verify-mermaid-wysiwyg.mjs" },
   { name: "Mermaid テーマ連動 & 動的再レンダリング (Phase 20)", file: "verify-mermaid-theme.mjs" },
   { name: "Mermaid エクスポート連携 (HTML/PDF印刷) (Phase 20)", file: "verify-mermaid-export.mjs" },
+  { name: "Mermaid ダイアグラム機能総合統合テスト (Phase 20)", file: "verify-mermaid-diagrams.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

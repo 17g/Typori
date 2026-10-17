@@ -1,3 +1,32 @@
+- 2026-10-17: タスク70「品質保証/自動テスト: Mermaid描画・構文エラー耐性・テーマ追従・エクスポート・チートシート整合性を網羅検証する自動テストスクリプト（`scripts/verify-mermaid-diagrams.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合・全検証パス確認」を完了。
+  - **変更理由**: Phase 20「Mermaidダイアグラム機能」の全要件（Mermaid描画基盤、構文検出、WYSIWYG Typoraライクノードビュー、構文エラー耐性・クラッシュ防止、ライト/ダークテーマ連動・三重の動的再描画機構、HTML/PDFエクスポート連携・印刷ハンドシェイク、チートシートへの4大ダイアグラム掲載・UIスクロール最適化）をワンストップで包括検証する自動統合テストスクリプトを整備し、総合結合テストスイート（`scripts/verify-all.mjs`）に統合して、すべての品質保証基準およびプロジェクト検証コマンド（Exit Code 0）を完全に満たすため。
+  - **Before**:
+    - `scripts/verify-mermaid-diagrams.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が37件であり、Phase 20 Mermaid 総合統合テストが登録されていなかった。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明が「全個別機能テスト（37件）」となっていた。
+    - `Plan.md`: タスク70が未完了（`- [ ]`）だった。
+  - **After**:
+    - `scripts/verify-mermaid-diagrams.mjs`: 新規作成。以下の8ステップを網羅検証:
+      1. 静的構造 & 関連モジュール整合性検証 (全10ファイルの存在、package.json の mermaid 依存関係)
+      2. Mermaid 描画基盤 & 構文検出・型判定ロジック検証 (`isMermaidLanguage`, 10種の `detectDiagramType`, `generateMermaidId` 一意性/サニタイズ)
+      3. 構文エラー耐性 & クラッシュ防止ハンドリング検証 (`extractMermaidErrorMessage`, 一時エラーDOM要素クリーンアップ, `renderMermaidSvg` の try-catch 保護)
+      4. WYSIWYG モード ノードビュー & ライフサイクル検証 (`dom`, `contentDOM`, `previewContainer` 構造, `ignoreMutation`, `stopEvent`, `activeMermaidViews` 登録/破棄, Selection 追従・Typoraライク切替)
+      5. ライト/ダークテーマ連動 & 動的再レンダリング検証 (`updateMermaidTheme`, Tailwind 調和配色, SVG固定白背景透過正規化, 三重の動的連動機構)
+      6. エクスポート連携 (HTML / PDF 印刷) 検証 (HTML内 Mermaid 展開, iframe 印刷待機ハンドシェイク, fs.rs の `.typori-mermaid-svg` / `.typori-mermaid-error` / 改ページ回避スタイル)
+      7. チートシート連携 & 4大ダイアグラム整合性検証 (`mermaid` カテゴリ, 4大ダイアグラム, UI スクロール最適化)
+      8. エンドツーエンド総合シナリオシミュレーション検証 (4大ダイアグラム＋構文エラーを含むMarkdownのHTML変換・検出・置換フロー)
+    - `scripts/verify-all.mjs`: `verify-mermaid-diagrams.mjs` を登録し、全38件の個別機能テストに拡充。
+    - `for_agent/guardrails.md`: 必須検証コマンドの記述を「全個別機能テスト（38件）」に更新。
+    - `for_agent/architecture.md`: 改訂履歴にタスク70完了とPhase 20全タスク達成を追記。
+    - `Plan.md`: タスク70を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-mermaid-diagrams.mjs`: Exit Code 0 (全8ステップ合格)
+      - `pnpm test`: Exit Code 0 (38/38個別テスト、全IPCコマンド、全メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (24 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-mermaid-diagrams.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-17: タスク69「エクスポート連携: HTMLエクスポートおよびPDF印刷ダイアログ（iframe）におけるMermaidダイアグラムSVGレンダリングと印刷待機ハンドシェイクの実装」を完了。
   - **変更理由**: Phase 20「Mermaidダイアグラム機能」の仕様に基づき、HTMLエクスポート時にスタンドアロンHTMLファイル内へMermaidダイアグラムをインラインSVGとして展開・埋め込み、外部スクリプトやネットワーク接続不要でダイアグラムを美しく表示可能にするとともに、PDFエクスポート（印刷）時に印刷用非表示iframe内でMermaid SVGグラフィックスの完全描画・レイアウト確定をダブル `requestAnimationFrame` により待機する印刷ハンドシェイク機構を実装し、印刷やPDF化でダイアグラムが欠落・白紙化することを防止するため。
   - **Before**:
