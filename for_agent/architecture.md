@@ -62,6 +62,9 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
    - アプリケーション全体のテーマ（ライト／ダーク）と連動したダイアグラムテーマの切り替え。
    - HTMLエクスポートおよびPDFエクスポート（印刷）時にもMermaidダイアグラムを描画結果として保持・出力。
    - チートシート（F1）に代表的なMermaid記法のサンプルを追加。
+9. **起動高速化・ホワイトブランク完全解消機能**:
+   - 起動時のウィンドウ初期非表示（`visible: false`）と初期描画完了直後の即時ウィンドウ表示（`window.show()`＋セーフティフォールバック）、および `index.html` での即時テーマ背景色・スケルトン適用を組み合わせたハイブリッド構成により、起動時のホワイトブランク（白画面フラッシュ）を完全に解消。
+   - 起動直後に不要な重いモジュール（CodeMirror 6、各種モーダル、Mermaid等）の動的インポート分割（Code Splitting / Lazy Loading）と、起動時ワークスペース初期化IPCの一括化（`init_workspace`）により、起動時間を最小化。
 
 ## データフロー
 - フロントエンド(React) <-> バックエンド(Rust) 間の通信はTauriのコマンド(IPC)を利用する。
@@ -229,6 +232,41 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     - チートシートにMermaid記法サンプルが掲載され、コピー可能である。
     - 自動検証スクリプトを整備し、`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 で通過する。
 
+- 起動高速化・ホワイトブランク完全解消仕様 (Phase 21):
+  - **目的**: Tauri（WebView2）起動時にOSネイティブウィンドウが先行表示されてからフロントエンド描画が完了するまでの間に発生する「ホワイトブランク（白画面フラッシュ・待ち時間）」を完全に解消し、初期起動時間（0.25〜0.4秒目標）と体感レスポンスを最大化する。
+  - **1. ハイブリッド・ウィンドウ表示制御（初期非表示＋描画完了後即表示＋背景色/スケルトン同期）**:
+    - **Tauriウィンドウ初期設定 (`src-tauri/tauri.conf.json`)**:
+      - メインウィンドウ設定に `"visible": false` を設定し、WebView2プロセス初期化中の空ウィンドウ露出を防止する。
+      - 同時に、万が一の描画前露出に備えてウィンドウの初期 `backgroundColor` を設定する。
+    - **Tauri Capabilities権限追加 (`src-tauri/capabilities/default.json`)**:
+      - フロントエンドからウィンドウの表示制御を安全に実行できるよう、`core:window:allow-show`（および必要に応じて `core:window:allow-set-focus`）権限を明示的に付与する。
+    - **`index.html` での0msテーマ判定・インラインスケルトン適用**:
+      - Reactバンドルの読み込みを待たず、`index.html` の `<head>` 内インラインスクリプトで `localStorage.getItem("typori-theme")` および `window.matchMedia("(prefers-color-scheme: dark)")` を同期的に評価し、`document.documentElement` に `dark` クラスと初期背景色（ライト: `#ffffff` / ダーク: `#111827`）を0msで適用する。
+      - `#root` 内部またはインラインCSSに初期スケルトン（サイドバー枠・エディタ背景）を配置し、Reactマウントの瞬間まで一切の白フラッシュ（特にダークモード時の白発光）が発生しない構造とする。
+    - **初回描画完了後の即時ウィンドウ表示とセーフティフォールバック (`src/App.tsx` / `src-tauri/src/lib.rs`)**:
+      - フロントエンドの初回マウントおよび初期ワークスペース取得完了直後（`requestAnimationFrame` 等でDOM描画が確定したタイミング）に `getCurrentWindow().show()` を呼び出し、完成したUI状態でウィンドウをパッと表示する。
+      - 万が一フロントエンド側の初期化エラーや遅延が発生した場合でもウィンドウが永久に非表示のままにならないよう、フロントエンドおよびRust側の双方にセーフティフォールバックタイマー（例: 最大300〜500ms経過で自動 `show()`）を設ける。
+  - **2. フロントエンド初期バンドル軽量化・遅延読み込み（Code Splitting / Lazy Loading）**:
+    - **動的インポートによる初期ロード最小化 (`src/App.tsx`, `src/components/Editor/Editor.tsx`)**:
+      - 初期起動時（WYSIWYGモードかつモーダル非表示状態）に即座に必要としない以下の重いコンポーネント・ライブラリを `React.lazy()`（＋ `<Suspense>`）および動的 `import()` に分離する:
+        - `SourceEditor`（CodeMirror 6 一式）
+        - `CheatSheetModal`（チートシートモーダル）
+        - `ShortcutSettingsModal`（ショートカット設定モーダル）
+        - `ExportModal`（HTML/PDFエクスポートモーダル）
+        - `Mermaid` ダイアグラムレンダラ（`mermaid` パッケージ本体はダイアグラムブロックが存在するとき、または初回レンダリング要求時に動的インポートする）
+    - **Viteビルドチャンク最適化 (`vite.config.ts`)**:
+      - `build.rollupOptions.output.manualChunks` 等を構成し、初期エントリチャンクの肥大化を防ぎ、WebView2での初回スクリプト解析・実行時間を短縮する。
+  - **3. 起動時ワークスペース初期化IPCの一括化（Batch Workspace Initialization）**:
+    - **Rust側一括初期化コマンド (`init_workspace`) の新設 (`src-tauri/src/fs.rs`, `src-tauri/src/lib.rs`, `src/api/fs.ts`)**:
+      - 従来 `App.tsx` の起動時 `useEffect` 内で直列に最大5往復していたIPC通信（`get_cli_args` → `get_parent_dir` → `get_current_dir` → `read_dir` → `open_file`）を、Rust内部で一括処理して1回のIPC往復で返却する `init_workspace` コマンドを追加する。
+      - `init_workspace` の返却データ構造（`WorkspaceInitResult`）には、`current_dir: String`、`entries: Vec<FileEntry>`、`initial_file_path: Option<String>`、`initial_file_content: Option<String>`、`initial_file_error: Option<String>` を含める。
+      - 既存の個別コマンド（`get_cli_args`, `get_current_dir`, `get_parent_dir`, `read_dir`, `open_file`）も後方互換および既存テスト維持のためそのまま保持する。
+  - **完成基準**:
+    - 起動時に白い空ウィンドウ（ホワイトブランク）が露出せず、ダークモード設定時にも白フラッシュが発生しないこと。
+    - `CheatSheetModal`、`ShortcutSettingsModal`、`ExportModal`、`SourceEditor`、および `Mermaid` が遅延読み込み（チャンク分割）されていても、呼び出し時に従来通りすべて正常動作すること。
+    - `init_workspace` コマンドにより初期ディレクトリツリーとCLI引数指定ファイルが1回のIPC呼び出しで正常にロードされること。
+    - 自動検証スクリプトを `scripts/verify-all.mjs` に統合し、`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 で通過すること。
+
 ## パッケージング・配布仕様
 - `pnpm tauri build` により、リリースビルドバイナリ (`typori.exe`) および各プラットフォーム向けインストーラパッケージ（Windows向け: NSIS `.exe` インストーラおよび WiX `.msi` パッケージ）を生成。
 - バンドル生成先: `src-tauri/target/release/bundle/`
@@ -282,3 +320,4 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-06: 全体レビュー（/review）を実施。全自動検証（cargo test 24件 / cargo clippy -D warnings / pnpm run build / verify-all.mjs 全32件）のパスを確認。仕様書の記述ずれを修正（総合テスト件数 27→32、onCloseRequested が Rust 側インターセプトのフォールバックとして併存し `isHandlingClose` で排他されている旨を明記）。改訂履歴の不要な空行を除去。
 - 2026-10-17: 行番号表示機能の仕様（Phase 19）を追記。ソース直接編集モードは物理行単位・WYSIWYGモードは最小ブロック単位での番号表示、キャレット行番号のハイライト（強調文字＋薄い背景）、表示メニューのチェック付き切替（menu:toggle_line_numbers）、ショートカット Ctrl+Alt+L（カスタマイズ可・チートシート掲載）、localStorage 永続化、デフォルト有効、スコープ外・完成基準を定義。
 - 2026-10-17: Mermaidダイアグラム機能仕様（Phase 20）を追記。erDiagram, sequenceDiagram, graph TB, gantt を含むMermaid標準記法全般のサポート、Typoraライクなインラインプレビュー＆クリック編集、構文エラー耐性、ライト/ダークテーマ連動、HTML/PDFエクスポート出力連携、チートシートへの記法サンプル掲載、完成基準を定義。
+- 2026-10-17: 起動高速化・ホワイトブランク完全解消仕様（Phase 21）を追記。ハイブリッド・ウィンドウ表示制御（初期非表示 `visible: false` からの描画完了後即時 `show()` ＋セーフティフォールバック＋ `index.html` 0msテーマ背景色・スケルトン適用）、重いモジュール（CodeMirror 6、各種モーダル、Mermaid）の動的インポート分割（Code Splitting）、および起動時ワークスペース初期化IPCの一括化（`init_workspace`）を定義。
