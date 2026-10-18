@@ -1,3 +1,17 @@
+- 2026-10-19: 全体総合レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜28、全108タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（全40件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全51個別テスト、IPC 15コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・確定。
+  - **変更理由**: Phase 28（ソース直接編集モードのインデント・レイアウト最適化および行番号・スクロール不具合の完全解消 / 全108タスク）までの全機能開発が完了したことを受け、仕様書（`for_agent/architecture.md`、`for_agent/guardrails.md`）と全実装コードベース（フロントエンド・バックエンド・テストスクリプト）を突き合わせ、要件の充足性、エッジケースの考慮、仕様書改訂履歴の同期、および回帰バグの完全排除を客観的根拠（Ground Truth）に基づいて保証・確定するため。
+  - **Before**:
+    - `for_agent/architecture.md`: 改訂履歴に全体総合レビューの完了記録が追記されていなかった。
+  - **After**:
+    - `for_agent/architecture.md`: 改訂履歴に全体総合レビューの完了記録を追記。
+    - 検証結果:
+      - `pnpm test` (`node scripts/verify-all.mjs`): Exit Code 0 (全51個別テスト合格、全15IPCコマンド整合、全18ネイティブメニューイベント整合、ショートカット定義競合なし)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite プロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo check`: Exit Code 0 (エラー0件)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク108「品質保証・自動テスト: ソースモードのインデント（Tab操作・行頭空白）、レイアウト（中央寄せ）、行番号ON/OFF時の本文表示、縦スクロール性、およびOSネイティブメニューのチェック状態再帰同期を網羅検証する自動テストスクリプト（scripts/verify-source-editor-indent-and-scroll.mjs）の作成と総合テスト（scripts/verify-all.mjs）への統合、全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）の合格確認」を完了。
   - **変更理由**: Phase 28 において実装された、ソース直接編集モードのインデント操作（Tab / Shift+Tab）、行頭空白描画保証（`break-spaces`）、中央寄せレイアウト（`max-width: 900px; margin: 0 auto;`）とガター一体化、行番号ON/OFF時の本文幅潰れ解消（`min-width: 0; flex-grow: 1; width: 100%;`）、縦スクロール健全化（`.cm-scroller` の `max-height: 100%; overflow-y: auto;`）、およびRustバックエンドのSubmenu再帰探索（`find_in_menu_tree` / `find_check_menu_item`）によるOSネイティブメニューのチェック状態同期を包括的に自動検証し、リグレッションを防止するため。
   - **Before**:
