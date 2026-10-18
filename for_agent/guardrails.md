@@ -330,6 +330,16 @@
   3. `onExitSourceMode` および `handleToggleSourceMode` で必ず `isSourceModeRef.current = next` を同期更新し、WYSIWYG 切替時の未保存判定・生ソース完全保護を徹底すること。
   4. 切替前にアクティブエディタのスクロール位置（`.cm-scroller` または `.typori-editor-root .overflow-y-auto`）を `editorScrollTopRef` に退避し、切替先エディタの `initialScrollTop` プロップ経由で `requestAnimationFrame` により復元して画面の不自然な跳躍を防止すること。
 
+### 3.25. @codemirror/language-data における言語名照合（matchLanguageName）と拡張子照合（matchFilename）の仕様差分
+- **事象・ミス**:
+  - テストスクリプトや言語動的解決処理で `LanguageDescription.matchLanguageName(languages, "py")` や `matchLanguageName(languages, "rs")` を呼び出すと `null` が返り、言語パーサーの取得に失敗する。
+- **原因**:
+  - CodeMirror 6 の `LanguageDescription` において、`matchLanguageName` は各言語定義の `name`（例: `"Python"`, `"Rust"`）および `alias` 配列（例: `["python"]`, `["rust"]`）とのみ照合を行う仕様である。
+  - 短縮形や拡張子（`"py"`, `"rs"`, `"ts"`, `"js"` 等）は `alias` ではなく `extensions` 配列に格納されているため、`matchLanguageName` ではヒットしない。
+- **対策**:
+  1. 言語名やエイリアスによる照合を行う場合は、`LanguageDescription.matchLanguageName(languages, name, true)` を使用し、正規の言語名（`"python"`, `"rust"`, `"javascript"` 等）を指定すること。
+  2. ファイル拡張子（`.py`, `.rs`, `.ts` 等）から言語パーサーを解決・検証する場合は、`LanguageDescription.matchFilename(languages, `dummy.${ext}`)` を使用すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）
