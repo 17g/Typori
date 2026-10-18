@@ -1,3 +1,26 @@
+- 2026-10-18: タスク87「レイアウト・スタイル修正: SourceEditor.tsx の flexbox 高さ構造（flex-1 h-full 重複の解消・.cm-scroller の overflow 最適化）、および .cm-content と .cm-gutters のマージン・パディング統合（中央寄せによるガター分離の解消、Typoraライクな美しい等幅エディタレイアウトの確立）」を完了。
+  - **変更理由**: ソース直接編集モードにおいて、`.cm-content` の中央寄せ（`margin: 0 auto; max-width: 960px;`）に起因して行番号ガター（`.cm-gutters`）がエディタ左端に固定されたまま本文と分離し、巨大な余白が生じていた問題を解消し、ガターと本文が自然に一体化したTyporaライクな等幅執筆レイアウトを確立するため。また、エディタ本体ラッパーの `flex-1 h-full` 重複を解消して不要なオーバーフローやスクロールバー二重化を防ぐため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `customTheme` の `.cm-content` に `margin: "0 auto"` および `maxWidth: "960px"` が設定されており、ウィンドウ幅が広い際に行番号ガターと本文の間に巨大な空白が生じていた。
+      - `customTheme` の `.cm-scroller` に `minHeight: "100%"` が指定されておらず、`.cm-gutters` に `borderRightStyle: "solid"` が明示されていなかった。また `.cm-lineNumbers .cm-gutterElement` の快適なパディング設定が欠落していた。
+      - エディタヘッダーバナーに `shrink-0` がなく、CodeMirror ラッパー要素に `flex-1 w-full h-full` と `flex-1` と `h-full` の重複指定が存在し、フレックスコンテナ内での高さ計算の重複・オーバーフローの要因となっていた。
+    - `Plan.md`: タスク87が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `customTheme` の `.cm-content` から `margin: "0 auto"` および `maxWidth: "960px"` を撤廃し、`margin: "0"` と `padding: "24px 32px"`、`boxSizing: "border-box"` を適用。行番号ガターの右境界直後から本文が自然に始まる等幅レイアウトを確立。
+      - `.cm-scroller` に `minHeight: "100%"` を設定し、`overflow: "auto"`、`lineHeight: "1.7"`、`paddingBottom: "120px"` を最適化。
+      - `.cm-gutters` に `borderRightStyle: "solid"` を明示し、`.cm-lineNumbers .cm-gutterElement` に `padding: "0 8px 0 12px"`, `minWidth: "36px"` を設定。
+      - エディタヘッダーバナーに `shrink-0` を付与し、CodeMirror ラッパー要素の `flex-1 w-full h-full` を `flex-1 min-h-0 w-full` に修正して flexbox の高さ構造を健全化。
+    - `Plan.md`:
+      - タスク87を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `Plan.md`, `AICHANGELOG.md`。既存機能への破壊的変更なし。
+
 - 2026-10-18: タスク86「構文ハイライト & GFM対応: @codemirror/language-data 等による主要プログラミング言語構文パーサーの導入、@codemirror/lang-markdown への GFM 拡張（表、タスクリスト、自動リンク、打消し線）および codeLanguages の設定、Typori向けライト/ダークシンタックスハイライトテーマの整備（src/components/Editor/SourceEditor.tsx）」を完了。
   - **変更理由**: ソース直接編集モードにおいて、GFM（GitHub Flavored Markdown）構文（表、タスクリスト、打消し線、自動リンク等）および主要プログラミング言語（JavaScript, TypeScript, Python, Rust, HTML, CSS, JSON, Markdown, YAML, Bash, SQL 等）のフェンスドコードブロックが美しく構文ハイライトされ、Typori の Zinc 配色（ライト／ダーク）と調和する等幅執筆環境を提供するため。
   - **Before**:

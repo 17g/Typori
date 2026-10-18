@@ -179,18 +179,25 @@ export function SourceEditor({
           overflow: "auto",
           lineHeight: "1.7",
           paddingBottom: "120px",
+          minHeight: "100%",
         },
         ".cm-content": {
           padding: "24px 32px",
-          maxWidth: "960px",
-          margin: "0 auto",
+          margin: "0",
+          boxSizing: "border-box",
         },
         ".cm-gutters": {
           backgroundColor: isDark ? "#18181b" : "#ffffff",
           borderColor: isDark ? "#27272a" : "#f4f4f5",
           color: isDark ? "#71717a" : "#a1a1aa",
           borderRightWidth: "1px",
+          borderRightStyle: "solid",
           userSelect: "none",
+        },
+        ".cm-lineNumbers .cm-gutterElement": {
+          padding: "0 8px 0 12px",
+          minWidth: "36px",
+          textAlign: "right",
         },
         ".cm-activeLine": {
           backgroundColor: isDark ? "rgba(255, 255, 255, 0.04)" : "rgba(99, 102, 241, 0.05)",
@@ -271,7 +278,7 @@ export function SourceEditor({
   return (
     <div className="relative w-full h-full flex flex-col bg-white dark:bg-zinc-900 overflow-hidden">
       {/* ソースコードモードのヘッダーバナー */}
-      <div className="flex items-center justify-between px-6 py-2 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-xs select-none">
+      <div className="flex items-center justify-between px-6 py-2 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-xs select-none shrink-0">
         <div className="flex items-center gap-2">
           <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-mono text-[11px] font-bold">
             &lt;/&gt;
@@ -325,7 +332,7 @@ export function SourceEditor({
       </div>
 
       {/* CodeMirror エディタ本体 */}
-      <div className={`flex-1 w-full h-full overflow-hidden ${isFocusMode ? "cm-focus-mode" : ""}`}>
+      <div className={`flex-1 min-h-0 w-full overflow-hidden ${isFocusMode ? "cm-focus-mode" : ""}`}>
         <CodeMirror
           ref={editorRef}
           value={content}
