@@ -1,3 +1,25 @@
+- 2026-10-18: タスク83「依存パッケージの既知脆弱性解消 (LOW-01): package.json への pnpm.overrides（source-map-js: ">=1.2.2", katex: ">=0.18.2"）追加とロックファイル更新、pnpm audit での検出脆弱性0件の確認」を完了。
+  - **変更理由**: 間接依存パッケージに含まれていた既知の脆弱性（`source-map-js` の ReDoS / Event Loop DoS 脆弱性 `GHSA-68fv-2mgg-jv7q` [High]、および `katex` のプロトタイプ汚染バイパス脆弱性 `GHSA-238p-pmpm-9mq7` [Low]）を解消し、`pnpm audit` で検出される脆弱性を 0 件にしてサプライチェーンセキュリティを強化するため。
+  - **Before**:
+    - `pnpm audit`: 2件の脆弱性が検出されていた（High 1件: `source-map-js <1.2.2`、Low 1件: `katex <0.18.2`、Exit Code 1）。
+    - `package.json`: `overrides` および `pnpm.overrides` が定義されていなかった。
+    - `pnpm-workspace.yaml`: ファイルが存在せず、pnpm v11/v12 の新しい設定体系に対応していなかった。
+    - `Plan.md`: タスク83が未完了（`- [ ]`）だった。
+  - **After**:
+    - `pnpm-workspace.yaml`: 新規作成し、pnpm v11/v12 の仕様に従いルート設定として `overrides`（`source-map-js: ">=1.2.2"`, `katex: ">=0.18.2"`）を定義。
+    - `package.json`: ツール整合性および後方互換性のため、`overrides` および `pnpm.overrides` を明示的に設定。
+    - `pnpm-lock.yaml`: `pnpm install` により依存バージョンを `source-map-js@1.2.2` および `katex@0.18.9` に安全に更新。
+    - `for_agent/guardrails.md`: 「3.22. pnpm v11/v12 における設定ファイル（pnpm-workspace.yaml）と依存関係オーバーライド（overrides）」を追記。
+    - `for_agent/architecture.md`: 改訂履歴にタスク83完了を追記。
+    - `Plan.md`: タスク83を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm audit`: Exit Code 0 (No known vulnerabilities found)
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク82「バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02): src-tauri/src/fs.rs の画像保存（get_unique_file_path / save_image_binary / save_image_file）・画像パス解決（resolve_image_path）・バイナリ読み込み（read_file_binary）におけるパストラバーサル防止・画像拡張子検証・ファイルサイズ上限（50MB）の実装、および search_files（search_dir_recursive）の再帰深度上限（16階層）・シンボリックリンク除外とRust単体テスト追加」を完了。
   - **変更理由**: 悪意のある Markdown や外部入力により、バックエンド IPC コマンド（画像保存、パス解決、バイナリ読み込み、再帰検索）経由でパストラバーサルによる任意領域へのファイル書き込み・読み出し、大容量ファイル読み込みによるメモリ枯渇（OOM DoS）、循環シンボリックリンクや極端に深いディレクトリ構造によるスタックオーバーフロー・応答停止が発生するリスクを多層防御（Defense-in-Depth）で遮断するため。
   - **Before**:

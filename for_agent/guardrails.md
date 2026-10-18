@@ -285,6 +285,21 @@
   4. `resolve_image_path` においては、相対パスの各コンポーネントを検証し、`..` によるベースディレクトリ外への上位トラバーサルを拒否すること。
   5. `search_dir_recursive` では、シンボリックリンク（`ft.is_symlink()`）をスキップし、最大再帰深度 `MAX_SEARCH_DEPTH`（16階層）を設定して探索を確実に打ち切ること。
 
+### 3.22. pnpm v11/v12 における設定ファイル（pnpm-workspace.yaml）と依存関係オーバーライド（overrides）
+- **事象・ミス**:
+  - `package.json` に `"pnpm": { "overrides": { ... } }` を追加して `pnpm install` を実行しても、`[WARN] The "pnpm" field in package.json is no longer read by pnpm` の警告が表示されてオーバーライドが無視され、`pnpm-lock.yaml` が更新されず `pnpm audit` で既知脆弱性が解消されない。
+- **原因**:
+  - pnpm v11 以降（現行 v12）、pnpm は `package.json` 内の `"pnpm"` フィールド（`pnpm.overrides`, `pnpm.patchedDependencies` 等）からの設定読み込みを廃止し、すべての設定をプロジェクトルートの `pnpm-workspace.yaml` に集約する仕様に変更されたため。
+- **対策**:
+  1. 依存関係のバージョンオーバーライドは、プロジェクトルートの `pnpm-workspace.yaml` に以下の形式で定義すること:
+     ```yaml
+     overrides:
+       source-map-js: ">=1.2.2"
+       katex: ">=0.18.2"
+     ```
+  2. 後方互換および npm/ツール整合性のため、`package.json` にも `overrides` および `pnpm.overrides` を記述しておくこと。
+  3. 設定更新後は `pnpm install` を実行して `pnpm-lock.yaml` にオーバーライド後の解決バージョンが反映されたことを確認し、`pnpm audit` が 0 件で合格することを確認すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）
