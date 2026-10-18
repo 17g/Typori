@@ -1,3 +1,17 @@
+- 2026-10-18: 全体総合レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜26、全100タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（全39件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全50個別テスト、IPC 15コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
+  - **変更理由**: Phase 26（書式クリア機能 / 全100タスク）までの全機能開発が完了したことを受け、仕様書（`for_agent/architecture.md`、`for_agent/guardrails.md`）と全実装コードベース（フロントエンド・バックエンド・テストスクリプト）を突き合わせ、要件の充足性、エッジケースの考慮、仕様書改訂履歴の同期、および回帰バグの完全排除を客観的根拠（Ground Truth）に基づいて保証・確定するため。
+  - **Before**:
+    - `for_agent/architecture.md`: 改訂履歴に Phase 26 タスク100の完了記録および全体レビューの記録が追記されていなかった。
+  - **After**:
+    - `for_agent/architecture.md`: 改訂履歴にタスク100の完了記録および全体総合レビューの完了記録を追記。
+    - 検証結果:
+      - `pnpm test` (`node scripts/verify-all.mjs`): Exit Code 0 (全50個別テスト合格、全15IPCコマンド整合、全18ネイティブメニューイベント整合、ショートカット定義競合なし)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite プロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo check`: Exit Code 0 (エラー0件)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク100「品質保証/自動テスト: WYSIWYG/ソース直接編集双方での部分装飾解除・分割整形、空選択ガード、ネイティブメニュー（18イベント）、ショートカット定義、ツールバーボタンを網羅検証する自動テストスクリプト（scripts/verify-clear-formatting.mjs）の作成と scripts/verify-all.mjs への統合、および全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）のパス確認」を完了。
   - **変更理由**: Phase 26 で導入された書式クリア（Clear Formatting / Bare）機能について、純粋ロジック（`src/utils/format.ts`）、ソース直接編集モード（`SourceEditor.tsx`）、WYSIWYGモード（`Editor.tsx`）、クイックアクションツールバー（`EditorToolbar.tsx`）、OSネイティブメニュー（`src-tauri/src/menu.rs`）、ショートカット設定、チートシート早見表、および `App.tsx` のモード別動的ディスパッチとイベントハンドリングを横断・統合的に検証し、将来の改修によるデグレードを防止する堅牢な品質保証スイートを確立するため。
   - **Before**:
