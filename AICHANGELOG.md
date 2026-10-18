@@ -1,3 +1,26 @@
+- 2026-10-18: タスク107「エディタ全体レイアウト最適化（課題1）: ソース直接編集モードの中央寄せレイアウト設計（Typoraライクな最大幅コンテナ `max-width: 900px; margin: 0 auto;`、ガター一体型配置、左右自然余白）の実装」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）において、エディタが全幅に広がり視線移動が横長になっていた課題、および単純に `.cm-content` のみに中央揃えを指定すると行番号ガター（`.cm-gutters`）が左端に置き去りになって巨大な空白が生じる「ガター分離問題」を解消し、Typoraライクな中央寄せ・快適な左右自然余白・ガター一体配置を実現するため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `customTheme` の `&` に `maxWidth: "900px"` / `margin: "0 auto"` が指定されておらず、エディタ全体が画面全幅に広がっていた。
+      - CodeMirror のコンポーネントに `max-w-[900px] mx-auto` が設定されていなかった。
+      - 外側の余白領域をクリックした際にエディタにフォーカスが当たらなかった。
+    - `Plan.md`: タスク107が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `customTheme` の `&`（`.cm-editor`）に `maxWidth: "900px"`, `margin: "0 auto"` を適用し、CodeMirror 全体が中央寄せになるように構成。
+      - ガター（`.cm-gutters`）と本文（`.cm-content`）が分離せず一体となって最大幅900pxのコンテナ内に配置される構造を確立。
+      - CodeMirror コンポーネントに `className="h-full text-sm max-w-[900px] mx-auto"` を付与。
+      - 外側ラッパーに `onClick` ハンドラを追加し、エディタ外の余白領域をクリックした際にも `editorRef.current?.view?.focus()` でエディタにフォーカスが当たるよう改善。
+      - `.cm-content` の `padding: "24px 32px"` と協調し、画面端にテキストが張り付かない十分な左右自然余白を常に維持。
+    - `for_agent/architecture.md`: 改訂履歴にタスク107完了を追記。
+    - 検証結果:
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `pnpm test`: Exit Code 0 (全50個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク106「インデント操作・描画修正（課題2 & 3）: `SourceEditor.tsx` への `indentWithTab` キーマップ登録（Tab / Shift+Tab によるインデント・アンインデント有効化）、行頭空白の描画保証（`white-space: break-spaces / pre-wrap`）およびネストリストのインデント保持」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）において、Tabキー押下時にインデントが挿入されずエディタからブラウザのフォーカスが外れてしまう問題（課題2）、および行頭の連続空白（2スペース、4スペース等）がHTMLの空白縮約によって潰れ、ネストされたリストやインデント記法が視覚的に崩れる問題（課題3）を解消するため。
   - **Before**:

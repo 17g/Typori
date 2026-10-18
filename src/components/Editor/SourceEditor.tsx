@@ -386,6 +386,8 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
       {
         "&": {
           height: "100%",
+          maxWidth: "900px",
+          margin: "0 auto",
           fontSize: "14px",
           fontFamily:
             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
@@ -562,7 +564,15 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
       </div>
 
       {/* CodeMirror エディタ本体 */}
-      <div className={`flex-1 min-h-0 w-full overflow-hidden ${isFocusMode ? "cm-focus-mode" : ""}`}>
+      <div
+        className={`flex-1 min-h-0 w-full overflow-hidden ${isFocusMode ? "cm-focus-mode" : ""}`}
+        onClick={(e) => {
+          // 余白領域（CodeMirror本体外）をクリックした際にもエディタにフォーカスを当てる
+          if (e.target === e.currentTarget) {
+            editorRef.current?.view?.focus();
+          }
+        }}
+      >
         <CodeMirror
           ref={editorRef}
           value={content}
@@ -572,7 +582,7 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           onChange={handleChange}
           placeholder={placeholder}
           basicSetup={basicSetupOptions}
-          className="h-full text-sm"
+          className="h-full text-sm max-w-[900px] mx-auto"
         />
       </div>
     </div>
