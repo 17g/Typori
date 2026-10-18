@@ -137,7 +137,7 @@
 
 ## Phase 24: ソース直接編集モードの表示・レイアウト・構文ハイライト完全改善
 - [x] 85. 仕様策定・設計: ソース直接編集モード（CodeMirror 6）のレイアウト仕様（行番号ガターと本文の位置関係・パディング・スクロール領域）、GFM構文拡張、コードブロック言語ハイライト（JavaScript, TypeScript, Python, Rust, HTML, CSS, JSON, Markdown 等）、およびWYSIWYG/直接編集モード間の双方向コンテンツ同期（Ref整合性・元ファイル生ソース優先維持）の仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に追記・改訂
-- [ ] 86. 構文ハイライト & GFM対応: `@codemirror/language-data` 等による主要プログラミング言語構文パーサーの導入、`@codemirror/lang-markdown` への GFM 拡張（表、タスクリスト、自動リンク、打消し線）および `codeLanguages` の設定、Typori向けライト/ダークシンタックスハイライトテーマの整備（`src/components/Editor/SourceEditor.tsx`）
+- [x] 86. 構文ハイライト & GFM対応: `@codemirror/language-data` 等による主要プログラミング言語構文パーサーの導入、`@codemirror/lang-markdown` への GFM 拡張（表、タスクリスト、自動リンク、打消し線）および `codeLanguages` の設定、Typori向けライト/ダークシンタックスハイライトテーマの整備（`src/components/Editor/SourceEditor.tsx`）
 - [ ] 87. レイアウト・スタイル修正: `SourceEditor.tsx` の flexbox 高さ構造（`flex-1 h-full` 重複の解消・`.cm-scroller` の overflow 最適化）、および `.cm-content` と `.cm-gutters` のマージン・パディング統合（中央寄せによるガター分離の解消、Typoraライクな美しい等幅エディタレイアウトの確立）
 - [ ] 88. モード切替 & コンテンツ完全同期の堅牢化: `App.tsx` の `handleToggleSourceMode`、`onExitSourceMode`、`handleSelectFile` における `isSourceModeRef` 同期漏れ解消、WYSIWYG切替時の未保存判定・生ソース完全保護、およびエディタ間でのカーソル・スクロール位置の破棄防止
 - [ ] 89. 品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（`scripts/verify-source-editor-display.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認

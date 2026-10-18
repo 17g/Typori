@@ -1,6 +1,56 @@
 import { useMemo, useCallback, useRef } from "react";
-import CodeMirror, { ReactCodeMirrorRef, EditorView, keymap, oneDark, Prec } from "@uiw/react-codemirror";
-import { markdown } from "@codemirror/lang-markdown";
+import CodeMirror, { ReactCodeMirrorRef, EditorView, keymap, Prec } from "@uiw/react-codemirror";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
+
+/**
+ * Typori ライトテーマ向けシンタックスハイライトスタイル
+ * Tailwind Zinc 配色と調和するモダンなミニマルハイライト
+ */
+export const typoriLightHighlightStyle = HighlightStyle.define([
+  { tag: t.heading, color: "#09090b", fontWeight: "bold" },
+  { tag: t.strong, fontWeight: "bold" },
+  { tag: t.emphasis, fontStyle: "italic" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.link, color: "#4f46e5", textDecoration: "underline" },
+  { tag: t.url, color: "#6366f1" },
+  { tag: [t.monospace], color: "#0284c7" },
+  { tag: [t.keyword, t.operatorKeyword, t.modifier], color: "#7c3aed" },
+  { tag: [t.string, t.special(t.string), t.character], color: "#059669" },
+  { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: "#71717a", fontStyle: "italic" },
+  { tag: [t.number, t.integer, t.float, t.bool], color: "#ea580c" },
+  { tag: [t.variableName, t.attributeName], color: "#27272a" },
+  { tag: [t.function(t.variableName), t.propertyName], color: "#2563eb" },
+  { tag: [t.typeName, t.className], color: "#0891b2" },
+  { tag: [t.tagName], color: "#7c3aed" },
+  { tag: [t.punctuation, t.bracket], color: "#71717a" },
+]);
+
+/**
+ * Typori ダークテーマ向けシンタックスハイライトスタイル
+ * Tailwind Zinc 配色と調和する深色系ハイライト
+ */
+export const typoriDarkHighlightStyle = HighlightStyle.define([
+  { tag: t.heading, color: "#fafafa", fontWeight: "bold" },
+  { tag: t.strong, fontWeight: "bold" },
+  { tag: t.emphasis, fontStyle: "italic" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.link, color: "#818cf8", textDecoration: "underline" },
+  { tag: t.url, color: "#a5b4fc" },
+  { tag: [t.monospace], color: "#38bdf8" },
+  { tag: [t.keyword, t.operatorKeyword, t.modifier], color: "#a78bfa" },
+  { tag: [t.string, t.special(t.string), t.character], color: "#34d399" },
+  { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: "#a1a1aa", fontStyle: "italic" },
+  { tag: [t.number, t.integer, t.float, t.bool], color: "#fb923c" },
+  { tag: [t.variableName, t.attributeName], color: "#f4f4f5" },
+  { tag: [t.function(t.variableName), t.propertyName], color: "#60a5fa" },
+  { tag: [t.typeName, t.className], color: "#22d3ee" },
+  { tag: [t.tagName], color: "#a78bfa" },
+  { tag: [t.punctuation, t.bracket], color: "#a1a1aa" },
+]);
+
 
 export interface SourceEditorProps {
   content: string;
@@ -161,15 +211,27 @@ export function SourceEditor({
     );
   }, [theme]);
 
+  const highlightExtension = useMemo(() => {
+    return syntaxHighlighting(theme === "dark" ? typoriDarkHighlightStyle : typoriLightHighlightStyle);
+  }, [theme]);
+
+  const markdownExtension = useMemo(() => {
+    return markdown({
+      base: markdownLanguage,
+      codeLanguages: languages,
+    });
+  }, []);
+
   const extensions = useMemo(() => {
     return [
-      markdown(),
+      markdownExtension,
+      highlightExtension,
       EditorView.lineWrapping,
       domEventExtension,
       keymapExtension,
       customTheme,
     ];
-  }, [domEventExtension, keymapExtension, customTheme]);
+  }, [markdownExtension, highlightExtension, domEventExtension, keymapExtension, customTheme]);
 
   const basicSetupOptions = useMemo(
     () => ({
@@ -268,7 +330,7 @@ export function SourceEditor({
           ref={editorRef}
           value={content}
           height="100%"
-          theme={theme === "dark" ? oneDark : "light"}
+          theme={theme === "dark" ? "dark" : "light"}
           extensions={extensions}
           onChange={handleChange}
           placeholder={placeholder}

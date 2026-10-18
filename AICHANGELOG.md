@@ -1,3 +1,30 @@
+- 2026-10-18: タスク86「構文ハイライト & GFM対応: @codemirror/language-data 等による主要プログラミング言語構文パーサーの導入、@codemirror/lang-markdown への GFM 拡張（表、タスクリスト、自動リンク、打消し線）および codeLanguages の設定、Typori向けライト/ダークシンタックスハイライトテーマの整備（src/components/Editor/SourceEditor.tsx）」を完了。
+  - **変更理由**: ソース直接編集モードにおいて、GFM（GitHub Flavored Markdown）構文（表、タスクリスト、打消し線、自動リンク等）および主要プログラミング言語（JavaScript, TypeScript, Python, Rust, HTML, CSS, JSON, Markdown, YAML, Bash, SQL 等）のフェンスドコードブロックが美しく構文ハイライトされ、Typori の Zinc 配色（ライト／ダーク）と調和する等幅執筆環境を提供するため。
+  - **Before**:
+    - `package.json`: `@codemirror/language-data`, `@codemirror/language`, `@lezer/highlight`, `@codemirror/state`, `@codemirror/view` が dependencies に登録されていなかった。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `@codemirror/lang-markdown` の `markdown()` を引数なし（デフォルト CommonMark）で初期化しており、GFM 拡張（表、打消し線、タスクリスト等）やコードブロック構文ハイライト（`codeLanguages`）が無効であった。
+      - テーマに `@uiw/react-codemirror` の `oneDark` / `"light"` をそのまま使用しており、Typori 向けのカスタムシンタックスハイライトテーマ（Tailwind Zinc 調和）が存在しなかった。
+    - `scripts/verify-source-editor.mjs`: `@codemirror/language-data` の言語マッチング、GFM構文パース（表、打消し線、コードブロック）、および `SourceEditor.tsx` の Typori ハイライトスタイルの検証が含まれていなかった。
+    - `Plan.md`: タスク86が未完了（`- [ ]`）であった。
+  - **After**:
+    - `package.json`: `@codemirror/language-data`, `@codemirror/language`, `@lezer/highlight`, `@codemirror/state`, `@codemirror/view` を追加。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `@codemirror/lang-markdown` の `markdownLanguage` をベースとし、`@codemirror/language-data` の `languages` を `codeLanguages` に設定して GFM 構文および主要 140+ 言語のコードブロックハイライトを有効化。
+      - `typoriLightHighlightStyle` および `typoriDarkHighlightStyle` を `HighlightStyle.define` で策定・エクスポートし、Tailwind Zinc 配色に最適化した見出し、太字、斜体、打消し線、リンク、URL、インラインコード、キーワード、文字列、コメント、数値、変数、関数、型、タグのトークンカラーを設定。
+      - `syntaxHighlighting` 拡張を `extensions` に組み込み、`<CodeMirror theme={theme === "dark" ? "dark" : "light"} />` で動的適用。
+    - `scripts/verify-source-editor.mjs`:
+      - `@codemirror/language-data` による主要言語（JS, TS, Python, Rust, HTML, CSS, JSON, Markdown, YAML, Bash, SQL 等）のマッチング検証、GFM構文木パース検証、`SourceEditor.tsx` のハイライトスタイル定義検証を追加。
+    - `Plan.md`:
+      - タスク86を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-editor.mjs`: Exit Code 0 (全検証合格)
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `package.json`, `pnpm-lock.yaml`, `scripts/verify-source-editor.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク85「仕様策定・設計: ソース直接編集モード（CodeMirror 6）のレイアウト仕様（行番号ガターと本文の位置関係・パディング・スクロール領域）、GFM構文拡張、コードブロック言語ハイライト（JavaScript, TypeScript, Python, Rust, HTML, CSS, JSON, Markdown 等）、およびWYSIWYG/直接編集モード間の双方向コンテンツ同期（Ref整合性・元ファイル生ソース優先維持）の仕様を for_agent/（architecture.md, guardrails.md）に追記・改訂」を完了。
   - **変更理由**: Phase 24（ソース直接編集モードの表示・レイアウト・構文ハイライト完全改善）の実装に先立ち、行番号ガターと本文が分離して巨大な余白が生じるレイアウト問題の解消、GFM拡張記法・主要プログラミング言語のフェンスドコードブロック構文ハイライト、およびWYSIWYG/直接編集モード間の双方向コンテンツ同期・Ref整合性・元ファイル生ソース優先維持の技術仕様とガードレール手順を明確に策定・定義するため。
   - **Before**:
