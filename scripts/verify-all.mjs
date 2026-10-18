@@ -61,6 +61,7 @@ const testScripts = [
   { name: "アウトライン・画像・Mermaid遅延ロード最適化 (Phase 25 Task 94)", file: "verify-large-file-lazy-loading.mjs" },
   { name: "大容量ファイル (800KB/5000行+) パフォーマンステスト & 全機能整合性 (Phase 25 Task 95)", file: "verify-large-file-performance.mjs" },
   { name: "書式クリア純粋ロジック単体検証 (Phase 26 Task 96)", file: "verify-clear-formatting-logic.mjs" },
+  { name: "ソース直接編集モード書式クリア機能検証 (Phase 26 Task 97)", file: "verify-source-clear-formatting.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

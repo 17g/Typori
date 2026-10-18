@@ -152,7 +152,7 @@
 
 ## Phase 26: 書式クリア機能（Clear Formatting / Bare）
 - [x] 96. ソース整形ロジック: 始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク等）および複合装飾に対し、選択範囲に応じた自動分割・置換（中間分割・端点分割・全体解除・ネスト解除・範囲内一括クリア・空選択ガード）を行う純粋関数（`src/utils/format.ts` 等）の実装と単体テスト
-- [ ] 97. ソース直接編集モード: CodeMirror 6 において選択テキストの書式クリアを実行するコマンド/関数（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・キーマップ連携（`src/components/Editor/SourceEditor.tsx`）
+- [x] 97. ソース直接編集モード: CodeMirror 6 において選択テキストの書式クリアを実行するコマンド/関数（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・キーマップ連携（`src/components/Editor/SourceEditor.tsx`）
 - [ ] 98. WYSIWYGモード: ProseMirror の `tr.removeMark(from, to)` による選択範囲の全インラインMark一括解除処理（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・空選択ガード（`src/components/Editor/Editor.tsx`）
 - [ ] 99. UI・OS連携・ショートカット: OSネイティブ「編集」メニューへの「書式をクリア (CmdOrCtrl+Shift+B)」追加（`src-tauri/src/menu.rs` / `menu:clear_formatting`）、`SHORTCUT_ITEMS`（`Ctrl+Shift+B`）・チートシート早見表への掲載、クイックアクションパレット（`EditorToolbar.tsx`）へのクリアボタン配置、および `App.tsx` でのイベント購読・動的実行ハンドラの実装
 - [ ] 100. 品質保証/自動テスト: WYSIWYG/ソース直接編集双方での部分装飾解除・分割整形、空選択ガード、ネイティブメニュー（18イベント）、ショートカット定義、ツールバーボタンを網羅検証する自動テストスクリプト（`scripts/verify-clear-formatting.mjs`）の作成と `scripts/verify-all.mjs` への統合、および全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）のパス確認

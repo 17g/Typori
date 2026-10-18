@@ -1,4 +1,38 @@
-- 2026-10-18: タスク96「ソース整形ロジック: 始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク等）および複合装飾に対し、選択範囲に応じた自動分割・置換（中間分割・端点分割・全体解除・ネスト解除・範囲内一括クリア・空選択ガード）を行う純粋関数（src/utils/format.ts 等）の実装と単体テスト」を完了。
+- 2026-10-18: タスク97「ソース直接編集モード: CodeMirror 6 において選択テキストの書式クリアを実行するコマンド/関数（clearFormatting）の実装と、コンポーネント ref 経由での外部公開・キーマップ連携（src/components/Editor/SourceEditor.tsx）」を完了。
+  - **変更理由**: Markdownソースコード直接編集モード（CodeMirror 6）において、選択テキストのインライン装飾（太字・イタリック・打ち消し線・インラインコード・リンク・複合装飾等）を解除して素のテキストに戻す機能（書式クリア / Bare）を高速かつ安全に実行できるようにするため。ショートカットキー（Ctrl+Shift+B / Cmd+Shift+B）による即時実行、親コンポーネントからの ref 経由での外部呼び出し、空選択ガード、および最小変更差分（diff）置換による局所トランザクション（Forced Reparse 回避）を提供するため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `SourceEditorRef` インターフェースが存在せず、コンポーネントが `forwardRef` でラップされていなかった。
+      - CodeMirror 6 の `EditorView` 上で書式クリアを実行するコマンド/関数（`clearFormatting` / `clearFormattingCommand`）が存在しなかった。
+      - DOMキーダウンハンドラおよびキーマップ拡張（`keymapExtension`）に `Ctrl+Shift+B` / `Mod-Shift-b` / `Mod-Shift-B` のバインドが存在しなかった。
+      - `onClearFormatting` プロップが存在しなかった。
+    - `scripts/verify-source-clear-formatting.mjs`:
+      - ソース直接編集モードにおける書式クリア機能、Ref公開、キーマップ連携、最小差分置換、空選択ガードを検証するテストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`:
+      - 個別テスト数が47件であり、ソース直接編集モード書式クリアの検証が含まれていなかった。
+    - `Plan.md`: タスク97が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `SourceEditorRef` インターフェース（`clearFormatting`, `focus`, `getScrollTop`, `setScrollTop`, `getView`）を定義・export。
+      - `clearFormatting(view: EditorView): boolean` コマンド/関数および `clearFormattingCommand` エイリアスを実装・export。空選択ガード（`ranges.length === 0` または `range.empty` 時は `false` 返却）、複数選択対応（降順処理）、`clearInlineFormatting` 連携、および最小変更範囲（diff）による局所置換（`userEvent: "format.clear"`）を実装。
+      - `SourceEditorProps` に `onClearFormatting?: () => void` を追加。
+      - `SourceEditor` を `forwardRef<SourceEditorRef, SourceEditorProps>` でラップし、`useImperativeHandle` により外部へメソッドを公開。
+      - `domEventExtension`（`Prec.highest`）に `Ctrl+Shift+B` / `Cmd+Shift+B` 先行インターセプト（`preventDefault` / `stopPropagation`）を追加。
+      - `keymapExtension`（`Prec.highest`）に `Mod-Shift-b` および `Mod-Shift-B` を登録。
+    - `scripts/verify-source-clear-formatting.mjs`:
+      - 新規作成。[Step 1] `SourceEditor.tsx` の静的構成・エクスポート・ref公開検証、[Step 2] キーマップおよびDOMイベントハンドラ登録検証、[Step 3] CodeMirror 6 EditorState / Dispatch シミュレーション（空選択ガード、装飾なしスキップ、太字解除、最小変更差分局所置換）を網羅実行。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-source-clear-formatting.mjs` を追加し、全 48 件の個別機能検証テストスイートとして統合。
+    - `Plan.md`:
+      - タスク97を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-clear-formatting.mjs`: Exit Code 0 (全3ステップ合格)
+      - `pnpm test`: Exit Code 0 (全48個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `scripts/verify-source-clear-formatting.mjs`, `scripts/verify-all.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
   - **変更理由**: 太字・イタリック・打ち消し線・インラインコード・リンク等の始まりと終わりのあるインライン記法が適用されている文字列において、ユーザーが一部分または全体を選択した際に装飾を解除して素のテキスト（Bare）に戻す機能（書式クリア）を実現するため。ソース直接編集モード（CodeMirror 6）および各種エディタ操作から利用可能な、ネスト・複合装飾・端点交差・空白トリム・空選択ガードに対応した堅牢で副作用のない純粋関数モジュール（`src/utils/format.ts`）を提供するため。
   - **Before**:
     - `src/utils/format.ts`:

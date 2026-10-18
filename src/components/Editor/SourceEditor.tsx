@@ -1,9 +1,11 @@
-import { useMemo, useCallback, useRef, useEffect } from "react";
+import { forwardRef, useMemo, useCallback, useRef, useEffect, useImperativeHandle } from "react";
 import CodeMirror, { ReactCodeMirrorRef, EditorView, keymap, Prec } from "@uiw/react-codemirror";
+import { EditorSelection } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { clearInlineFormatting } from "../../utils/format";
 
 /**
  * Typori ライトテーマ向けシンタックスハイライトスタイル
@@ -52,6 +54,116 @@ export const typoriDarkHighlightStyle = HighlightStyle.define([
 ]);
 
 
+/**
+ * SourceEditor 外部公開インターフェース (Ref)
+ */
+export interface SourceEditorRef {
+  /**
+   * 選択テキストの書式（始まりと終わりのあるインライン記法・複合記法全般）をクリアして
+   * 素のテキストに戻し、前後の装飾記号を適切に自動分割・置換します。
+   * 選択範囲がない（空選択）場合、または装飾が含まれない場合は false を返します。
+   */
+  clearFormatting: () => boolean;
+  /**
+   * エディタにフォーカスを当てます。
+   */
+  focus: () => void;
+  /**
+   * 現在のスクロール位置（ピクセル）を取得します。
+   */
+  getScrollTop: () => number;
+  /**
+   * スクロール位置を設定します。
+   */
+  setScrollTop: (top: number) => void;
+  /**
+   * CodeMirror の EditorView インスタンス（存在する場合）を取得します。
+   */
+  getView: () => EditorView | undefined;
+}
+
+/**
+ * CodeMirror 6 において選択テキストのインライン書式クリアを実行するコマンド/関数
+ * 
+ * 選択範囲（Selection）が存在する場合に clearInlineFormatting を呼び出し、
+ * 最小限の変更範囲（Minimal Change Range）を特定して単一トランザクションで置換します。
+ * 選択範囲が空（カーソルのみ）の場合は何もしません（空選択ガード）。
+ * 
+ * @param view CodeMirror EditorView
+ * @returns 書式クリアが実行された場合は true、空選択や変更なしの場合は false
+ */
+export function clearFormatting(view: EditorView): boolean {
+  const { state, dispatch } = view;
+  const ranges = state.selection.ranges.filter((r) => !r.empty);
+  if (ranges.length === 0) {
+    // 空選択ガード: 選択範囲がない場合は何もしない
+    return false;
+  }
+
+  let docText = state.doc.toString();
+  let anyChanged = false;
+  // 右から左（降順）に適用してオフセットズレを防止
+  const sortedRanges = [...ranges].sort((a, b) => b.from - a.from);
+  const newSelectionRanges: Array<{ anchor: number; head: number }> = [];
+
+  for (const range of sortedRanges) {
+    const result = clearInlineFormatting(docText, range.from, range.to);
+    if (result.changed) {
+      anyChanged = true;
+      docText = result.text;
+      newSelectionRanges.push({ anchor: result.from, head: result.to });
+    } else {
+      newSelectionRanges.push({ anchor: range.from, head: range.to });
+    }
+  }
+
+  if (!anyChanged) {
+    return false;
+  }
+
+  // 昇順に復元
+  newSelectionRanges.reverse();
+
+  // 元テキストとの最小変更範囲（diff）を特定して局所置換
+  const originalDoc = state.doc.toString();
+  let start = 0;
+  while (
+    start < originalDoc.length &&
+    start < docText.length &&
+    originalDoc[start] === docText[start]
+  ) {
+    start++;
+  }
+
+  let oldEnd = originalDoc.length;
+  let newEnd = docText.length;
+  while (
+    oldEnd > start &&
+    newEnd > start &&
+    originalDoc[oldEnd - 1] === docText[newEnd - 1]
+  ) {
+    oldEnd--;
+    newEnd--;
+  }
+
+  dispatch({
+    changes: {
+      from: start,
+      to: oldEnd,
+      insert: docText.slice(start, newEnd),
+    },
+    selection: EditorSelection.create(
+      newSelectionRanges.map((r) => EditorSelection.range(r.anchor, r.head))
+    ),
+    userEvent: "format.clear",
+    scrollIntoView: true,
+  });
+
+  return true;
+}
+
+export const clearFormattingCommand = clearFormatting;
+
 export interface SourceEditorProps {
   content: string;
   onChange: (value: string) => void;
@@ -65,116 +177,200 @@ export interface SourceEditorProps {
   filePath?: string | null;
   placeholder?: string;
   initialScrollTop?: number;
+  onClearFormatting?: () => void;
 }
 
-export function SourceEditor({
-  content,
-  onChange,
-  theme = "light",
-  onSave,
-  onExitSourceMode,
-  onToggleSourceMode,
-  isFocusMode = false,
-  onToggleFocusMode,
-  showLineNumbers = true,
-  placeholder = "Markdownを入力...",
-  initialScrollTop,
-}: SourceEditorProps) {
-  const editorRef = useRef<ReactCodeMirrorRef>(null);
+export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
+  function SourceEditor(
+    {
+      content,
+      onChange,
+      theme = "light",
+      onSave,
+      onExitSourceMode,
+      onToggleSourceMode,
+      isFocusMode = false,
+      onToggleFocusMode,
+      showLineNumbers = true,
+      placeholder = "Markdownを入力...",
+      initialScrollTop,
+      onClearFormatting,
+    },
+    ref
+  ) {
+    const editorRef = useRef<ReactCodeMirrorRef>(null);
 
-  // モード切替時のスクロール位置復元
-  useEffect(() => {
-    if (initialScrollTop !== undefined && initialScrollTop > 0) {
-      requestAnimationFrame(() => {
-        const scroller = editorRef.current?.view?.scrollDOM || document.querySelector(".cm-scroller");
-        if (scroller) {
-          scroller.scrollTop = initialScrollTop;
-        }
-      });
-    }
-  }, [initialScrollTop]);
-
-  // コールバックの最新参照を保持（CodeMirror拡張を不要に再構築せず常に最新のハンドラを実行）
-  const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
-  const onToggleSourceModeRef = useRef(onToggleSourceMode);
-  onToggleSourceModeRef.current = onToggleSourceMode;
-  const onExitSourceModeRef = useRef(onExitSourceMode);
-  onExitSourceModeRef.current = onExitSourceMode;
-  const onToggleFocusModeRef = useRef(onToggleFocusMode);
-  onToggleFocusModeRef.current = onToggleFocusMode;
-
-  const handleToggleOrExit = useCallback(() => {
-    const toggle = onToggleSourceModeRef.current || onExitSourceModeRef.current;
-    if (toggle) {
-      toggle();
-      return true;
-    }
-    return false;
-  }, []);
-
-  // DOMレベルでのショートカット制御
-  // CodeMirrorデフォルトのコメントトグル (Mod-/ -> toggleComment '<!-- -->') やウィンドウへの不要な伝播を確実に抑止
-  const domEventExtension = useMemo(() => {
-    return Prec.highest(
-      EditorView.domEventHandlers({
-        keydown(event, _view) {
-          const isSlashKey =
-            event.key === "/" ||
-            (event.code === "Slash" && !event.shiftKey) ||
-            event.code === "NumpadDivide";
-          if ((event.ctrlKey || event.metaKey) && isSlashKey && !event.altKey) {
-            event.preventDefault();
-            event.stopPropagation();
-            handleToggleOrExit();
-            return true;
+    // モード切替時のスクロール位置復元
+    useEffect(() => {
+      if (initialScrollTop !== undefined && initialScrollTop > 0) {
+        requestAnimationFrame(() => {
+          const scroller = editorRef.current?.view?.scrollDOM || document.querySelector(".cm-scroller");
+          if (scroller) {
+            scroller.scrollTop = initialScrollTop;
           }
-          return false;
-        },
-      })
-    );
-  }, [handleToggleOrExit]);
+        });
+      }
+    }, [initialScrollTop]);
 
-  // Ctrl+S / Cmd+S による保存、Ctrl+/ によるモード切替、F8 によるフォーカス切替
-  // CodeMirror の defaultKeymap (Mod-/ -> toggleComment '<!-- -->') よりも確実に優先するため Prec.highest を適用
-  const keymapExtension = useMemo(() => {
-    return Prec.highest(
-      keymap.of([
-        {
-          key: "Mod-s",
-          run: () => {
-            if (onSaveRef.current) {
-              onSaveRef.current();
-              return true;
-            }
-            return false;
-          },
-          preventDefault: true,
-          stopPropagation: true,
+    // コールバックの最新参照を保持（CodeMirror拡張を不要に再構築せず常に最新のハンドラを実行）
+    const onSaveRef = useRef(onSave);
+    onSaveRef.current = onSave;
+    const onToggleSourceModeRef = useRef(onToggleSourceMode);
+    onToggleSourceModeRef.current = onToggleSourceMode;
+    const onExitSourceModeRef = useRef(onExitSourceMode);
+    onExitSourceModeRef.current = onExitSourceMode;
+    const onToggleFocusModeRef = useRef(onToggleFocusMode);
+    onToggleFocusModeRef.current = onToggleFocusMode;
+    const onClearFormattingRef = useRef(onClearFormatting);
+    onClearFormattingRef.current = onClearFormatting;
+
+    const handleClearFormatting = useCallback(() => {
+      const view = editorRef.current?.view;
+      if (!view) return false;
+      const success = clearFormatting(view);
+      if (success) {
+        if (onClearFormattingRef.current) {
+          onClearFormattingRef.current();
+        }
+        return true;
+      }
+      return false;
+    }, []);
+
+    // 外部公開 ref のハンドリング
+    useImperativeHandle(
+      ref,
+      () => ({
+        clearFormatting: handleClearFormatting,
+        focus: () => {
+          editorRef.current?.view?.focus();
         },
-        {
-          key: "Mod-/",
-          run: () => {
-            return handleToggleOrExit();
-          },
-          preventDefault: true,
-          stopPropagation: true,
+        getScrollTop: () => {
+          const scroller = editorRef.current?.view?.scrollDOM;
+          return scroller?.scrollTop || 0;
         },
-        {
-          key: "F8",
-          run: () => {
-            if (onToggleFocusModeRef.current) {
-              onToggleFocusModeRef.current();
-              return true;
-            }
-            return false;
-          },
-          preventDefault: true,
-          stopPropagation: true,
+        setScrollTop: (top: number) => {
+          const scroller = editorRef.current?.view?.scrollDOM;
+          if (scroller) {
+            scroller.scrollTop = top;
+          }
         },
-      ])
+        getView: () => editorRef.current?.view,
+      }),
+      [handleClearFormatting]
     );
-  }, [handleToggleOrExit]);
+
+    const handleToggleOrExit = useCallback(() => {
+      const toggle = onToggleSourceModeRef.current || onExitSourceModeRef.current;
+      if (toggle) {
+        toggle();
+        return true;
+      }
+      return false;
+    }, []);
+
+    // DOMレベルでのショートカット制御
+    // CodeMirrorデフォルトのコメントトグル (Mod-/ -> toggleComment '<!-- -->') やウィンドウへの不要な伝播を確実に抑止
+    const domEventExtension = useMemo(() => {
+      return Prec.highest(
+        EditorView.domEventHandlers({
+          keydown(event, view) {
+            const isSlashKey =
+              event.key === "/" ||
+              (event.code === "Slash" && !event.shiftKey) ||
+              event.code === "NumpadDivide";
+            if ((event.ctrlKey || event.metaKey) && isSlashKey && !event.altKey) {
+              event.preventDefault();
+              event.stopPropagation();
+              handleToggleOrExit();
+              return true;
+            }
+
+            // Ctrl+Shift+B / Cmd+Shift+B: 書式クリア
+            const isBKey =
+              event.key === "b" ||
+              event.key === "B" ||
+              event.code === "KeyB";
+            if ((event.ctrlKey || event.metaKey) && event.shiftKey && isBKey && !event.altKey) {
+              event.preventDefault();
+              event.stopPropagation();
+              const success = clearFormatting(view);
+              if (success && onClearFormattingRef.current) {
+                onClearFormattingRef.current();
+              }
+              return true;
+            }
+
+            return false;
+          },
+        })
+      );
+    }, [handleToggleOrExit]);
+
+    // Ctrl+S / Cmd+S による保存、Ctrl+/ によるモード切替、Ctrl+Shift+B による書式クリア、F8 によるフォーカス切替
+    // CodeMirror の defaultKeymap (Mod-/ -> toggleComment '<!-- -->') よりも確実に優先するため Prec.highest を適用
+    const keymapExtension = useMemo(() => {
+      return Prec.highest(
+        keymap.of([
+          {
+            key: "Mod-s",
+            run: () => {
+              if (onSaveRef.current) {
+                onSaveRef.current();
+                return true;
+              }
+              return false;
+            },
+            preventDefault: true,
+            stopPropagation: true,
+          },
+          {
+            key: "Mod-/",
+            run: () => {
+              return handleToggleOrExit();
+            },
+            preventDefault: true,
+            stopPropagation: true,
+          },
+          {
+            key: "Mod-Shift-b",
+            run: (view) => {
+              const success = clearFormatting(view);
+              if (success && onClearFormattingRef.current) {
+                onClearFormattingRef.current();
+              }
+              return success;
+            },
+            preventDefault: true,
+            stopPropagation: true,
+          },
+          {
+            key: "Mod-Shift-B",
+            run: (view) => {
+              const success = clearFormatting(view);
+              if (success && onClearFormattingRef.current) {
+                onClearFormattingRef.current();
+              }
+              return success;
+            },
+            preventDefault: true,
+            stopPropagation: true,
+          },
+          {
+            key: "F8",
+            run: () => {
+              if (onToggleFocusModeRef.current) {
+                onToggleFocusModeRef.current();
+                return true;
+              }
+              return false;
+            },
+            preventDefault: true,
+            stopPropagation: true,
+          },
+        ])
+      );
+    }, [handleToggleOrExit]);
 
   // Typori向けのエディタカスタムスタイル
   const customTheme = useMemo(() => {
@@ -361,6 +557,6 @@ export function SourceEditor({
       </div>
     </div>
   );
-}
+});
 
 export default SourceEditor;
