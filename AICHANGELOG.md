@@ -1,3 +1,21 @@
+- 2026-10-18: 全体レビュー（/review）を実施し、プロジェクト全体のビルド・テスト・仕様整合性を点検完了。
+  - **変更理由**: Phase 23（セキュリティ強化・脆弱性対策）および開発計画全84タスクの完了を受け、仕様書正本（`architecture.md`, `guardrails.md`）と全実装コード（Rust バックエンド、React/TS フロントエンド、Milkdown/CodeMirror エディタコア、セキュリティ対策群、自動テストスイート）の完全な突き合わせ、エッジケースの点検、仕様書の最新化、およびフルビルド・全テストスイートの実行により回帰バグがないことを確認するため。
+  - **点検・検証結果**:
+    - **仕様書との整合性**:
+      - Phase 1〜23 の全機能要件（セキュリティ強化・CSP・Mermaid厳格化・サニタイズ・IPC境界防御・依存脆弱性解消含む）がすべて完全に実装・整合していることを確認。
+    - **バックエンド検証 (Rust)**:
+      - `cargo test`: 全39件の単体テストがすべて合格（Exit Code 0）。
+      - `cargo check`: Exit Code 0。
+      - `cargo clippy -- -D warnings`: エラー・警告ゼロ（Exit Code 0）。
+    - **フロントエンド検証 (React/TS)**:
+      - `pnpm run build`: TypeScript 型検査および Vite プロダクションビルドが成功（Exit Code 0）。
+    - **総合結合テストスイート**:
+      - `pnpm test`: 個別機能検証41件、IPCコマンド15件の登録整合性、OSネイティブメニューイベント17件の双方向整合性、ショートカット定義整合性がすべて Exit Code 0 でパス。
+    - **サプライチェーンセキュリティ**:
+      - `pnpm audit`: 脆弱性 0 件（Exit Code 0）。
+    - **仕様書更新**: `for_agent/architecture.md` の改訂履歴に本レビュー実施記録を追記。
+  - **影響範囲**: `for_agent/architecture.md`, `AICHANGELOG.md`。既存コードベースへの破壊的変更なし。
+
 - 2026-10-18: タスク84「品質保証/自動テスト: Phase 23 の全セキュリティ対策（Mermaid厳格化・サニタイズ、CSP・URLスキーム検証、エクスポートHTMLサニタイズ、IPC境界防御・サイズ/深度制限、依存関係オーバーライド）を網羅検証する自動テストスクリプト（scripts/verify-security-hardening.mjs）の作成と scripts/verify-all.mjs への統合、および全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）のパス確認」を完了。
   - **変更理由**: Phase 23 で実装した全5領域のセキュリティ対策（①Mermaid XSS対策・厳格化・サニタイズ、②防御的CSP設定・外部URLスキーム検証、③HTMLエクスポート/PDF印刷時の危険生HTMLサニタイズ、④バックエンドファイルシステムIPCのパストラバーサル防止・画像拡張子検証・サイズ上限50MB・再帰深度上限16階層、⑤pnpm v11/v12 overrides による既知脆弱性解消）が長期的に後退（リグレッション）しないよう、ワンストップの自動検証スクリプト（`scripts/verify-security-hardening.mjs`）で網羅的に担保し、総合テスト（`scripts/verify-all.mjs`）および全CI検証コマンドでExit Code 0を確認して開発計画（Plan.md 全84タスク）を完全に完了させるため。
   - **Before**:
