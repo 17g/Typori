@@ -186,6 +186,67 @@ export async function convertMarkdownToHtml(
 }
 
 /**
+ * エクスポートHTMLやPDF印刷用HTMLに含まれる危険なタグ・属性を無害化・サニタイズします (HIGH-02)。
+ * 
+ * - 危険なタグ (<script>, <iframe>, <object>, <embed>, <form>, <base>, <meta http-equiv...>) を除去
+ * - インラインイベントハンドラ属性 (on[a-zA-Z]+) を除去
+ * - 危険なURIスキーム (javascript:, vbscript:, data:text/html) を含む属性を除去
+ * - GFM標準要素（見出し、表、チェックボックス、画像、コードブロック、安全なリンク等）を完全に保持
+ */
+export function sanitizeExportHtml(html: string): string {
+  if (!html || typeof html !== "string") return "";
+
+  let sanitized = html;
+
+  // 1. 危険な要素タグの完全除去（ネストバイパス防止のため再帰ループ）
+  let prev: string;
+  do {
+    prev = sanitized;
+    sanitized = sanitized
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<script\b[^>]*\/?>/gi, "")
+      .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, "")
+      .replace(/<iframe\b[^>]*\/?>/gi, "")
+      .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, "")
+      .replace(/<object\b[^>]*\/?>/gi, "")
+      .replace(/<embed\b[^>]*>[\s\S]*?<\/embed>/gi, "")
+      .replace(/<embed\b[^>]*\/?>/gi, "")
+      .replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, "")
+      .replace(/<form\b[^>]*\/?>/gi, "")
+      .replace(/<base\b[^>]*\/?>/gi, "")
+      .replace(/<meta\b[^>]*http-equiv[^>]*\/?>/gi, "");
+  } while (sanitized !== prev);
+
+  // 2. インラインイベントハンドラ（onload, onerror, onclick 等の on* 属性）を除去
+  sanitized = sanitized.replace(/\s+on[a-zA-Z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+
+  // 3. 危険な URI スキーム（javascript:, vbscript:, data:text/html）を含む属性を除去
+  sanitized = sanitized.replace(
+    /\s+(?:href|xlink:href|src|action)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+    (fullMatch: string, q1?: string, q2?: string, q3?: string) => {
+      const rawVal = q1 ?? q2 ?? q3 ?? "";
+      const val = rawVal.replace(/[\s\x00-\x1f\x7f-\x9f]/g, "").toLowerCase();
+      const decodedVal = val
+        .replace(/&#x([0-9a-f]+);?/gi, (_: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#([0-9]+);?/gi, (_: string, dec: string) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/[\s\x00-\x1f\x7f-\x9f]/g, "")
+        .toLowerCase();
+
+      if (
+        decodedVal.startsWith("javascript:") ||
+        decodedVal.startsWith("vbscript:") ||
+        decodedVal.startsWith("data:text/html")
+      ) {
+        return "";
+      }
+      return fullMatch;
+    }
+  );
+
+  return sanitized;
+}
+
+/**
  * 指定パスにMarkdownをHTMLファイルとしてエクスポートします。
  * Mermaidダイアグラムが存在する場合はインラインSVGとして完全描画されたスタンドアロンHTMLを生成して保存します。
  */
@@ -196,10 +257,11 @@ export async function exportToHtml(
   theme?: string | null
 ): Promise<void> {
   const rawHtml = await convertMarkdownToHtml(markdown, title, theme);
-  const finalHtml = await renderMermaidInHtml(
+  const renderedHtml = await renderMermaidInHtml(
     rawHtml,
     theme === "dark" ? "dark" : "light"
   );
+  const finalHtml = sanitizeExportHtml(renderedHtml);
   await saveFile(path, finalHtml);
 }
 
@@ -304,8 +366,9 @@ export function printHtmlContent(htmlContent: string): Promise<void> {
           const unrendered = iframeDoc.querySelectorAll('pre > code.language-mermaid, pre > code[class*="language-mermaid"]');
           if (unrendered.length > 0) {
             const convertedHtml = await renderMermaidInHtml(iframeDoc.documentElement.outerHTML);
+            const safeConverted = sanitizeExportHtml(convertedHtml);
             iframeDoc.open();
-            iframeDoc.write(convertedHtml);
+            iframeDoc.write(safeConverted);
             iframeDoc.close();
           }
 
@@ -339,8 +402,9 @@ export function printHtmlContent(htmlContent: string): Promise<void> {
       triggerPrint();
     };
 
+    const safeHtml = sanitizeExportHtml(htmlContent);
     doc.open();
-    doc.write(htmlContent);
+    doc.write(safeHtml);
     doc.close();
 
     if (iframe.contentWindow) {

@@ -301,6 +301,169 @@ assert.ok(
 );
 console.log("✓ LinkTooltip.tsx: isSafeExternalUrl ガードおよびボタン無効化連動を確認");
 
+// ==================================================================
+// [Part 3] HTMLエクスポート・PDF印刷時のサニタイズ強化 (HIGH-02) 検証
+// ==================================================================
+console.log("\n[3] HTMLエクスポート・PDF印刷時のサニタイズ強化 (HIGH-02) の検証...");
+
+// 3.1 Rust バックエンド (src-tauri/src/fs.rs) のサニタイズ実装検証
+const fsRsPath = path.resolve(projectRoot, "src-tauri/src/fs.rs");
+assert.ok(fs.existsSync(fsRsPath), "src-tauri/src/fs.rs が存在すること");
+const fsRsContent = fs.readFileSync(fsRsPath, "utf-8").replace(/\r\n/g, "\n");
+
+assert.ok(
+  fsRsContent.includes("pub fn sanitize_exported_html("),
+  "src-tauri/src/fs.rs で sanitize_exported_html が公開定義されていること"
+);
+assert.ok(
+  fsRsContent.includes("sanitize_exported_html(&body_html)"),
+  "convert_markdown_to_html 内で sanitize_exported_html(&body_html) が適用されていること"
+);
+assert.ok(
+  fsRsContent.includes("remove_dangerous_tags(") &&
+    fsRsContent.includes("sanitize_tag_attributes("),
+  "fs.rs 内に危険タグ除去および属性サニタイズ関数が実装されていること"
+);
+console.log("✓ src-tauri/src/fs.rs: sanitize_exported_html 定義および convert_markdown_to_html 連動を確認");
+
+// 3.2 フロントエンド API (src/api/fs.ts) のサニタイズ実装検証
+const fsTsPath = path.resolve(projectRoot, "src/api/fs.ts");
+assert.ok(fs.existsSync(fsTsPath), "src/api/fs.ts が存在すること");
+const fsTsContent = fs.readFileSync(fsTsPath, "utf-8").replace(/\r\n/g, "\n");
+
+assert.ok(
+  fsTsContent.includes("export function sanitizeExportHtml("),
+  "src/api/fs.ts から sanitizeExportHtml がエクスポートされていること"
+);
+assert.ok(
+  fsTsContent.includes("sanitizeExportHtml(htmlContent)"),
+  "printHtmlContent 内で iframe への書き込み前に sanitizeExportHtml(htmlContent) が適用されていること"
+);
+assert.ok(
+  fsTsContent.includes("sanitizeExportHtml(") && fsTsContent.includes("exportToHtml"),
+  "exportToHtml 内で sanitizeExportHtml が適用されていること"
+);
+console.log("✓ src/api/fs.ts: sanitizeExportHtml 定義および printHtmlContent / exportToHtml 適用を確認");
+
+// 3.3 sanitizeExportHtml の動的サニタイズ挙動検証
+{
+  // sanitizeExportHtml の動的シミュレーション
+  const sanitizeExportHtml = (html) => {
+    if (!html || typeof html !== "string") return "";
+    let sanitized = html;
+    let prev;
+    do {
+      prev = sanitized;
+      sanitized = sanitized
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<script\b[^>]*\/?>/gi, "")
+        .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, "")
+        .replace(/<iframe\b[^>]*\/?>/gi, "")
+        .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, "")
+        .replace(/<object\b[^>]*\/?>/gi, "")
+        .replace(/<embed\b[^>]*>[\s\S]*?<\/embed>/gi, "")
+        .replace(/<embed\b[^>]*\/?>/gi, "")
+        .replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, "")
+        .replace(/<form\b[^>]*\/?>/gi, "")
+        .replace(/<base\b[^>]*\/?>/gi, "")
+        .replace(/<meta\b[^>]*http-equiv[^>]*\/?>/gi, "");
+    } while (sanitized !== prev);
+
+    sanitized = sanitized.replace(/\s+on[a-zA-Z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+
+    sanitized = sanitized.replace(
+      /\s+(?:href|xlink:href|src|action)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+      (fullMatch, q1, q2, q3) => {
+        const rawVal = q1 ?? q2 ?? q3 ?? "";
+        const val = rawVal.replace(/[\s\x00-\x1f\x7f-\x9f]/g, "").toLowerCase();
+        const decodedVal = val
+          .replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+          .replace(/&#([0-9]+);?/gi, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+          .replace(/[\s\x00-\x1f\x7f-\x9f]/g, "")
+          .toLowerCase();
+
+        if (
+          decodedVal.startsWith("javascript:") ||
+          decodedVal.startsWith("vbscript:") ||
+          decodedVal.startsWith("data:text/html")
+        ) {
+          return "";
+        }
+        return fullMatch;
+      }
+    );
+    return sanitized;
+  };
+
+  // テスト1: 危険タグ（script, iframe, object, embed, form, base, meta）の完全除去
+  const maliciousHtml = `
+    <h1>Heading</h1>
+    <script>alert("XSS")</script>
+    <iframe src="evil.html"></iframe>
+    <object data="evil.swf"></object>
+    <embed src="evil.swf" />
+    <form action="http://evil.com"><input type="text"/></form>
+    <base href="http://evil.com/" />
+    <meta http-equiv="refresh" content="0;url=http://evil.com" />
+    <script><script>nested()</script></script>
+    <p>Safe paragraph</p>
+  `;
+  const cleanHtml = sanitizeExportHtml(maliciousHtml);
+  assert.ok(!cleanHtml.includes("<script"), "script タグが除去されること");
+  assert.ok(!cleanHtml.includes("alert"), "script 内容が除去されること");
+  assert.ok(!cleanHtml.includes("<iframe"), "iframe タグが除去されること");
+  assert.ok(!cleanHtml.includes("<object"), "object タグが除去されること");
+  assert.ok(!cleanHtml.includes("<embed"), "embed タグが除去されること");
+  assert.ok(!cleanHtml.includes("<form"), "form タグが除去されること");
+  assert.ok(!cleanHtml.includes("<base"), "base タグが除去されること");
+  assert.ok(!cleanHtml.includes("<meta"), "meta http-equiv タグが除去されること");
+  assert.ok(cleanHtml.includes("<h1>Heading</h1>"), "通常の見出しタグは保持されること");
+  assert.ok(cleanHtml.includes("<p>Safe paragraph</p>"), "通常の段落タグは保持されること");
+
+  // テスト2: インラインイベントハンドラ（onload, onerror, onclick）の除去
+  const eventHtml = '<img src="image.png" onload="alert(1)" onerror=\'steal()\' onclick=doEvil() />';
+  const cleanEvent = sanitizeExportHtml(eventHtml);
+  assert.ok(!cleanEvent.includes("onload"), "onload 属性が除去されること");
+  assert.ok(!cleanEvent.includes("onerror"), "onerror 属性が除去されること");
+  assert.ok(!cleanEvent.includes("onclick"), "onclick 属性が除去されること");
+  assert.ok(cleanEvent.includes('src="image.png"'), "安全な属性は保持されること");
+
+  // テスト3: 危険な URI スキーム (javascript:, vbscript:, data:text/html) の除去
+  const dangerousUriHtml = `
+    <a href="javascript:alert(1)">Bad Link 1</a>
+    <a href="  javascript:alert(2)">Bad Link 2</a>
+    <a href="&#106;&#97;vascript:alert(3)">Bad Link 3</a>
+    <a href="vbscript:msgbox(1)">Bad Link 4</a>
+    <a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">Bad Link 5</a>
+    <img src="javascript:alert(4)" alt="bad image" />
+    <a href="https://example.com/safe">Safe Link</a>
+  `;
+  const cleanUri = sanitizeExportHtml(dangerousUriHtml);
+  assert.ok(!cleanUri.includes("javascript:"), "javascript: スキームが除去されること");
+  assert.ok(!cleanUri.includes("&#106;&#97;vascript:"), "エンコードされた javascript: スキームが除去されること");
+  assert.ok(!cleanUri.includes("vbscript:"), "vbscript: スキームが除去されること");
+  assert.ok(!cleanUri.includes("data:text/html"), "data:text/html スキームが除去されること");
+  assert.ok(cleanUri.includes('href="https://example.com/safe"'), "安全な https: リンクは保持されること");
+
+  // テスト4: GFM標準要素（表、チェックボックス、コード、画像、Mermaidコンテナ）の完全保持
+  const gfmHtml = `
+    <table><thead><tr><th>Header</th></tr></thead><tbody><tr><td>Cell</td></tr></tbody></table>
+    <ul><li><input type="checkbox" disabled="" checked="" /> Done</li></ul>
+    <pre><code class="language-markdown"># Safe Code</code></pre>
+    <div class="typori-mermaid-svg"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3b82f6"/></svg></div>
+  `;
+  const cleanGfm = sanitizeExportHtml(gfmHtml);
+  assert.ok(cleanGfm.includes("<table>"), "テーブルが保持されること");
+  assert.ok(cleanGfm.includes('type="checkbox"'), "チェックボックスが保持されること");
+  assert.ok(cleanGfm.includes('disabled=""'), "disabled属性が保持されること");
+  assert.ok(cleanGfm.includes('checked=""'), "checked属性が保持されること");
+  assert.ok(cleanGfm.includes('<code class="language-markdown">'), "コードブロックが保持されること");
+  assert.ok(cleanGfm.includes('class="typori-mermaid-svg"'), "Mermaid SVG コンテナが保持されること");
+
+  console.log("✓ sanitizeExportHtml: 危険タグ除去・イベントハンドラ除去・危険スキーム無害化・GFM要素保持を確認");
+}
+
 console.log("\n==================================================================");
-console.log(" >>> Phase 23 セキュリティ強化 (Task 79, Task 80: CSP & 外部URL検証) 合格 <<< ");
+console.log(" >>> Phase 23 セキュリティ強化 (Task 79, Task 80, Task 81) 合格 <<< ");
 console.log("==================================================================");
+

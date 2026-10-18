@@ -399,6 +399,367 @@ fn escape_html(input: &str) -> String {
         .replace('\'', "&#39;")
 }
 
+/// 数値文字参照（&#106; や &#x6a; など）をデコードします。
+fn decode_html_numeric_entities(val: &str) -> String {
+    let mut out = String::with_capacity(val.len());
+    let mut chars = val.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '&' && chars.peek() == Some(&'#') {
+            chars.next(); // skip '#'
+            let is_hex = chars.peek() == Some(&'x') || chars.peek() == Some(&'X');
+            if is_hex {
+                chars.next(); // skip 'x'
+            }
+            let mut num_str = String::new();
+            while let Some(&c) = chars.peek() {
+                if (is_hex && c.is_ascii_hexdigit()) || (!is_hex && c.is_ascii_digit()) {
+                    num_str.push(c);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if chars.peek() == Some(&';') {
+                chars.next(); // skip ';'
+            }
+            if !num_str.is_empty() {
+                let code_point = if is_hex {
+                    u32::from_str_radix(&num_str, 16).ok()
+                } else {
+                    num_str.parse::<u32>().ok()
+                };
+                if let Some(cp) = code_point.and_then(char::from_u32) {
+                    out.push(cp);
+                    continue;
+                }
+            }
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// URI属性値が危険なスキーム（javascript:, vbscript:, data:text/html）であるかを判定します。
+fn is_dangerous_uri_scheme(val: &str) -> bool {
+    let decoded = decode_html_numeric_entities(val);
+    let normalized: String = decoded
+        .chars()
+        .filter(|c| !c.is_whitespace() && !c.is_control())
+        .collect();
+    let lower = normalized.to_lowercase();
+    lower.starts_with("javascript:")
+        || lower.starts_with("vbscript:")
+        || lower.starts_with("data:text/html")
+}
+
+/// 危険なHTML要素タグ（script, iframe, object, embed, form, base, meta）をすべて除去します。
+fn remove_dangerous_tags(input: &str, dangerous_tags: &[&str]) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.char_indices().peekable();
+    let lower = input.to_lowercase();
+
+    while let Some((start, ch)) = chars.next() {
+        if ch == '<' {
+            // コメント <!-- ... --> はそのまま保持
+            if input[start..].starts_with("<!--") {
+                if let Some(end_idx) = input[start..].find("-->") {
+                    let end_pos = start + end_idx + 3;
+                    result.push_str(&input[start..end_pos]);
+                    while let Some(&(idx, _)) = chars.peek() {
+                        if idx < end_pos {
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            // 閉じタグ </tag> のチェック
+            let is_close_tag = input[start..].starts_with("</");
+            let tag_name_start = if is_close_tag { start + 2 } else { start + 1 };
+
+            // タグ名の切り出し
+            let tag_name_len = input[tag_name_start..]
+                .find(|c: char| !c.is_ascii_alphanumeric() && c != '-')
+                .unwrap_or(input.len() - tag_name_start);
+            let tag_name = &lower[tag_name_start..tag_name_start + tag_name_len];
+
+            if dangerous_tags.contains(&tag_name) {
+                // 危険なタグを発見
+                let is_self_closing_or_single = tag_name == "base" || tag_name == "meta" || tag_name == "embed";
+
+                if is_close_tag {
+                    // 単体で現れた </script> などの閉じタグ
+                    if let Some(tag_end) = input[start..].find('>') {
+                        let end_pos = start + tag_end + 1;
+                        while let Some(&(idx, _)) = chars.peek() {
+                            if idx < end_pos {
+                                chars.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        continue;
+                    }
+                } else if is_self_closing_or_single {
+                    // 単独タグは次の '>' まで除去
+                    if let Some(tag_end) = input[start..].find('>') {
+                        let end_pos = start + tag_end + 1;
+                        while let Some(&(idx, _)) = chars.peek() {
+                            if idx < end_pos {
+                                chars.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        continue;
+                    }
+                } else {
+                    // 開始タグ: </tag_name> までを探してブロックごと除去
+                    let close_tag_lower = format!("</{}", tag_name);
+
+                    if let Some(tag_end) = input[start..].find('>') {
+                        let after_start_tag = start + tag_end + 1;
+                        let start_tag_content = &input[start..after_start_tag];
+                        if start_tag_content.trim_end().ends_with("/>") {
+                            while let Some(&(idx, _)) = chars.peek() {
+                                if idx < after_start_tag {
+                                    chars.next();
+                                } else {
+                                    break;
+                                }
+                            }
+                            continue;
+                        }
+
+                        // 対応する終了タグを探す
+                        if let Some(close_idx) = lower[after_start_tag..].find(&close_tag_lower) {
+                            let close_pos = after_start_tag + close_idx;
+                            if let Some(close_end) = input[close_pos..].find('>') {
+                                let end_pos = close_pos + close_end + 1;
+                                while let Some(&(idx, _)) = chars.peek() {
+                                    if idx < end_pos {
+                                        chars.next();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+
+                        // 終了タグが見つからない場合は開始タグのみを除去
+                        while let Some(&(idx, _)) = chars.peek() {
+                            if idx < after_start_tag {
+                                chars.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
+        }
+        result.push(ch);
+    }
+
+    result
+}
+
+/// 単一タグ内の属性を走査し、インラインイベント属性および危険なURIスキーム属性を除去します。
+fn sanitize_single_tag(inner: &str) -> String {
+    let trimmed = inner.trim_start();
+    if trimmed.is_empty() {
+        return inner.to_string();
+    }
+
+    let tag_name_len = trimmed
+        .find(|c: char| c.is_whitespace() || c == '/' || c == '>')
+        .unwrap_or(trimmed.len());
+    let tag_name = &trimmed[..tag_name_len];
+    let rest = &trimmed[tag_name_len..];
+
+    let mut out = String::with_capacity(inner.len());
+    out.push_str(tag_name);
+
+    let mut attr_chars = rest.char_indices().peekable();
+    while let Some((_, ch)) = attr_chars.next() {
+        if ch.is_whitespace() {
+            continue;
+        }
+
+        // 属性名
+        let mut attr_name = String::new();
+        attr_name.push(ch);
+        while let Some(&(_, c)) = attr_chars.peek() {
+            if c.is_whitespace() || c == '=' || c == '/' || c == '>' {
+                break;
+            }
+            attr_name.push(c);
+            attr_chars.next();
+        }
+
+        // 空白スキップ
+        while let Some(&(_, c)) = attr_chars.peek() {
+            if c.is_whitespace() {
+                attr_chars.next();
+            } else {
+                break;
+            }
+        }
+
+        let mut attr_val: Option<String> = None;
+        let mut quote_char: Option<char> = None;
+
+        if let Some(&(_, '=')) = attr_chars.peek() {
+            attr_chars.next(); // skip '='
+            while let Some(&(_, c)) = attr_chars.peek() {
+                if c.is_whitespace() {
+                    attr_chars.next();
+                } else {
+                    break;
+                }
+            }
+
+            if let Some(&(_, q @ ('"' | '\''))) = attr_chars.peek() {
+                quote_char = Some(q);
+                attr_chars.next(); // skip quote
+                let mut val = String::new();
+                for (_, c) in attr_chars.by_ref() {
+                    if c == q {
+                        break;
+                    }
+                    val.push(c);
+                }
+                attr_val = Some(val);
+            } else {
+                let mut val = String::new();
+                while let Some(&(_, c)) = attr_chars.peek() {
+                    if c.is_whitespace() || c == '/' || c == '>' {
+                        break;
+                    }
+                    val.push(c);
+                    attr_chars.next();
+                }
+                attr_val = Some(val);
+            }
+        }
+
+        let attr_name_lower = attr_name.to_lowercase();
+        // 1) on* イベントハンドラ (onload, onerror, onclick など)
+        if attr_name_lower.starts_with("on")
+            && attr_name_lower.len() > 2
+            && attr_name_lower.chars().nth(2).is_some_and(|c| c.is_ascii_alphabetic())
+        {
+            continue;
+        }
+
+        // 2) 危険な URI スキーム (href, src, xlink:href, action 内の javascript:, vbscript:, data:text/html)
+        if (attr_name_lower == "href"
+            || attr_name_lower == "src"
+            || attr_name_lower == "xlink:href"
+            || attr_name_lower == "action")
+            && attr_val.as_ref().is_some_and(|v| is_dangerous_uri_scheme(v))
+        {
+            continue;
+        }
+
+        out.push(' ');
+        out.push_str(&attr_name);
+        if let Some(val) = attr_val {
+            out.push('=');
+            let q = quote_char.unwrap_or('"');
+            out.push(q);
+            out.push_str(&val);
+            out.push(q);
+        }
+    }
+
+    out
+}
+
+/// HTML 内の全タグの属性をサニタイズします。
+fn sanitize_tag_attributes(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut i = 0;
+    let bytes = input.as_bytes();
+    let len = bytes.len();
+
+    while i < len {
+        if bytes[i] == b'<' {
+            if input[i..].starts_with("<!--") {
+                if let Some(end_idx) = input[i..].find("-->") {
+                    result.push_str(&input[i..i + end_idx + 3]);
+                    i += end_idx + 3;
+                    continue;
+                }
+            }
+
+            if input[i..].starts_with("</") {
+                if let Some(end_idx) = input[i..].find('>') {
+                    result.push_str(&input[i..i + end_idx + 1]);
+                    i += end_idx + 1;
+                    continue;
+                }
+            }
+
+            if let Some(end_idx) = input[i..].find('>') {
+                let tag_str = &input[i + 1..i + end_idx];
+                let is_self_closing = tag_str.trim_end().ends_with('/');
+                let inner = if is_self_closing {
+                    let t = tag_str.trim_end();
+                    &t[..t.len() - 1]
+                } else {
+                    tag_str
+                };
+
+                let sanitized_tag = sanitize_single_tag(inner);
+                result.push('<');
+                result.push_str(&sanitized_tag);
+                if is_self_closing {
+                    result.push_str(" />");
+                } else {
+                    result.push('>');
+                }
+                i += end_idx + 1;
+                continue;
+            }
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+
+    result
+}
+
+/// エクスポートHTMLやPDF印刷用HTMLに含まれる危険なタグ・属性を無害化・サニタイズします (HIGH-02)。
+///
+/// - 危険なタグ (<script>, <iframe>, <object>, <embed>, <form>, <base>, <meta>) を再帰的に除去
+/// - インラインイベントハンドラ属性 (on[a-zA-Z]+) を除去
+/// - 危険なURIスキーム (javascript:, vbscript:, data:text/html) を含む属性を除去
+/// - GFM標準要素（見出し、表、チェックボックス、画像、コードブロック、安全なリンク等）を完全に保持
+pub fn sanitize_exported_html(html: &str) -> String {
+    let mut sanitized = html.to_string();
+
+    const DANGEROUS_TAGS: &[&str] = &[
+        "script", "iframe", "object", "embed", "form", "base", "meta",
+    ];
+
+    loop {
+        let prev_len = sanitized.len();
+        sanitized = remove_dangerous_tags(&sanitized, DANGEROUS_TAGS);
+        if sanitized.len() == prev_len {
+            break;
+        }
+    }
+
+    sanitize_tag_attributes(&sanitized)
+}
+
 /// Markdown文字列をスタンドアロンのHTMLドキュメント（CSSスタイル内蔵）に変換します。
 #[tauri::command]
 pub fn convert_markdown_to_html(
@@ -423,6 +784,8 @@ pub fn convert_markdown_to_html(
     let parser = Parser::new_ext(&markdown, options);
     let mut body_html = String::new();
     html::push_html(&mut body_html, parser);
+
+    let sanitized_body = sanitize_exported_html(&body_html);
 
     let theme_mode = theme.unwrap_or_else(|| "light".to_string());
     let is_dark = theme_mode.to_lowercase() == "dark";
@@ -677,7 +1040,7 @@ pub fn convert_markdown_to_html(
 "#,
         escape_html(&doc_title),
         css,
-        body_html
+        sanitized_body
     );
 
     Ok(full_html)
@@ -1409,6 +1772,131 @@ mod tests {
 
         let _ = fs::remove_dir_all(&test_dir);
     }
+
+    #[test]
+    fn test_sanitize_exported_html_removes_dangerous_tags() {
+        let input = r#"
+            <h1>Heading</h1>
+            <script>alert("XSS")</script>
+            <p>Paragraph</p>
+            <script src="https://evil.example.com/bad.js"></script>
+            <iframe><p>Nested iframe</p></iframe>
+            <object data="evil.swf"></object>
+            <embed src="evil.swf" />
+            <form action="http://evil.com"><input type="text"/></form>
+            <base href="http://evil.com/" />
+            <meta http-equiv="refresh" content="0;url=http://evil.com" />
+            <script><script>nested()</script></script>
+            <div>Clean content</div>
+        "#;
+
+        let sanitized = sanitize_exported_html(input);
+        assert!(!sanitized.contains("<script"));
+        assert!(!sanitized.contains("</script>"));
+        assert!(!sanitized.contains("alert"));
+        assert!(!sanitized.contains("<iframe"));
+        assert!(!sanitized.contains("<object"));
+        assert!(!sanitized.contains("<embed"));
+        assert!(!sanitized.contains("<form"));
+        assert!(!sanitized.contains("<base"));
+        assert!(!sanitized.contains("<meta"));
+        assert!(sanitized.contains("<h1>Heading</h1>"));
+        assert!(sanitized.contains("<p>Paragraph</p>"));
+        assert!(sanitized.contains("<div>Clean content</div>"));
+    }
+
+    #[test]
+    fn test_sanitize_exported_html_removes_event_handlers() {
+        let input = r#"<img src="valid.png" onload="alert(1)" onerror="steal()" onclick="doEvil()"/>"#;
+        let sanitized = sanitize_exported_html(input);
+        assert!(!sanitized.contains("onload"));
+        assert!(!sanitized.contains("onerror"));
+        assert!(!sanitized.contains("onclick"));
+        assert!(sanitized.contains("src=\"valid.png\""));
+    }
+
+    #[test]
+    fn test_sanitize_exported_html_blocks_dangerous_schemes() {
+        let input = r#"
+            <a href="javascript:alert(1)">Bad Link 1</a>
+            <a href="  javascript:alert(2)">Bad Link 2</a>
+            <a href="&#106;&#97;vascript:alert(3)">Bad Link 3</a>
+            <a href="vbscript:msgbox(1)">Bad Link 4</a>
+            <a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">Bad Link 5</a>
+            <img src="javascript:alert(4)" alt="bad image" />
+            <a href="https://example.com/safe">Safe Link</a>
+            <img src="./images/test.png" alt="safe image" />
+        "#;
+
+        let sanitized = sanitize_exported_html(input);
+        assert!(!sanitized.contains("javascript:"));
+        assert!(!sanitized.contains("&#106;&#97;vascript:"));
+        assert!(!sanitized.contains("vbscript:"));
+        assert!(!sanitized.contains("data:text/html"));
+        assert!(sanitized.contains("href=\"https://example.com/safe\""));
+        assert!(sanitized.contains("src=\"./images/test.png\""));
+        assert!(sanitized.contains("Bad Link 1"));
+    }
+
+    #[test]
+    fn test_sanitize_exported_html_preserves_gfm_elements() {
+        let input = r##"
+            <h2>Table Test</h2>
+            <table>
+                <thead><tr><th>Col 1</th><th>Col 2</th></tr></thead>
+                <tbody><tr><td>Data 1</td><td>Data 2</td></tr></tbody>
+            </table>
+            <ul class="contains-task-list">
+                <li><input type="checkbox" disabled="" checked="" /> Done task</li>
+                <li><input type="checkbox" disabled="" /> Todo task</li>
+            </ul>
+            <div class="typori-mermaid-svg">
+                <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3b82f6"/></svg>
+            </div>
+            <pre><code class="language-rust">fn main() { println!("Hello"); }</code></pre>
+        "##;
+
+        let sanitized = sanitize_exported_html(input);
+        assert!(sanitized.contains("<h2>Table Test</h2>"));
+        assert!(sanitized.contains("<table>"));
+        assert!(sanitized.contains("<th>Col 1</th>"));
+        assert!(sanitized.contains("<td>Data 1</td>"));
+        assert!(sanitized.contains("type=\"checkbox\""));
+        assert!(sanitized.contains("disabled=\"\""));
+        assert!(sanitized.contains("checked=\"\""));
+        assert!(sanitized.contains("class=\"typori-mermaid-svg\""));
+        assert!(sanitized.contains("<svg viewBox=\"0 0 100 100\">"));
+        assert!(sanitized.contains("<code class=\"language-rust\">"));
+    }
+
+    #[test]
+    fn test_convert_markdown_to_html_security_sanitization() {
+        let markdown = r#"
+# Safe Document
+
+This is safe content with a [link](https://example.com).
+
+<script>alert("markdown-xss")</script>
+<img src="x" onerror="evil()" />
+<a href="javascript:alert(1)">Click me</a>
+
+- [x] Task 1
+- [ ] Task 2
+"#;
+
+        let result = convert_markdown_to_html(markdown.to_string(), Some("Security Test".to_string()), None);
+        assert!(result.is_ok());
+        let html = result.unwrap();
+
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains("alert(\"markdown-xss\")"));
+        assert!(!html.contains("onerror"));
+        assert!(!html.contains("javascript:alert(1)"));
+        assert!(html.contains("Safe Document"));
+        assert!(html.contains("https://example.com"));
+        assert!(html.contains("Task 1"));
+    }
 }
+
 
 

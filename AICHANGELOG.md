@@ -1,3 +1,31 @@
+- 2026-10-18: タスク81「HTMLエクスポート・PDF印刷時のサニタイズ強化 (HIGH-02): src-tauri/src/fs.rs の convert_markdown_to_html における危険な生HTMLタグ（<script>, <iframe>, <object> 等）・インラインイベントハンドラ・危険URIスキームのサニタイズ処理（sanitize_exported_html）と単体テストの実装、および src/api/fs.ts の printHtmlContent における安全化」を完了。
+  - **変更理由**: Markdown ファイル内に記述された悪意ある生 HTML（`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`, `<meta http-equiv...>`）やイベントハンドラ属性（`onload`, `onerror`, `onclick`）、危険な URI スキーム（`javascript:`, `vbscript:`, `data:text/html`）が、HTML エクスポートや PDF 印刷用 iframe において実行され、親ウィンドウ（`window.parent.__TAURI_INTERNALS__`）にアクセスされる脆弱性（Stored XSS）を防止するため。
+  - **Before**:
+    - `src-tauri/src/fs.rs`: `convert_markdown_to_html` において `pulldown-cmark` が出力した HTML ボディがサニタイズされずにテンプレートへ埋め込まれており、危険なタグや属性を除去する関数が存在しなかった。
+    - `src/api/fs.ts`: `printHtmlContent` において非表示 iframe に HTML を書き込む直前にサニタイズが行われておらず、`sanitizeExportHtml` 関数が存在しなかった。
+    - `scripts/verify-security-hardening.mjs`: Task 79 と Task 80 までの検証のみが含まれていた。
+    - `Plan.md`: タスク81が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - `sanitize_exported_html(html: &str) -> String` 関数およびヘルパー関数（`remove_dangerous_tags`, `sanitize_tag_attributes`, `decode_html_numeric_entities`, `is_dangerous_uri_scheme`）を実装。
+      - 危険な要素タグ（`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`, `<meta>`）の再帰的除去、インラインイベント属性（`on[a-zA-Z]+`）の除去、危険な URI スキーム（`javascript:`, `vbscript:`, `data:text/html`）の除去を実装。
+      - GFM 標準要素（見出し、表、チェックボックス、コードブロック、画像、安全なリンク、Mermaid コンテナ等）の完全保持を担保。
+      - `convert_markdown_to_html` において `pulldown-cmark` 出力直後に `sanitize_exported_html(&body_html)` を適用。
+      - バックエンド単体テスト（`tests`）に危険タグ除去・イベント属性除去・危険スキーム無害化・GFM要素保持・Markdown変換総合検証の5テストを追加（単体テスト全33件 passed）。
+    - `src/api/fs.ts`:
+      - `sanitizeExportHtml(html: string): string` 関数を実装・エクスポート。
+      - `printHtmlContent` において非表示 iframe への書き込み前に `sanitizeExportHtml` を適用。
+      - `exportToHtml` において Mermaid レンダリング後にも `sanitizeExportHtml` を適用。
+    - `scripts/verify-security-hardening.mjs`:
+      - `[Part 3] HTMLエクスポート・PDF印刷時のサニタイズ強化 (HIGH-02) 検証` を追加（Rust およびフロントエンドのサニタイズ定義・適用・動的挙動検証）。
+    - `Plan.md`: タスク81を `- [x]` に更新。
+    - 検証結果:
+      - `cargo test`: Exit Code 0 (全33件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+  - **影響範囲**: `src-tauri/src/fs.rs`, `src/api/fs.ts`, `scripts/verify-security-hardening.mjs`, `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク80「CSP設定と外部URLスキーム検証 (HIGH-01 / MED-01): src-tauri/tauri.conf.json への防御的 Content Security Policy (CSP) 設定追加、および src/components/Editor/Editor.tsx / src/components/Editor/LinkTooltip.tsx における外部リンク起動時の許可スキーム（http:, https:, mailto:）ホワイトリスト検証の実装」を完了。
   - **変更理由**: 悪意のある Markdown や不正な外部リンク（`file:`, `javascript:`, `ms-msdt:`, `data:text/html` 等）を開いた際に、ローカルファイルへのアクセス、任意のプロトコルハンドラ実行、または WebView 内での不正スクリプト読み込み・外部通信が発生するリスクを防御的 CSP および厳格なホワイトリスト検証によって多層防御（Defense-in-Depth）で遮断するため。
   - **Before**:

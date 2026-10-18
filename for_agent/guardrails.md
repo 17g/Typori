@@ -255,6 +255,22 @@
   3. `mermaidPlugin.ts` での `result.bindFunctions` の呼び出しを行わないこと。
   4. エクスポートやプレビューでエラーメッセージを HTML 出力する際は、必ず `escapeHtml` を適用すること。
 
+### 3.20. HTMLエクスポート・PDF印刷時のサニタイズと iframe 境界防御・既存テスト変数名整合性
+- **事象・ミス**:
+  - Markdown ファイル内に記述された悪意ある生 HTML（`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`, `<meta http-equiv...>`）やイベントハンドラ（`onload`, `onerror`, `onclick`）、危険な URI スキーム（`javascript:`, `vbscript:`, `data:text/html`）がサニタイズされずにエクスポート HTML や印刷用 iframe に書き込まれると、WebView やブラウザでスクリプトが実行され、親ウィンドウ（`window.parent.__TAURI_INTERNALS__`）にアクセスされる脆弱性（Stored XSS）が生じる。
+  - Rust 側テストで raw string リテラル `r#"..."#` を使用した際、HTML 内のカラーコード（例: `fill="#3b82f6"`）に含まれる `"#` により文字列が意図せず途中で閉じ、コンパイルエラーとなる。
+  - `exportToHtml` などの公開関数をリファクタリングした際、既存の静的検証スクリプト（`verify-mermaid-export.mjs` 等）が期待する特定トークン（`await saveFile(path, finalHtml)`）の変数名を変更してしまい、テストが失敗する。
+- **原因**:
+  - Markdown パーサー（`pulldown-cmark`）は Markdown 内のインライン HTML をそのまま出力するため、エクスポート出力前にサニタイズ処理を挟む必要がある。
+  - Rust の raw string では二重引用符とハッシュ記号のペアで終端を判定するため、内部に `"#` が含まれる場合は `#` の個数を増やしてエスケープする必要がある（`r##"..."##`）。
+  - 既存の検証スクリプトは信頼性担保のため主要変数の使用を文字列レベルで検査している場合がある。
+- **対策**:
+  1. バックエンド（`src-tauri/src/fs.rs`）の `convert_markdown_to_html` において、`pulldown-cmark` の HTML 出力直後に `sanitize_exported_html(&body_html)` を必ず適用すること。
+  2. フロントエンド（`src/api/fs.ts`）においても `sanitizeExportHtml` をエクスポートし、`exportToHtml` および `printHtmlContent` で非表示 iframe に流し込む直前に二重サニタイズを適用すること。
+  3. GFM 標準の要素（見出し、表、チェックボックス `<input type="checkbox" disabled="" checked="" />`、コードブロック、画像、安全なリンク、Mermaid コンテナ）は決して破壊せず完全に保持すること。
+  4. Rust 単体テスト等で HTML/CSS のハッシュ（`#`）を含む文字列を raw string に含める場合は、必ず `r##"..."##`（二重ハッシュ）を使用すること。
+  5. 既存テストスクリプトが存在する API モジュールを変更する際は、テスト側で指定されている変数名やトークンとの完全整合性を維持すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）
