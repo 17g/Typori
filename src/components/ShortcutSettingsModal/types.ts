@@ -134,6 +134,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     category: "format",
     defaultKeys: ["Ctrl", "Alt", "T"],
   },
+  {
+    id: "clear_formatting",
+    name: "書式をクリア",
+    description: "選択テキストのインライン装飾（太字・斜体・打消・コード・リンク等）を一括解除します",
+    category: "format",
+    defaultKeys: ["Ctrl", "Shift", "B"],
+  },
 
   // 編集履歴
   {

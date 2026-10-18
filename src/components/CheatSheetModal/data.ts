@@ -118,6 +118,13 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     description: "選択テキストを斜体にします",
     category: "format",
   },
+  {
+    id: "clear_formatting",
+    name: "書式をクリア",
+    keys: ["Ctrl", "Shift", "B"],
+    description: "選択テキストのインライン装飾（太字・斜体・打消・コード・リンク等）を一括解除します",
+    category: "format",
+  },
 
   // 編集履歴
   {

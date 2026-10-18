@@ -1,3 +1,33 @@
+- 2026-10-18: タスク99「UI・OS連携・ショートカット: OSネイティブ「編集」メニューへの「書式をクリア (CmdOrCtrl+Shift+B)」追加（src-tauri/src/menu.rs / menu:clear_formatting）、SHORTCUT_ITEMS（Ctrl+Shift+B）・チートシート早見表への掲載、クイックアクションパレット（EditorToolbar.tsx）へのクリアボタン配置、および App.tsx でのイベント購読・動的実行ハンドラの実装」を完了。
+  - **変更理由**: 書式クリア（Clear Formatting / Bare）機能にユーザーが直感的にアクセスできるよう、OSネイティブメニュー、カスタマイズ可能なショートカット設定、チートシート早見表、およびエディタのクイックアクションパレット（ツールバー）の全UI経路を統合・連動させ、WYSIWYG/ソース直接編集モード双方で動的に実行できるようにするため。
+  - **Before**:
+    - `src-tauri/src/menu.rs`: 「編集」メニューに「書式をクリア (CmdOrCtrl+Shift+B)」項目がなく、`menu:clear_formatting` イベント送出処理が存在しなかった。
+    - `src/components/ShortcutSettingsModal/types.ts`: `SHORTCUT_ITEMS` に `clear_formatting`（デフォルト: Ctrl+Shift+B、カテゴリ: format）が定義されていなかった。
+    - `src/components/CheatSheetModal/data.ts`: チートシート早見表に「書式をクリア (Ctrl+Shift+B)」が掲載されていなかった。
+    - `src/components/Editor/EditorToolbar.tsx`: `EditorToolbarProps` に `onClearFormatting` プロップがなく、「書式をクリア」ボタンが存在しなかった。
+    - `src/components/Editor/Editor.tsx`: `<EditorToolbar>` に `onClearFormatting={clearFormattingAction}` が渡されていなかった。
+    - `src/App.tsx`: `SourceEditorRef` の参照（`sourceEditorRef`）が定義・渡されておらず、`menu:clear_formatting` のイベントリスナーや動的実行ハンドラ `handleClearFormatting`、ショートカット `config.clear_formatting` のキーダウン検知が存在しなかった。
+    - `scripts/verify-native-menu.mjs` / `scripts/verify-all.mjs`: OSネイティブメニューイベントが17件のみ検証されており、`clear_formatting` の整合性検査が含まれていなかった。
+    - `Plan.md`: タスク99が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src-tauri/src/menu.rs`: 「編集」メニューに `MenuItem::with_id(app, "clear_formatting", "書式をクリア", true, Some("CmdOrCtrl+Shift+B"))` を追加。`handle_menu_event` で `menu:clear_formatting` イベントを送出、単体テスト `test_menu_event_ids` に追加。
+    - `src/components/ShortcutSettingsModal/types.ts`: `SHORTCUT_ITEMS` の format カテゴリに `clear_formatting`（デフォルト: `["Ctrl", "Shift", "B"]`）を追加。
+    - `src/components/CheatSheetModal/data.ts`: 早見表に `clear_formatting` を追加。
+    - `src/components/Editor/EditorToolbar.tsx`: `EditorToolbarProps` に `onClearFormatting?: () => void;` を追加し、消しゴムアイコン付きの「書式をクリア (Ctrl+Shift+B)」ボタンを追加。
+    - `src/components/Editor/Editor.tsx`: `<EditorToolbar onClearFormatting={clearFormattingAction} ... />` を配線。
+    - `src/App.tsx`: `SourceEditorRef` をインポートし `sourceEditorRef` を定義して `<SourceEditor ref={sourceEditorRef} ... />` へ渡す。`handleClearFormatting`（WYSIWYG/ソース直接編集のモード別動的ディスパッチ）を実装。`menu:clear_formatting` イベントをリッスンし、`handleKeyDown` で `config.clear_formatting`（デフォルト `Ctrl+Shift+B`）の動的キーバインドを検知・実行。
+    - `scripts/verify-native-menu.mjs` / `scripts/verify-all.mjs`: `menu:clear_formatting` の送出・リッスン検証、全18件のOSネイティブメニューイベント検証、`SHORTCUT_ITEMS` の整合性検証を追加。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明を「18イベント、49個別テスト」に更新。
+    - `Plan.md`: タスク99を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-native-menu.mjs`: Exit Code 0 (全4ステップ合格)
+      - `pnpm test`: Exit Code 0 (全49個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `cargo check`: Exit Code 0
+  - **影響範囲**: `src-tauri/src/menu.rs`, `src/components/ShortcutSettingsModal/types.ts`, `src/components/CheatSheetModal/data.ts`, `src/components/Editor/EditorToolbar.tsx`, `src/components/Editor/Editor.tsx`, `src/App.tsx`, `scripts/verify-native-menu.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク98「WYSIWYGモード: ProseMirror の tr.removeMark(from, to) による選択範囲の全インラインMark一括解除処理（clearFormatting）の実装と、コンポーネント ref 経由での外部公開・空選択ガード（src/components/Editor/Editor.tsx）」を完了。
   - **変更理由**: WYSIWYGモード（Milkdown / ProseMirror）において、選択テキストのインライン装飾（太字・イタリック・打ち消し線・インラインコード・リンク・複合装飾等）を一括解除して素のテキストに戻す機能（書式クリア / Bare）を提供するため。ProseMirror の `tr.removeMark(from, to)` によるすべてのインラインMarkの一括解除、`tr.setStoredMarks([])` による追加入力マークの初期化、空選択ガード（`selection.empty` 時の no-op 保証）、コンポーネント ref（`EditorRef.clearFormatting`）経由での外部公開、およびショートカットキー（Ctrl+Shift+B / Cmd+Shift+B）による即時実行を実現するため。
   - **Before**:

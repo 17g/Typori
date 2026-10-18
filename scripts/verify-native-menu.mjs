@@ -59,6 +59,24 @@ async function verifyNativeMenu() {
     "menu.rs must set accelerator 'CmdOrCtrl+Alt+L' for toggle_line_numbers"
   );
 
+  // Check clear_formatting
+  assert.ok(
+    menuRsContent.includes('"clear_formatting"'),
+    "menu.rs must define 'clear_formatting' item ID"
+  );
+  assert.ok(
+    menuRsContent.includes('"書式をクリア"'),
+    "menu.rs must set label '書式をクリア'"
+  );
+  assert.ok(
+    menuRsContent.includes('Some("CmdOrCtrl+Shift+B")'),
+    "menu.rs must set accelerator 'CmdOrCtrl+Shift+B' for clear_formatting"
+  );
+  assert.ok(
+    menuRsContent.includes("&clear_formatting"),
+    "edit_menu must include &clear_formatting"
+  );
+
   // Check inclusion in view_menu
   assert.ok(
     menuRsContent.includes("&toggle_source_mode"),
@@ -94,6 +112,12 @@ async function verifyNativeMenu() {
     ),
     "handle_menu_event must emit 'menu:toggle_line_numbers'"
   );
+  assert.ok(
+    /\"clear_formatting\"\s*=>\s*\{\s*let _ = app\.emit\(\"menu:clear_formatting\",\s*\(\)\);/m.test(
+      menuRsContent
+    ),
+    "handle_menu_event must emit 'menu:clear_formatting'"
+  );
   console.log("✓ Native menu event emissions verified.");
 
   // 3. Verify event listeners and handlers in src/App.tsx
@@ -123,6 +147,15 @@ async function verifyNativeMenu() {
   assert.ok(
     appTsxContent.includes("toggleLineNumbersRef.current()"),
     "App.tsx must invoke toggleLineNumbersRef.current() on menu:toggle_line_numbers"
+  );
+
+  assert.ok(
+    appTsxContent.includes('listen("menu:clear_formatting"'),
+    "App.tsx must listen to 'menu:clear_formatting'"
+  );
+  assert.ok(
+    appTsxContent.includes("handleClearFormattingRef.current()"),
+    "App.tsx must invoke handleClearFormattingRef.current() on menu:clear_formatting"
   );
   console.log("✓ Frontend event listeners and handler invocations verified.");
 

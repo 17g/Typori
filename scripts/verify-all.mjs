@@ -164,6 +164,7 @@ const expectedMenuEvents = [
   "menu:insert_link",
   "menu:toggle_blockquote",
   "menu:insert_table",
+  "menu:clear_formatting",
   "menu:toggle_source_mode",
   "menu:toggle_focus_mode",
   "menu:toggle_tabs",
@@ -195,6 +196,7 @@ assert.ok(defaultShortcutsContent.includes("export_html"), "export_html ショ�
 assert.ok(defaultShortcutsContent.includes("toggle_right_sidebar"), "toggle_right_sidebar ショートカットが定義されていること");
 assert.ok(defaultShortcutsContent.includes("toggle_focus_mode"), "toggle_focus_mode ショートカットが定義されていること");
 assert.ok(defaultShortcutsContent.includes("toggle_line_numbers"), "toggle_line_numbers ショートカットが定義されていること");
+assert.ok(defaultShortcutsContent.includes("clear_formatting"), "clear_formatting ショートカットが定義されていること");
 
 console.log("✓ ショートカット定義の整合性チェックに合格");
 

@@ -1632,6 +1632,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onToggleBlockquote={toggleBlockquote}
           onInsertTable={() => insertTable(3, 3)}
           onInsertImage={() => fileInputRef.current?.click()}
+          onClearFormatting={clearFormattingAction}
           onToggleSourceMode={onToggleSourceMode}
           isFocusMode={isFocusMode}
           onToggleFocusMode={onToggleFocusMode}

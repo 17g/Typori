@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react"
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import TyporiEditor, { EditorRef } from "./components/Editor";
+import type { SourceEditorRef } from "./components/Editor/SourceEditor";
 import Sidebar, { FileEntry } from "./components/Sidebar";
 import OutlineSidebar, { OutlineItem } from "./components/OutlineSidebar";
 import {
@@ -61,6 +62,7 @@ function App() {
   const { isLineNumbersEnabled, toggleLineNumbers } = useLineNumberSettings();
   const { shortcutConfig, saveShortcutConfig } = useShortcutSettings();
   const editorRef = useRef<EditorRef>(null);
+  const sourceEditorRef = useRef<SourceEditorRef>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
@@ -934,6 +936,16 @@ function App() {
     return fileContent ?? "";
   }, [fileContent, isSourceMode]);
 
+  const handleClearFormatting = useCallback(() => {
+    if (isSourceModeRef.current) {
+      sourceEditorRef.current?.clearFormatting();
+    } else {
+      editorRef.current?.clearFormatting();
+    }
+  }, []);
+  const handleClearFormattingRef = useRef(handleClearFormatting);
+  handleClearFormattingRef.current = handleClearFormatting;
+
   const handleMenuNewFileRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -1065,6 +1077,19 @@ function App() {
       ) {
         e.preventDefault();
         handleToggleSourceModeRef.current();
+        return;
+      }
+      // 書式クリア (デフォルト: Ctrl+Shift+B)
+      if (
+        isShortcutEvent(e, config.clear_formatting || ["Ctrl", "Shift", "B"]) ||
+        (areKeysEqual(config.clear_formatting || ["Ctrl", "Shift", "B"], ["Ctrl", "Shift", "B"]) &&
+          (e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          !e.altKey &&
+          (e.key.toLowerCase() === "b" || e.code === "KeyB"))
+      ) {
+        e.preventDefault();
+        handleClearFormattingRef.current();
         return;
       }
       // Undo / Redo / Link / Blockquote フォールバック（エディタ外にフォーカスがある場合）
@@ -1767,6 +1792,12 @@ function App() {
         if (isMounted) unlistens.push(uTable);
         else uTable();
 
+        const uClearFormatting = await listen("menu:clear_formatting", () => {
+          handleClearFormattingRef.current();
+        });
+        if (isMounted) unlistens.push(uClearFormatting);
+        else uClearFormatting();
+
         const uToggleSource = await listen("menu:toggle_source_mode", () => {
           handleToggleSourceModeRef.current();
         });
@@ -2250,6 +2281,7 @@ function App() {
               }
             >
               <SourceEditor
+                ref={sourceEditorRef}
                 key={selectedPath ?? "__source__"}
                 content={fileContent ?? ""}
                 theme={resolvedTheme}

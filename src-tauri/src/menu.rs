@@ -57,6 +57,13 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         Some("CmdOrCtrl+Alt+T"),
     )?;
+    let clear_formatting = MenuItem::with_id(
+        app,
+        "clear_formatting",
+        "書式をクリア",
+        true,
+        Some("CmdOrCtrl+Shift+B"),
+    )?;
     let edit_menu = Submenu::with_items(
         app,
         "編集",
@@ -68,6 +75,7 @@ pub fn create_app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &insert_link,
             &toggle_blockquote,
             &insert_table,
+            &clear_formatting,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::cut(app, Some("切り取り"))?,
             &PredefinedMenuItem::copy(app, Some("コピー"))?,
@@ -202,6 +210,9 @@ pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "insert_table" => {
             let _ = app.emit("menu:insert_table", ());
         }
+        "clear_formatting" => {
+            let _ = app.emit("menu:clear_formatting", ());
+        }
         "toggle_focus_mode" => {
             let _ = app.emit("menu:toggle_focus_mode", ());
         }
@@ -251,6 +262,7 @@ mod tests {
         assert_eq!("insert_link", "insert_link");
         assert_eq!("toggle_blockquote", "toggle_blockquote");
         assert_eq!("insert_table", "insert_table");
+        assert_eq!("clear_formatting", "clear_formatting");
         assert_eq!("toggle_focus_mode", "toggle_focus_mode");
         assert_eq!("toggle_source_mode", "toggle_source_mode");
         assert_eq!("toggle_tabs", "toggle_tabs");

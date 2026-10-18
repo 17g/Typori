@@ -5,6 +5,7 @@ export interface EditorToolbarProps {
   onToggleBlockquote: () => void;
   onInsertTable?: () => void;
   onInsertImage?: () => void;
+  onClearFormatting?: () => void;
   onToggleSourceMode?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
@@ -24,6 +25,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleBlockquote,
   onInsertTable,
   onInsertImage,
+  onClearFormatting,
   onToggleSourceMode,
   isFocusMode,
   onToggleFocusMode,
@@ -194,6 +196,29 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           />
         </svg>
       </button>
+
+      {onClearFormatting && (
+        <button
+          type="button"
+          onClick={onClearFormatting}
+          title="書式をクリア (Ctrl+Shift+B)"
+          className="p-1.5 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 rounded transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth={1.8}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M18.364 5.636l-3.536-3.536a2 2 0 00-2.828 0L2.293 11.807a2 2 0 000 2.828l4.243 4.243a2 2 0 002.828 0l9-9a2 2 0 000-2.828l-.001-.001zM6.5 17.5l-3 3h17"
+            />
+          </svg>
+        </button>
+      )}
 
       <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
 
