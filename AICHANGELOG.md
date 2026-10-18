@@ -1,3 +1,26 @@
+- 2026-10-18: タスク100「品質保証/自動テスト: WYSIWYG/ソース直接編集双方での部分装飾解除・分割整形、空選択ガード、ネイティブメニュー（18イベント）、ショートカット定義、ツールバーボタンを網羅検証する自動テストスクリプト（scripts/verify-clear-formatting.mjs）の作成と scripts/verify-all.mjs への統合、および全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）のパス確認」を完了。
+  - **変更理由**: Phase 26 で導入された書式クリア（Clear Formatting / Bare）機能について、純粋ロジック（`src/utils/format.ts`）、ソース直接編集モード（`SourceEditor.tsx`）、WYSIWYGモード（`Editor.tsx`）、クイックアクションツールバー（`EditorToolbar.tsx`）、OSネイティブメニュー（`src-tauri/src/menu.rs`）、ショートカット設定、チートシート早見表、および `App.tsx` のモード別動的ディスパッチとイベントハンドリングを横断・統合的に検証し、将来の改修によるデグレードを防止する堅牢な品質保証スイートを確立するため。
+  - **Before**:
+    - `scripts/verify-clear-formatting.mjs`: 書式クリア機能の総合品質保証テストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`: `testScripts` 配列が49件であり、書式クリア総合機能テストが含まれていなかった。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明が49件のままであり、書式クリアに関する留意点（空選択ガード、`lazy` ロード時の Ref 型インポート、`ClearFormattingResult` 型仕様）が記載されていなかった。
+    - `for_agent/architecture.md`: テスト件数の記載が古い数値のままであった。
+    - `Plan.md`: タスク100が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-clear-formatting.mjs`: 新規作成。Step 1（純粋ロジック・空選択・部分分割・複合装飾・リンク解除）、Step 2（ソース直接編集 CodeMirror 6・キーマップ・diff置換）、Step 3（WYSIWYG ProseMirror・tr.removeMark・空選択ガード）、Step 4（ツールバー・ボタン配置・配線）、Step 5（OSネイティブメニュー全18イベント・clear_formatting）、Step 6（ショートカット定義・チートシート早見表）、Step 7（App.tsx ref連携・動的ディスパッチ・イベント購読・キー検知）、Step 8（E2Eシナリオシミュレーション）を網羅実行。
+    - `scripts/verify-all.mjs`: `testScripts` に `verify-clear-formatting.mjs` を追加し、全50件の個別機能検証テストスイートとして統合。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明を「全50個別テスト」に更新し、3.29「書式クリア（Clear Formatting / Bare）機能の実装・検証における状態整合性と空選択ガード・遅延ロードRef連携」を追記。
+    - `for_agent/architecture.md`: 全体結合テスト説明を「全50項目の個別機能検証スクリプト、18イベント」に更新。
+    - `Plan.md`: タスク100を `- [x]` に更新（全100タスク完了）。
+    - 検証結果:
+      - `node scripts/verify-clear-formatting.mjs`: Exit Code 0 (全8ステップ合格)
+      - `pnpm test`: Exit Code 0 (全50個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `cargo check`: Exit Code 0
+  - **影響範囲**: `scripts/verify-clear-formatting.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク99「UI・OS連携・ショートカット: OSネイティブ「編集」メニューへの「書式をクリア (CmdOrCtrl+Shift+B)」追加（src-tauri/src/menu.rs / menu:clear_formatting）、SHORTCUT_ITEMS（Ctrl+Shift+B）・チートシート早見表への掲載、クイックアクションパレット（EditorToolbar.tsx）へのクリアボタン配置、および App.tsx でのイベント購読・動的実行ハンドラの実装」を完了。
   - **変更理由**: 書式クリア（Clear Formatting / Bare）機能にユーザーが直感的にアクセスできるよう、OSネイティブメニュー、カスタマイズ可能なショートカット設定、チートシート早見表、およびエディタのクイックアクションパレット（ツールバー）の全UI経路を統合・連動させ、WYSIWYG/ソース直接編集モード双方で動的に実行できるようにするため。
   - **Before**:

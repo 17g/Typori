@@ -81,7 +81,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - PDFエクスポート: Rust側コマンド `export_to_pdf_html` および `convert_markdown_to_html` による印刷最適化スタイル内蔵HTML（`@page` ページマージン・A4サイズ自動調整、背景白・文字黒のハイコントラスト印刷カラー、見出し直後の改ページ回避、テーブル・画像・コードブロックの途中分割防止）の生成と、フロントエンド側の非表示iframe・印刷API連携（`printHtmlContent` / `printMarkdownDocument`）により、OS標準の印刷ダイアログ（「PDFに保存」対応）をシームレスに起動。UI側の `ExportModal`（HTML/PDF形式タブ切替）、ヘッダーのPDFエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+P / Ctrl+P)、およびOSネイティブメニュー連携 (`menu:export_pdf`) と連動。
 - アウトライン（右サイドバー）機能: 開いているMarkdownドキュメントの見出し（`#`〜`######`）をリアルタイムに抽出し、インデント付きツリーで表示。見出しクリック時にはWYSIWYG（ProseMirror DOM）およびソース直接編集モード（CodeMirror 6）の該当見出し位置へスムーズスクロールし、ターゲット要素を一時的にパルスハイライト描画。右サイドバーの開閉はヘッダーボタン、ショートカット (Ctrl+Shift+O)、およびOSネイティブメニュー (`menu:toggle_right_sidebar`) と双方向連動。
 - 書式クリア（Bare）機能: 選択範囲の装飾を解除する操作に対し、WYSIWYGモードでは ProseMirror の `removeMark` により全マークを一括解除し、Milkdown のシリアライザにより Markdown 記法を自動分割整形。ソース直接編集モードでは構文解析により `**前**選択テキスト**後**` のようにデリミタを自動分割置換。ショートカット（Ctrl+Shift+B）、OSネイティブメニュー (`menu:clear_formatting`)、クイックアクションパレット（EditorToolbar）のボタン押下から一貫して呼び出し可能。
-- 全体結合テスト・品質保証: 全41項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（15コマンド）、OSネイティブメニューイベント双方向整合性（17イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
+- 全体結合テスト・品質保証: 全50項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（15コマンド）、OSネイティブメニューイベント双方向整合性（18イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
 - クイックアクションパレット（EditorToolbar）のフロート表示・スクロール制御仕様:
   フォーカスモード切替、ソース直接編集切替、画像/表挿入、リンク編集、引用、Undo/Redoを提供するクイックアクションパレットについて、エディタスクロール時に本文と一緒に画面外へ押し流されて消えてしまう問題を解消し、以下の通り仕様を策定・定義する。
   - **仕様方針の整理と採択**:

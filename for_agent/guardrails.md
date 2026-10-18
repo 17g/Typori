@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（49件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（18イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（50件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（18イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -373,6 +373,20 @@
 - **対策**:
   1. テストスクリプト内では、React コンポーネント（`.tsx`）を直接 `import()` せず、`fs.readFileSync` による静的構造・エクスポート・実装検査を行うこと。
   2. `.tsx` 内のロジック（二分探索、仮想化計算、シミュレーション等）を動的にテストする場合は、純粋ロジック部分を `src/utils/*.ts` などの `.ts` モジュールに抽出してインポートするか、テストスクリプト側で同一アルゴリズムのシミュレーション関数を定義して振る舞いを検証すること。
+
+### 3.29. 書式クリア（Clear Formatting / Bare）機能の実装・検証における状態整合性と空選択ガード・遅延ロードRef連携
+- **事象・ミス**:
+  1. テキストを選択していないキャレット状態（`selection.empty` / `from === to`）で「書式をクリア」を実行した際、ドキュメント全体が置換されたり、不要な変更履歴（Undoスタック）が積まれて未保存フラグが誤爆する。
+  2. 遅延ロード（`React.lazy`）されている `SourceEditor` コンポーネントに対して、`App.tsx` から通常インポートで Ref 型を取り込もうとしたり、`useImperativeHandle` のメソッド呼び出しがオプショナルチェーン（`?.`）なしで行われて未マウント時にランタイムエラーとなる。
+  3. テストスクリプトにおいて `ClearFormattingResult` のプロパティ名を誤認（`hasChanged` / `newText` と推測して不一致エラー）する。
+- **原因**:
+  - ProseMirror および CodeMirror 6 において、空選択時のハンドリングを行わずにトランザクションを発行すると、`tr.removeMark` はエラーにならなくても `userEvent` や履歴に差分が記録されてしまう。
+  - `SourceEditor` は起動高速化のため `lazy(() => import(...))` されており、型定義のみ `import type { SourceEditorRef }` で明示的にインポートする必要がある。
+  - `src/utils/format.ts` の返却型は `{ text: string, from: number, to: number, changed: boolean }` として厳密に定義されている。
+- **対策**:
+  1. WYSIWYG（`clearWysiwygFormatting`）およびソース直接編集（`clearFormatting`）のいずれにおいても、先頭で必ず空選択ガード（`selection.empty || selection.from === selection.to` 等）を判定し、空の場合は即座に `false` を返却してトランザクション発行を抑止すること。
+  2. `App.tsx` では `import type { SourceEditorRef } from "./components/Editor/SourceEditor"` により型のみを安全にインポートし、動的ディスパッチ時は `sourceEditorRef.current?.clearFormatting()` / `editorRef.current?.clearFormatting()` と安全に呼び出すこと。
+  3. 書式クリアの純粋関数（`clearInlineFormatting`）を検証する際は、`changed: boolean` および `text: string` のプロパティ名に準拠してアサーションを行うこと。
 
 ---
 

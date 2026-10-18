@@ -63,6 +63,7 @@ const testScripts = [
   { name: "書式クリア純粋ロジック単体検証 (Phase 26 Task 96)", file: "verify-clear-formatting-logic.mjs" },
   { name: "ソース直接編集モード書式クリア機能検証 (Phase 26 Task 97)", file: "verify-source-clear-formatting.mjs" },
   { name: "WYSIWYGモード書式クリア機能検証 (Phase 26 Task 98)", file: "verify-wysiwyg-clear-formatting.mjs" },
+  { name: "書式クリア総合機能品質保証テスト (Phase 26 Task 100)", file: "verify-clear-formatting.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
