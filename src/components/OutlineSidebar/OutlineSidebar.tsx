@@ -1,7 +1,6 @@
-import { useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface OutlineItem {
-
   level: number;
   text: string;
   line: number;
@@ -12,6 +11,8 @@ export interface OutlineSidebarProps {
   isOpen: boolean;
   onSelectHeading?: (item: OutlineItem) => void;
 }
+
+export const OUTLINE_DEBOUNCE_MS = 150;
 
 export function extractOutline(markdown: string): OutlineItem[] {
   const lines = markdown.split('\n');
@@ -39,10 +40,31 @@ export function extractOutline(markdown: string): OutlineItem[] {
 }
 
 export default function OutlineSidebar({ content, isOpen, onSelectHeading }: OutlineSidebarProps) {
-  const outline = useMemo(() => {
-    if (!content) return [];
-    return extractOutline(content);
-  }, [content]);
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const lastProcessedContentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !content) {
+      if (!content) {
+        setOutline([]);
+        lastProcessedContentRef.current = null;
+      }
+      return;
+    }
+
+    if (content === lastProcessedContentRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      lastProcessedContentRef.current = content;
+      setOutline(extractOutline(content));
+    }, OUTLINE_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [content, isOpen]);
 
   if (!isOpen) return null;
 

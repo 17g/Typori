@@ -57,7 +57,11 @@ export async function rerenderAllMermaidDiagrams(targetTheme?: MermaidTheme): Pr
 
   const promises: Promise<void>[] = [];
   activeMermaidViews.forEach((view) => {
-    promises.push(view.renderDiagram(theme));
+    // 描画済み、または現在可視領域にあるダイアグラムのみ再描画を実行
+    // 未描画かつ不可視のものは次回可視化時に最新テーマで描画される
+    if (view.hasRendered || view.isVisibleInViewport) {
+      promises.push(view.renderDiagram(theme));
+    }
   });
   await Promise.allSettled(promises);
 }
@@ -144,7 +148,10 @@ export class MermaidNodeView implements NodeView {
   private renderVersion: number = 0;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private themeObserver: MutationObserver | null = null;
+  private intersectionObserver: IntersectionObserver | null = null;
   private isActive: boolean = false;
+  hasRendered: boolean = false;
+  isVisibleInViewport: boolean = false;
 
   constructor(node: ProseNode, view: EditorView, getPos: () => number | undefined) {
     this.node = node;
@@ -200,6 +207,13 @@ export class MermaidNodeView implements NodeView {
       "typori-mermaid-preview p-4 flex flex-col items-center justify-center overflow-x-auto min-h-[60px] cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition-colors";
     this.previewContainer.setAttribute("title", "クリックして Mermaid ソースを編集");
 
+    // 初期プレースホルダー表示
+    this.previewContainer.innerHTML = `
+      <div class="typori-mermaid-placeholder flex items-center justify-center py-4 text-xs text-gray-400 dark:text-gray-500 font-mono select-none">
+        <span>Mermaid ダイアグラム (可視領域で描画)</span>
+      </div>
+    `;
+
     // プレビュー領域クリックでソース編集モードへ移行
     this.previewContainer.addEventListener("click", (e) => {
       this.handleClickPreview(e);
@@ -217,9 +231,60 @@ export class MermaidNodeView implements NodeView {
     ensureGlobalThemeObserver();
     this.setupThemeObserver();
 
-    // 初期状態の反映と初回レンダリング
+    // 初期状態の反映
     this.updateActiveState();
-    this.renderDiagram();
+
+    // ビューポート遅延評価（Lazy Render）の設定
+    // IntersectionObserver を用いて可視領域（および近傍 300px）に入ったタイミングで描画し、
+    // 大容量ドキュメントオープン時の初期レンダリング負荷を大幅軽減
+    if (typeof IntersectionObserver !== "undefined") {
+      this.setupIntersectionObserver();
+    } else {
+      // IntersectionObserver 非対応環境（テスト・SSR等）では即時描画
+      this.renderDiagram();
+    }
+  }
+
+  /**
+   * ビューポート交差監視（IntersectionObserver）を設定し、可視領域接近時に遅延描画します。
+   */
+  setupIntersectionObserver(): void {
+    if (typeof IntersectionObserver === "undefined") {
+      this.renderDiagram();
+      return;
+    }
+
+    try {
+      const scrollContainer =
+        this.view.dom.closest?.(".typori-editor-wrapper") ||
+        this.view.dom.parentElement ||
+        null;
+
+      this.intersectionObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              this.isVisibleInViewport = true;
+              if (!this.hasRendered) {
+                this.renderDiagram();
+              }
+            } else {
+              this.isVisibleInViewport = false;
+            }
+          }
+        },
+        {
+          root: scrollContainer,
+          rootMargin: "300px 0px",
+          threshold: 0,
+        }
+      );
+
+      this.intersectionObserver.observe(this.dom);
+    } catch {
+      // 例外時は即時描画フォールバック
+      this.renderDiagram();
+    }
   }
 
   /**
@@ -248,6 +313,11 @@ export class MermaidNodeView implements NodeView {
       this.dom.classList.add("ring-2", "ring-blue-500/30", "border-blue-400", "dark:border-blue-500");
       this.previewContainer.classList.remove("cursor-pointer", "hover:bg-gray-50/40", "dark:hover:bg-gray-800/40");
       this.previewContainer.removeAttribute("title");
+
+      // アクティブ化された際、未描画であれば直ちに描画
+      if (!this.hasRendered) {
+        this.renderDiagram();
+      }
     } else {
       this.headerBar.classList.add("hidden");
       this.headerBar.classList.remove("flex");
@@ -301,6 +371,7 @@ export class MermaidNodeView implements NodeView {
    * @param targetTheme 明示的に適用するテーマ。省略時は現在のアプリテーマを使用
    */
   async renderDiagram(targetTheme?: MermaidTheme): Promise<void> {
+    this.hasRendered = true;
     const currentVersion = ++this.renderVersion;
     const code = this.node.textContent.trim();
 
@@ -384,7 +455,11 @@ export class MermaidNodeView implements NodeView {
     this.node = node;
 
     if (textChanged) {
-      this.scheduleRender();
+      if (this.isVisibleInViewport || this.isActive) {
+        this.scheduleRender();
+      } else {
+        this.hasRendered = false;
+      }
     }
     this.updateActiveState();
     return true;
@@ -419,6 +494,10 @@ export class MermaidNodeView implements NodeView {
     if (this.renderTimer) {
       clearTimeout(this.renderTimer);
       this.renderTimer = null;
+    }
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
+      this.intersectionObserver = null;
     }
     if (this.themeObserver) {
       this.themeObserver.disconnect();

@@ -690,65 +690,128 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     const SCROLL_TOP_THRESHOLD = 20;
     const [isScrolled, setIsScrolled] = useState(false);
     const [isToolbarHovered, setIsToolbarHovered] = useState(false);
-
-    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-      const scrollTop = e.currentTarget.scrollTop;
-      setIsScrolled(scrollTop > SCROLL_TOP_THRESHOLD);
-    }, []);
+    const resolvingImagesRef = useRef<Set<string>>(new Set());
+    const resolveImagesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // DOM内のローカル画像パスを読み込みBlob URLとして解決・表示する
-    const resolveImagesInDOM = useCallback(async () => {
-      if (!containerRef.current) return;
-      const imgElements = containerRef.current.querySelectorAll<HTMLImageElement>("img");
-      for (const img of Array.from(imgElements)) {
-        const rawSrc = img.getAttribute("data-raw-src") || img.getAttribute("src");
-        if (!rawSrc) continue;
+    // ビューポート優先 & 遅延評価: 可視領域近傍の画像を優先解決し、初期オープン時の負荷を大幅軽減
+    const resolveImagesInDOM = useCallback(
+      async (options?: { onlyVisible?: boolean }) => {
+        const container = containerRef.current;
+        if (!container) return;
 
-        if (
-          rawSrc.startsWith("http://") ||
-          rawSrc.startsWith("https://") ||
-          rawSrc.startsWith("data:") ||
-          rawSrc.startsWith("blob:") ||
-          rawSrc.startsWith("asset://")
-        ) {
-          continue;
-        }
+        const imgElements = container.querySelectorAll<HTMLImageElement>("img");
+        if (imgElements.length === 0) return;
 
-        if (!img.hasAttribute("data-raw-src")) {
-          img.setAttribute("data-raw-src", rawSrc);
-        }
+        const containerRect = container.getBoundingClientRect();
+        const BUFFER_PX = 400;
+        const searchTop = containerRect.top - BUFFER_PX;
+        const searchBottom = containerRect.bottom + BUFFER_PX;
 
-        if (resolvedImageUrlsRef.current.has(rawSrc)) {
-          const cached = resolvedImageUrlsRef.current.get(rawSrc)!;
-          if (img.src !== cached) {
-            img.src = cached;
+        const pendingImages: { img: HTMLImageElement; rawSrc: string }[] = [];
+
+        for (const img of Array.from(imgElements)) {
+          const rawSrc = img.getAttribute("data-raw-src") || img.getAttribute("src");
+          if (!rawSrc) continue;
+
+          if (
+            rawSrc.startsWith("http://") ||
+            rawSrc.startsWith("https://") ||
+            rawSrc.startsWith("data:") ||
+            rawSrc.startsWith("blob:") ||
+            rawSrc.startsWith("asset://")
+          ) {
+            continue;
           }
-          continue;
+
+          if (!img.hasAttribute("data-raw-src")) {
+            img.setAttribute("data-raw-src", rawSrc);
+          }
+
+          if (resolvedImageUrlsRef.current.has(rawSrc)) {
+            const cached = resolvedImageUrlsRef.current.get(rawSrc)!;
+            if (img.src !== cached) {
+              img.src = cached;
+            }
+            continue;
+          }
+
+          if (resolvingImagesRef.current.has(rawSrc)) {
+            continue;
+          }
+
+          // 可視領域内外を判定
+          let isNearViewport = true;
+          try {
+            const imgRect = img.getBoundingClientRect();
+            isNearViewport = imgRect.bottom >= searchTop && imgRect.top <= searchBottom;
+          } catch {
+            isNearViewport = true;
+          }
+
+          if (options?.onlyVisible && !isNearViewport) {
+            continue;
+          }
+
+          pendingImages.push({ img, rawSrc });
         }
 
-        try {
-          const absPath = await resolveImagePath(rawSrc, filePath, workspaceDir);
-          const binaryData = await readFileBinary(absPath);
-          const mime = getMimeType(absPath);
-          const blob = new Blob([new Uint8Array(binaryData)], { type: mime });
-          const blobUrl = URL.createObjectURL(blob);
-          resolvedImageUrlsRef.current.set(rawSrc, blobUrl);
-          img.src = blobUrl;
-        } catch (err) {
-          console.warn(`Failed to resolve local image '${rawSrc}':`, err);
+        // 画像の非同期ロード
+        for (const { img, rawSrc } of pendingImages) {
+          resolvingImagesRef.current.add(rawSrc);
+          try {
+            const absPath = await resolveImagePath(rawSrc, filePath, workspaceDir);
+            const binaryData = await readFileBinary(absPath);
+            const mime = getMimeType(absPath);
+            const blob = new Blob([new Uint8Array(binaryData)], { type: mime });
+            const blobUrl = URL.createObjectURL(blob);
+            resolvedImageUrlsRef.current.set(rawSrc, blobUrl);
+            img.src = blobUrl;
+          } catch (err) {
+            console.warn(`Failed to resolve local image '${rawSrc}':`, err);
+          } finally {
+            resolvingImagesRef.current.delete(rawSrc);
+          }
         }
-      }
-    }, [filePath, workspaceDir]);
+      },
+      [filePath, workspaceDir]
+    );
 
-    // DOMの変更を監視して画像を自動解決
+    const handleScroll = useCallback(
+      (e: React.UIEvent<HTMLDivElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        setIsScrolled(scrollTop > SCROLL_TOP_THRESHOLD);
+
+        if (resolveImagesTimerRef.current) {
+          clearTimeout(resolveImagesTimerRef.current);
+        }
+        resolveImagesTimerRef.current = setTimeout(() => {
+          resolveImagesInDOM({ onlyVisible: true });
+        }, 150);
+      },
+      [resolveImagesInDOM]
+    );
+
+    // DOMの変更を監視して画像を自動解決（デバウンス & 段階評価）
     useEffect(() => {
       const container = containerRef.current;
       if (!container) return;
 
-      resolveImagesInDOM();
+      // 初期マウント時はまず可視領域近傍を優先解決
+      resolveImagesInDOM({ onlyVisible: true });
+
+      // アイドル時（または少し遅延して）全画像も段階解決
+      const idleTimer = setTimeout(() => {
+        resolveImagesInDOM();
+      }, 500);
 
       const observer = new MutationObserver(() => {
-        resolveImagesInDOM();
+        if (resolveImagesTimerRef.current) {
+          clearTimeout(resolveImagesTimerRef.current);
+        }
+        resolveImagesTimerRef.current = setTimeout(() => {
+          resolveImagesInDOM({ onlyVisible: true });
+        }, 120);
       });
 
       observer.observe(container, {
@@ -759,6 +822,10 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       });
 
       return () => {
+        clearTimeout(idleTimer);
+        if (resolveImagesTimerRef.current) {
+          clearTimeout(resolveImagesTimerRef.current);
+        }
         observer.disconnect();
       };
     }, [resolveImagesInDOM]);

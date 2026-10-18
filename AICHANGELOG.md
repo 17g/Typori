@@ -2069,3 +2069,56 @@
       - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
   - **影響範囲**: `src/utils/text.ts`, `src/App.tsx`, `scripts/verify-smart-large-file-handler.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
 
+- 2026-10-18: Phase 25 タスク 94「アウトライン・画像・Mermaidの遅延ロード最適化」を完了。
+  - **変更理由**: 大容量Markdownファイル（800KB/5000行+）を開いた際、右サイドバーの見出し抽出（`extractOutline`）やDOM内ローカル画像解決（`resolveImagesInDOM`）、および多数のMermaidダイアグラムSVGレンダリングがファイルオープン直後に一斉に同期実行され、CPUやメインスレッドを過度に占有して初期表示の遅延や入力レイテンシが生じる問題を解消するため。
+  - **Before**:
+    - `src/components/OutlineSidebar/OutlineSidebar.tsx`:
+      - `content` 変更時に `extractOutline(content)` が `useMemo` で無条件・同期的に実行され、高速タイピング時や初期オープン時にメインスレッドをブロックしていた。
+    - `src/components/OutlineSidebar/index.ts`:
+      - `OUTLINE_DEBOUNCE_MS` 定数がエクスポートされていなかった。
+    - `src/components/Editor/Editor.tsx`:
+      - `resolveImagesInDOM` がDOM全体の全画像を無条件走査・同期読み込みしており、ビューポート可視判定がなかった。
+      - `MutationObserver` で微小なDOM変化ごとに毎回同期実行され、スクロール時のデバウンス制御や段階解決が存在しなかった。
+    - `src/components/Editor/mermaidPlugin.ts`:
+      - `MermaidNodeView` のコンストラクタで画面外のダイアグラムも含めすべてのノードが即座に `renderDiagram()` を同期実行していた。
+      - ビューポート接近監視（`IntersectionObserver`）やプレースホルダー表示が存在せず、初期マウント時に多数のダイアグラムSVG描画が一斉に走っていた。
+    - `scripts/verify-large-file-lazy-loading.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別機能検証テスト数が44件だった。
+    - `Plan.md`: タスク94が未完了（`- [ ]`）だった。
+  - **After**:
+    - `src/components/OutlineSidebar/OutlineSidebar.tsx`:
+      - `OUTLINE_DEBOUNCE_MS = 150` を定義・export。
+      - `useEffect` と `setTimeout` / `clearTimeout` によるデバウンス抽出、および `lastProcessedContentRef` による同一コンテンツ重複再計算スキップを実装。
+    - `src/components/OutlineSidebar/index.ts`:
+      - `OUTLINE_DEBOUNCE_MS` を再エクスポート。
+    - `src/components/Editor/Editor.tsx`:
+      - `resolveImagesInDOM` に `onlyVisible?: boolean` オプションを追加し、コンテナ矩形に対する上下400pxバッファ領域（`BUFFER_PX = 400`）内外を判定。
+      - `resolvingImagesRef` による重複・多重読み込み防止を導入。
+      - 初回マウント時は可視領域近傍（`onlyVisible: true`）を優先解決し、アイドル時（500ms後）に全体画像を段階解決。
+      - `handleScroll` で150msデバウンス解決、`MutationObserver` で120msデバウンス解決を実装。
+    - `src/components/Editor/mermaidPlugin.ts`:
+      - `MermaidNodeView` に `hasRendered`、`isVisibleInViewport`、`intersectionObserver` を導入。
+      - 未描画時の軽量プレースホルダー（`typori-mermaid-placeholder`）を設定。
+      - `IntersectionObserver`（`rootMargin: "300px 0px"`）により可視領域接近時のみ遅延描画（Lazy Render）を行い、画面外ダイアグラムの初期描画を保留。
+      - クリックやSelection進入によるアクティブ化時には即座に描画を実行。
+      - `destroy()` で `intersectionObserver` を確実に切断・解放。
+      - `rerenderAllMermaidDiagrams` において描画済みまたは可視領域内のダイアグラムのみ優先再描画するよう最適化。
+    - `scripts/verify-large-file-lazy-loading.mjs`:
+      - 新規作成。[Step 1] アウトラインデバウンス静的構造・シミュレーション検証、[Step 2] 画像ビューポート優先・デバウンス・重複防止検証、[Step 3] Mermaid遅延描画プロパティ・IntersectionObserver設定・アクティブ時即時描画・破棄時クリーンアップ・ライフサイクルシミュレーションを網羅検証。
+    - `scripts/verify-all.mjs`:
+      - `verify-large-file-lazy-loading.mjs` を追加し、全45件の個別機能検証テストに拡充。
+    - `for_agent/guardrails.md`:
+      - ガードレール「3.27. アウトライン抽出・ローカル画像解決・Mermaidダイアグラムの遅延ロード最適化（オープン初期負荷軽減）」を追加し、全個別テスト件数を45件に更新。
+    - `for_agent/architecture.md`:
+      - 改訂履歴にタスク94の完了記録を追記。
+    - `Plan.md`:
+      - タスク94を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-large-file-lazy-loading.mjs`: Exit Code 0 (全ステップ合格)
+      - `pnpm test` (`scripts/verify-all.mjs`): Exit Code 0 (45/45 個別テスト合格、全15 IPCコマンド整合、全17 OSネイティブメニュー整合、ショートカット定義整合)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (全39件 passed)
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/OutlineSidebar/OutlineSidebar.tsx`, `src/components/OutlineSidebar/index.ts`, `src/components/Editor/Editor.tsx`, `src/components/Editor/mermaidPlugin.ts`, `scripts/verify-large-file-lazy-loading.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
+

@@ -147,7 +147,7 @@
 - [x] 91. WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: `src/components/Editor/Editor.tsx` の `lineNumbersPlugin` における全ブロック同期 `coordsAtPos` ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・`requestAnimationFrame`）の実装
 - [x] 92. Milkdown初回マウント時シリアライズ最適化: `Editor.tsx` の `listenerCtx.mounted` における大容量ファイルの不要な全件シリアライズ（`serializer`）を抑制し、初期レンダリング時のメインスレッドブロックをゼロ化
 - [x] 93. 大容量ファイル検知と直接編集モード高速オープン連携（Smart Large-File Handler）: 巨大ファイル（閾値: 300KB以上または2000行以上等）読み込み時におけるスムーズな高速オープン処理（CodeMirror 6 の仮想スクロール特性を活かした即時オープンまたはモード案内）の実装（`App.tsx`）
-- [ ] 94. アウトライン・画像・Mermaidの遅延ロード最適化: `OutlineSidebar.tsx` のアウトライン抽出デバウンス、DOM内ローカル画像解決（`resolveImagesInDOM`）およびMermaidレンダリングのビューポート遅延評価による初期オープン負荷軽減
+- [x] 94. アウトライン・画像・Mermaidの遅延ロード最適化: `OutlineSidebar.tsx` のアウトライン抽出デバウンス、DOM内ローカル画像解決（`resolveImagesInDOM`）およびMermaidレンダリングのビューポート遅延評価による初期オープン負荷軽減
 - [ ] 95. 品質保証/パフォーマンステスト: 800KB/5000行の模擬Markdownファイルを生成・ロードし、強制リフロー排除・行番号仮想化・大容量オープン時間・全機能整合性を網羅検証するパフォーマンステストスクリプト（`scripts/verify-large-file-performance.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
 
 ## Phase 26: 書式クリア機能（Clear Formatting / Bare）

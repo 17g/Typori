@@ -58,6 +58,7 @@ const testScripts = [
   { name: "直接編集モード表示・GFM・コードブロックハイライト・完全同期 (Phase 24)", file: "verify-source-editor-display.mjs" },
   { name: "Milkdown初回マウント時シリアライズ最適化 (Phase 25 Task 92)", file: "verify-large-mount-serialization.mjs" },
   { name: "大容量ファイル検知 & 直接編集モード高速オープン連携 (Phase 25 Task 93)", file: "verify-smart-large-file-handler.mjs" },
+  { name: "アウトライン・画像・Mermaid遅延ロード最適化 (Phase 25 Task 94)", file: "verify-large-file-lazy-loading.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);
