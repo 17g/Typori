@@ -1,3 +1,23 @@
+- 2026-10-18: タスク102「リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)」を完了。
+  - **変更理由**: 正式版 v1.8.0 の配布パッケージとして、全機能開発（全26フェーズ、全100タスク）が統合された最新コードベースに基づくリリースビルドを実行し、Windows 実行可能バイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）を生成・検証するため。
+  - **Before**:
+    - リリース成果物が過去のビルド（v0.1.0）のままであり、Phase 23〜26（セキュリティ強化、構文ハイライト完全改善、大容量高速化、書式クリア機能）が含まれていなかった。
+    - `Plan.md`: タスク102が未完了（`- [ ]`）であった。
+  - **After**:
+    - `pnpm run build:release` を実行:
+      1. `pnpm test` (総合結合テスト全50件、全15コマンド、全18メニューイベント、ショートカット定義競合なし) 合格
+      2. `tsc` & `vite build` によるプロダクションバンドル生成
+      3. Rust リリースプロファイル最適化コンパイル（`opt-level = 3`, `lto = true`, `strip = true`）完了
+      4. WiX ツールセット（candle & light）による MSI パッケージ生成
+      5. NSIS（makensis）によるセットアップインストーラ生成
+    - `node scripts/verify-release-bundle.mjs` による完全性検証:
+      - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.36 MB / SHA-256: `ae45a6e421f95540a97151ac4bb2ab73b670fcdb2b7595b2d09a2e8bbd500f6c`)
+      - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_1.8.0_x64-setup.exe` (3.41 MB / SHA-256: `278b5e95e00900db14acd605bc24c8323342df01a3d33dec365675dcd82d0d64`)
+      - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_1.8.0_x64_en-US.msi` (4.06 MB / SHA-256: `f5bd0846ea55d554515676d2005d8faabb5e9bc0f56fa983bf702c0ce9734f83`)
+    - `Plan.md`: タスク102を `- [x]` に更新（全102タスク完了）。
+    - `for_agent/architecture.md`: 改訂履歴にタスク102完了を追記。
+  - **影響範囲**: `Plan.md`, `for_agent/architecture.md`, `AICHANGELOG.md`, `src-tauri/target/release/`。
+
 - 2026-10-18: タスク101「バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.0 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)」を完了。
   - **変更理由**: 全100タスク完了および全体総合レビューの完了を受け、正式版 v1.8.0 リリースビルドの生成準備として、フロントエンド（`package.json`）、Tauri設定（`src-tauri/tauri.conf.json`）、バックエンド（`src-tauri/Cargo.toml`）のバージョン番号を `1.8.0` へ一括同期し、成果物検証スクリプト（`scripts/verify-release-bundle.mjs`）を動的バージョン解決に対応させ、リリース設定の完全な整合性を保証するため。
   - **Before**:

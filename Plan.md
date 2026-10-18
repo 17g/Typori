@@ -159,5 +159,5 @@
 
 ## Phase 27: 正式版 v1.8.0 リリースビルドの準備と成果物検証
 - [x] 101. バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.0 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)
-- [ ] 102. リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)
+- [x] 102. リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)
 
