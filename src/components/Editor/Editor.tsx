@@ -23,14 +23,14 @@ import { $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
-import { normalizeLineEndings } from "../../utils/text";
+import { normalizeLineEndings, isLargeContent } from "../../utils/text";
 import { isSafeExternalUrl } from "../../utils/url";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
 import { mermaidPlugin, rerenderAllMermaidDiagrams } from "./mermaidPlugin";
 
-export { isSafeExternalUrl };
+export { isSafeExternalUrl, isLargeContent };
 
 export const focusModePluginKey = new PluginKey("focusModePlugin");
 
@@ -815,12 +815,17 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
               // Milkdownの初期シリアライズ結果をベースラインとして同期し未保存誤爆を防止
               if (!hasUserInteractedRef.current && !isDirty) {
                 try {
-                  const serializer = innerCtx.get(serializerCtx);
                   const editorView = innerCtx.get(editorViewCtx);
-                  if (editorView && serializer) {
-                    const initialSerialized = normalizeLineEndings(serializer(editorView.state.doc));
-                    prevContentRef.current = initialSerialized;
-                    onChangeRef.current?.(initialSerialized, { isUserInteraction: false });
+                  // 大容量ファイル（300KB以上または2000行以上等）では、初回マウント時の不要な全件シリアライズ（serializer）を
+                  // 抑制し、初期レンダリング時のメインスレッドブロックをゼロ化する
+                  const isLarge = isLargeContent(initialValue) || Boolean(editorView && editorView.state.doc.nodeSize >= 60000);
+                  if (!isLarge) {
+                    const serializer = innerCtx.get(serializerCtx);
+                    if (editorView && serializer) {
+                      const initialSerialized = normalizeLineEndings(serializer(editorView.state.doc));
+                      prevContentRef.current = initialSerialized;
+                      onChangeRef.current?.(initialSerialized, { isUserInteraction: false });
+                    }
                   }
                 } catch {
                   // ignore

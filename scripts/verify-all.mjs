@@ -56,6 +56,7 @@ const testScripts = [
   { name: "起動高速化 & ゼロフラッシュ・コード分割 (Phase 21)", file: "verify-startup-acceleration.mjs" },
   { name: "セキュリティ強化・脆弱性対策 (Phase 23)", file: "verify-security-hardening.mjs" },
   { name: "直接編集モード表示・GFM・コードブロックハイライト・完全同期 (Phase 24)", file: "verify-source-editor-display.mjs" },
+  { name: "Milkdown初回マウント時シリアライズ最適化 (Phase 25 Task 92)", file: "verify-large-mount-serialization.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

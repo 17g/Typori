@@ -1,3 +1,36 @@
+- 2026-10-18: タスク92「Milkdown初回マウント時シリアライズ最適化: Editor.tsx の listenerCtx.mounted における大容量ファイルの不要な全件シリアライズ（serializer）を抑制し、初期レンダリング時のメインスレッドブロックをゼロ化」を完了。
+  - **変更理由**: 800KB/5000行+の大規模 Markdown ファイルを開いた際、Milkdown のマウント完了時（`listenerCtx.mounted`）に実行される `serializer(editorView.state.doc)` による全件シリアライズ（ProseMirror AST の全件走査・remark-stringify による文字列化）が同期的に数十万文字・数千行を処理するため、数百ミリ秒〜数秒間のメインスレッドブロッキング（UIフリーズ）が発生していた問題を根本的に解消するため。
+  - **Before**:
+    - `src/utils/text.ts`:
+      - 大容量コンテンツ判定用の定数（`LARGE_FILE_SIZE_THRESHOLD`, `LARGE_FILE_LINE_THRESHOLD`）および判定関数（`isLargeContent`）が存在しなかった。
+    - `src/components/Editor/Editor.tsx`:
+      - `listenerCtx.mounted` において、`!hasUserInteractedRef.current && !isDirty` の場合、ファイルサイズやドキュメント規模にかかわらず無条件で `serializer(editorView.state.doc)` を同期実行していた。
+    - `scripts/verify-all.mjs`:
+      - 初回マウント時シリアライズ最適化および大容量判定を網羅検証するテストが含まれていなかった（個別テスト数: 42件）。
+    - `Plan.md`: タスク92が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/utils/text.ts`:
+      - 大容量ファイル判定定数 `LARGE_FILE_SIZE_THRESHOLD = 300 * 1024`（300KB）および `LARGE_FILE_LINE_THRESHOLD = 2000`（2,000行）を定義・export。
+      - 高速走査判定関数 `isLargeContent(content, sizeThreshold, lineThreshold): boolean` を実装・export。
+    - `src/components/Editor/Editor.tsx`:
+      - `src/utils/text.ts` から `isLargeContent` をインポートし、外部へ export。
+      - `listenerCtx.mounted` リスナーにおいて、`isLargeContent(initialValue)` または `editorView.state.doc.nodeSize >= 60000` の大容量ドキュメントを判定。大容量ファイルでは不要な全件シリアライズ（`serializer`）を完全に抑制し、初期レンダリング時のメインスレッドブロッキングを 0ms 化。通常ファイル（< 300KB, < 2000行）に対しては既存の初期ベースライン同期を完全維持。
+    - `scripts/verify-large-mount-serialization.mjs`:
+      - 新規作成。[1] `text.ts` の定数定義・エクスポート・動的判定ロジック検証、[2] `Editor.tsx` の静的構造・ガード文脈検証、[3] 通常ファイル vs 800KB/5000行大容量ファイルでのマウントシリアライズシミュレーション（通常ファイルはシリアライズ実行、大容量ファイルは serializer 呼び出しゼロ・0ms完了）を自動検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-large-mount-serialization.mjs` を追加し、全 43 件の個別機能検証テストとして統合。
+    - `for_agent/architecture.md`:
+      - 改訂履歴に Phase 25 タスク92完了を追記。
+    - `Plan.md`:
+      - タスク92を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-large-mount-serialization.mjs`: Exit Code 0 (全3ステップ合格)
+      - `pnpm test`: Exit Code 0 (全43個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/utils/text.ts`, `src/components/Editor/Editor.tsx`, `scripts/verify-large-mount-serialization.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。既存の未保存誤爆防止機能および通常ファイル初期同期との完全互換性を保持。
+
 - 2026-10-18: タスク91「WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: src/components/Editor/Editor.tsx の lineNumbersPlugin における全ブロック同期 coordsAtPos ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・requestAnimationFrame）の実装」を完了。
   - **変更理由**: 800KB/5000行+の大規模 Markdown ファイルを開いた際、WYSIWYG モード（Milkdown）の `lineNumbersPlugin` が全ブロック（数千ノード）に対して `coordsAtPos` を同期ループで呼び出し、ブラウザの強制レイアウト再計算（Forced Reflow / Layout Thrashing）を連続して発生させて数秒間の UI フリーズを引き起こしていた問題を根本的に解消するため。
   - **Before**:

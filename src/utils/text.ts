@@ -36,3 +36,35 @@ export function isContentDirty(
   }
   return normalizeLineEndings(current) !== normalizeLineEndings(baseline);
 }
+
+/**
+ * 大容量ファイルの判定閾値
+ * 300KB (307,200 bytes) または 2,000行以上
+ */
+export const LARGE_FILE_SIZE_THRESHOLD = 300 * 1024;
+export const LARGE_FILE_LINE_THRESHOLD = 2000;
+
+/**
+ * 与えられたテキストが大容量コンテンツ（300KB以上または2000行以上）かどうかを判定します。
+ * 
+ * @param content 対象テキスト
+ * @param sizeThreshold バイト数/文字数閾値（デフォルト 300KB）
+ * @param lineThreshold 行数閾値（デフォルト 2000行）
+ * @returns 大容量コンテンツの場合は true
+ */
+export function isLargeContent(
+  content: string | null | undefined,
+  sizeThreshold = LARGE_FILE_SIZE_THRESHOLD,
+  lineThreshold = LARGE_FILE_LINE_THRESHOLD
+): boolean {
+  if (!content) return false;
+  if (content.length >= sizeThreshold) return true;
+  let lines = 1;
+  for (let i = 0; i < content.length; i++) {
+    if (content.charCodeAt(i) === 10) {
+      lines++;
+      if (lines >= lineThreshold) return true;
+    }
+  }
+  return false;
+}
