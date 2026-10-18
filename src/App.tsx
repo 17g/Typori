@@ -19,7 +19,11 @@ import { useTheme } from "./hooks/useTheme";
 import { useTabSettings } from "./hooks/useTabSettings";
 import { useLineNumberSettings } from "./hooks/useLineNumberSettings";
 import { useShortcutSettings } from "./hooks/useShortcutSettings";
-import { normalizeLineEndings, isContentDirty } from "./utils/text";
+import {
+  normalizeLineEndings,
+  isContentDirty,
+  analyzeContentSize,
+} from "./utils/text";
 import ThemeToggle from "./components/ThemeToggle";
 import TabBar, { TabItem } from "./components/TabBar";
 import {
@@ -42,6 +46,13 @@ const ShortcutSettingsModal = lazy(() =>
 const ExportModal = lazy(() =>
   import("./components/ExportModal").then((m) => ({ default: m.ExportModal }))
 );
+
+export interface LargeFileNotice {
+  path: string;
+  fileName: string;
+  sizeKB: number;
+  lineCount: number;
+}
 
 
 function App() {
@@ -66,6 +77,7 @@ function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saved" | "error" | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [largeFileNotice, setLargeFileNotice] = useState<LargeFileNotice | null>(null);
   const [isFileLoading, setIsFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [currentDirectory, setCurrentDirectory] = useState<string | null>(null);
@@ -140,6 +152,30 @@ function App() {
     }
   }, []);
 
+  // 大容量ファイル検知と直接編集モード高速オープン連携 (Smart Large-File Handler)
+  const checkAndApplySmartLargeFileMode = useCallback(
+    (filePath: string, fileName: string, content: string): boolean => {
+      const sizeInfo = analyzeContentSize(content);
+      if (sizeInfo.isLarge) {
+        isSourceModeRef.current = true;
+        setIsSourceMode(true);
+        setLargeFileNotice({
+          path: filePath,
+          fileName,
+          sizeKB: sizeInfo.sizeKB,
+          lineCount: sizeInfo.lineCount,
+        });
+        return true;
+      } else {
+        setLargeFileNotice(null);
+        return false;
+      }
+    },
+    []
+  );
+  const checkAndApplySmartLargeFileModeRef = useRef(checkAndApplySmartLargeFileMode);
+  checkAndApplySmartLargeFileModeRef.current = checkAndApplySmartLargeFileMode;
+
   // ウィンドウ表示制御 & セーフティフォールバック
   const hasRevealedWindowRef = useRef(false);
   const revealWindow = useCallback(async () => {
@@ -205,6 +241,9 @@ function App() {
             activeTabIdRef.current = initialTab.id;
             setTabs([initialTab]);
             setActiveTabId(initialTab.id);
+
+            // 大容量ファイル検知と直接編集モード高速オープン連携
+            checkAndApplySmartLargeFileMode(targetFilePath, fileName, content);
           } else if (initResult.initial_file_error) {
             console.error(`Failed to open initial file '${targetFilePath}':`, initResult.initial_file_error);
             setFileError(`ファイルの読み込みに失敗しました: ${initResult.initial_file_error}`);
@@ -712,6 +751,19 @@ function App() {
       setSaveStatus(null);
       setSaveError(null);
       setFileError(null);
+
+      // 切り替え先タブの大容量判定
+      const sizeInfo = analyzeContentSize(normTargetContent);
+      if (sizeInfo.isLarge) {
+        setLargeFileNotice({
+          path: targetTab.path,
+          fileName: targetTab.title,
+          sizeKB: sizeInfo.sizeKB,
+          lineCount: sizeInfo.lineCount,
+        });
+      } else {
+        setLargeFileNotice(null);
+      }
     },
     []
   );
@@ -796,6 +848,18 @@ function App() {
           setSaveStatus(null);
           setSaveError(null);
           setFileError(null);
+
+          const sizeInfo = analyzeContentSize(normNextContent);
+          if (sizeInfo.isLarge) {
+            setLargeFileNotice({
+              path: nextTab.path,
+              fileName: nextTab.title,
+              sizeKB: sizeInfo.sizeKB,
+              lineCount: sizeInfo.lineCount,
+            });
+          } else {
+            setLargeFileNotice(null);
+          }
         } else {
           // 即時Ref同期
           tabsRef.current = [];
@@ -812,6 +876,7 @@ function App() {
           setSaveStatus(null);
           setSaveError(null);
           setFileError(null);
+          setLargeFileNotice(null);
         }
       } else {
         tabsRef.current = newTabs;
@@ -1313,6 +1378,9 @@ function App() {
         setSaveStatus(null);
         setSaveError(null);
         setFileError(null);
+
+        // 大容量ファイル検知と直接編集モード高速オープン連携
+        checkAndApplySmartLargeFileMode(entry.path, fileName, content);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`Failed to open file '${entry.path}':`, err);
@@ -1323,6 +1391,7 @@ function App() {
         setTabs([]);
         setFileContent(null);
         setSavedContent(null);
+        setLargeFileNotice(null);
       } finally {
         setIsFileLoading(false);
       }
@@ -1386,6 +1455,9 @@ function App() {
       setActiveTabId(newTab.id);
       setFileContent(content);
       setSavedContent(content);
+
+      // 大容量ファイル検知と直接編集モード高速オープン連携
+      checkAndApplySmartLargeFileMode(entry.path, fileName, content);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to open file '${entry.path}':`, err);
@@ -1526,6 +1598,7 @@ function App() {
         setSaveStatus(null);
         setSaveError(null);
         setFileError(null);
+        setLargeFileNotice(null);
         return true;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -1594,6 +1667,7 @@ function App() {
       setSaveStatus(null);
       setSaveError(null);
       setFileError(null);
+      setLargeFileNotice(null);
       return true;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -2086,6 +2160,52 @@ function App() {
             >
               ✕
             </button>
+          </div>
+        )}
+
+        {/* 大容量ファイル高速オープン案内バナー */}
+        {largeFileNotice && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200/80 dark:border-amber-900/60 text-amber-800 dark:text-amber-200 text-xs px-4 py-1.5 flex items-center justify-between z-10"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <svg className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="truncate">
+                <strong>大容量ファイル検知 ({largeFileNotice.sizeKB}KB / {largeFileNotice.lineCount.toLocaleString()}行):</strong>{" "}
+                快適なパフォーマンスを維持するため、仮想スクロール対応のソース直接編集モードで高速オープンしました。
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-3">
+              {isSourceMode ? (
+                <button
+                  onClick={handleExitSourceMode}
+                  className="px-2 py-0.5 bg-amber-200/70 hover:bg-amber-300/80 dark:bg-amber-900/70 dark:hover:bg-amber-800/80 text-amber-900 dark:text-amber-100 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                  title="WYSIWYGモードに切り替えます（ファイルサイズにより初回描画に時間がかかる場合があります）"
+                >
+                  WYSIWYGで表示
+                </button>
+              ) : (
+                <button
+                  onClick={handleToggleSourceMode}
+                  className="px-2 py-0.5 bg-amber-200/70 hover:bg-amber-300/80 dark:bg-amber-900/70 dark:hover:bg-amber-800/80 text-amber-900 dark:text-amber-100 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                  title="高速なソース直接編集モードに切り替えます"
+                >
+                  高速モード (ソース編集) に戻す
+                </button>
+              )}
+              <button
+                onClick={() => setLargeFileNotice(null)}
+                className="hover:bg-amber-200/60 dark:hover:bg-amber-900/60 rounded px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-300 cursor-pointer"
+                title="案内を閉じる"
+                aria-label="案内を閉じる"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
 

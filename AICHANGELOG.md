@@ -2039,3 +2039,33 @@
   - **Before**: 行番号表示の有効/無効を管理・永続化する状態フックが存在せず、`SourceEditor` / `TyporiEditor` も `showLineNumbers` プロップを受け取っていなかった。
   - **After**: `src/hooks/useLineNumberSettings.ts` を新規作成し、`localStorage`（`typori:line_numbers_enabled`、初期値 `true`）と連動する `isLineNumbersEnabled`、`setIsLineNumbersEnabled`、`toggleLineNumbers` を実装。`src/App.tsx` で `useLineNumberSettings` と `handleToggleLineNumbers`（および `handleToggleLineNumbersRef`）を組み込み、`SourceEditor` と `TyporiEditor` に `showLineNumbers={isLineNumbersEnabled}` を渡すよう更新。`SourceEditorProps` および `EditorProps` に `showLineNumbers?: boolean` を追加。
   - **影響範囲**: `src/hooks/useLineNumberSettings.ts`（新規）, `src/App.tsx`, `src/components/Editor/SourceEditor.tsx`, `src/components/Editor/Editor.tsx`, `Plan.md`, `for_agent/architecture.md`。
+
+- 2026-10-18: Phase 25 タスク 93「大容量ファイル検知と直接編集モード高速オープン連携（Smart Large-File Handler）の実装」を完了。
+  - **変更理由**: 大規模Markdownファイル（300KB以上または2000行以上）を開いた際、Milkdownの全AST・全DOMノード生成によるメインスレッドブロッキングや初期UIフリーズを回避し、CodeMirror 6の強力なビューポート仮想スクロール特性を活かして瞬時にファイルを表示・編集可能にするため。あわせてユーザーに状態を明示し、WYSIWYGモードへの切り替えも任意に行えるモード案内バナーUIを提供するため。
+  - **Before**:
+    - `src/utils/text.ts`: `isLargeContent`（真偽値判定）のみが存在し、ファイルサイズ（バイト/KB）と行数を同時に計測・返却する分析関数や型定義が存在しなかった。
+    - `src/App.tsx`: 大容量ファイルの検知ロジックや直接編集モード（`isSourceMode`）への自動連携が存在せず、大容量ファイルであっても常にWYSIWYGモードでマウントを試みていた。モード案内バナーUIも存在しなかった。
+    - `scripts/verify-smart-large-file-handler.mjs`: ファイルが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別機能検証テスト数が43件だった。
+    - `Plan.md`: タスク93が未完了（`- [ ]`）だった。
+  - **After**:
+    - `src/utils/text.ts`: `LargeFileInfo` インターフェース（`isLarge`, `sizeBytes`, `sizeKB`, `lineCount`）および `analyzeContentSize` 関数を実装・エクスポート。
+    - `src/App.tsx`:
+      - `LargeFileNotice` インターフェースおよび `largeFileNotice` state を追加。
+      - `checkAndApplySmartLargeFileMode` コールバックを実装: 大容量コンテンツ（300KB以上または2000行以上）を検知した場合に `isSourceModeRef.current = true; setIsSourceMode(true);` で直接編集モードに即時切り替え、ファイルサイズ・行数を保持した `largeFileNotice` を設定。
+      - `initialize()`、`handleSelectFile`（単一ファイルモードおよび複数タブモード双方）においてファイルロード時に `checkAndApplySmartLargeFileMode` を実行。
+      - `handleSelectTab` および `handleCloseTab` においてアクティブタブのコンテンツサイズを `analyzeContentSize` で評価し `largeFileNotice` を動的に同期。
+      - `handleCreateFile` で新規ファイル作成時に `largeFileNotice` をクリーンアップ。
+      - JSXヘッダー・タブバー直下に大容量ファイル検知モード案内バナー（黄色/アンバー調和デザイン、ファイルサイズ・行数表示、`WYSIWYGで表示` / `高速モード (ソース編集) に戻す` ボタン、閉じる `✕` ボタン付き）を配置。
+    - `scripts/verify-smart-large-file-handler.mjs`: 新規作成。`analyzeContentSize` の境界値・800KB/5000行テスト、`App.tsx` の静的AST構造・UIバナー・コールバック整合性、通常ファイルと大容量ファイルの動作シミュレーション、双方向モード切替を網羅検証。
+    - `scripts/verify-all.mjs`: `verify-smart-large-file-handler.mjs` を追加し、全44件の個別機能テストに拡充。
+    - `for_agent/architecture.md`: 改訂履歴にタスク93の完了記録を追記。
+    - `Plan.md`: タスク93を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-smart-large-file-handler.mjs`: Exit Code 0 (全項目合格)
+      - `pnpm test` (`scripts/verify-all.mjs`): Exit Code 0 (44/44 個別テスト合格、全15 IPCコマンド整合、全17 OSネイティブメニュー整合、ショートカット整合)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (39 tests passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/utils/text.ts`, `src/App.tsx`, `scripts/verify-smart-large-file-handler.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+

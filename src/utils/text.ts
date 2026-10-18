@@ -68,3 +68,42 @@ export function isLargeContent(
   }
   return false;
 }
+
+/**
+ * 大容量ファイルの分析結果情報
+ */
+export interface LargeFileInfo {
+  isLarge: boolean;
+  sizeBytes: number;
+  sizeKB: number;
+  lineCount: number;
+}
+
+/**
+ * 与えられたテキストのサイズおよび行数を高速に計測し、大容量ファイル判定結果を返します。
+ * 
+ * @param content 対象テキスト
+ * @param sizeThreshold バイト数/文字数閾値（デフォルト 300KB）
+ * @param lineThreshold 行数閾値（デフォルト 2000行）
+ * @returns 大容量ファイル情報 (isLarge, sizeBytes, sizeKB, lineCount)
+ */
+export function analyzeContentSize(
+  content: string | null | undefined,
+  sizeThreshold = LARGE_FILE_SIZE_THRESHOLD,
+  lineThreshold = LARGE_FILE_LINE_THRESHOLD
+): LargeFileInfo {
+  if (!content) {
+    return { isLarge: false, sizeBytes: 0, sizeKB: 0, lineCount: 0 };
+  }
+  const sizeBytes = content.length;
+  const sizeKB = Math.round(sizeBytes / 1024);
+  let lineCount = 1;
+  for (let i = 0; i < content.length; i++) {
+    if (content.charCodeAt(i) === 10) {
+      lineCount++;
+    }
+  }
+  const isLarge = sizeBytes >= sizeThreshold || lineCount >= lineThreshold;
+  return { isLarge, sizeBytes, sizeKB, lineCount };
+}
+
