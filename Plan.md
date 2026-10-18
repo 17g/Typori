@@ -134,3 +134,26 @@
 - [x] 82. バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02): `src-tauri/src/fs.rs` の画像保存（`get_unique_file_path` / `save_image_binary` / `save_image_file`）・画像パス解決（`resolve_image_path`）・バイナリ読み込み（`read_file_binary`）におけるパストラバーサル防止・画像拡張子検証・ファイルサイズ上限（50MB）の実装、および `search_files`（`search_dir_recursive`）の再帰深度上限（16階層）・シンボリックリンク除外とRust単体テスト追加
 - [x] 83. 依存パッケージの既知脆弱性解消 (LOW-01): `package.json` への `pnpm.overrides`（`source-map-js: ">=1.2.2"`, `katex: ">=0.18.2"`）追加とロックファイル更新、`pnpm audit` での検出脆弱性0件の確認
 - [x] 84. 品質保証/自動テスト: Phase 23 の全セキュリティ対策（Mermaid厳格化・サニタイズ、CSP・URLスキーム検証、エクスポートHTMLサニタイズ、IPC境界防御・サイズ/深度制限、依存関係オーバーライド）を網羅検証する自動テストスクリプト（`scripts/verify-security-hardening.mjs`）の作成と `scripts/verify-all.mjs` への統合、および全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）のパス確認
+
+## Phase 24: ソース直接編集モードの表示・レイアウト・構文ハイライト完全改善
+- [x] 85. 仕様策定・設計: ソース直接編集モード（CodeMirror 6）のレイアウト仕様（行番号ガターと本文の位置関係・パディング・スクロール領域）、GFM構文拡張、コードブロック言語ハイライト（JavaScript, TypeScript, Python, Rust, HTML, CSS, JSON, Markdown 等）、およびWYSIWYG/直接編集モード間の双方向コンテンツ同期（Ref整合性・元ファイル生ソース優先維持）の仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に追記・改訂
+- [ ] 86. 構文ハイライト & GFM対応: `@codemirror/language-data` 等による主要プログラミング言語構文パーサーの導入、`@codemirror/lang-markdown` への GFM 拡張（表、タスクリスト、自動リンク、打消し線）および `codeLanguages` の設定、Typori向けライト/ダークシンタックスハイライトテーマの整備（`src/components/Editor/SourceEditor.tsx`）
+- [ ] 87. レイアウト・スタイル修正: `SourceEditor.tsx` の flexbox 高さ構造（`flex-1 h-full` 重複の解消・`.cm-scroller` の overflow 最適化）、および `.cm-content` と `.cm-gutters` のマージン・パディング統合（中央寄せによるガター分離の解消、Typoraライクな美しい等幅エディタレイアウトの確立）
+- [ ] 88. モード切替 & コンテンツ完全同期の堅牢化: `App.tsx` の `handleToggleSourceMode`、`onExitSourceMode`、`handleSelectFile` における `isSourceModeRef` 同期漏れ解消、WYSIWYG切替時の未保存判定・生ソース完全保護、およびエディタ間でのカーソル・スクロール位置の破棄防止
+- [ ] 89. 品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（`scripts/verify-source-editor-display.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
+
+## Phase 25: 大容量ファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化
+- [ ] 90. 仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を `for_agent/` に追記・改訂
+- [ ] 91. WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: `src/components/Editor/Editor.tsx` の `lineNumbersPlugin` における全ブロック同期 `coordsAtPos` ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・`requestAnimationFrame`）の実装
+- [ ] 92. Milkdown初回マウント時シリアライズ最適化: `Editor.tsx` の `listenerCtx.mounted` における大容量ファイルの不要な全件シリアライズ（`serializer`）を抑制し、初期レンダリング時のメインスレッドブロックをゼロ化
+- [ ] 93. 大容量ファイル検知と直接編集モード高速オープン連携（Smart Large-File Handler）: 巨大ファイル（閾値: 300KB以上または2000行以上等）読み込み時におけるスムーズな高速オープン処理（CodeMirror 6 の仮想スクロール特性を活かした即時オープンまたはモード案内）の実装（`App.tsx`）
+- [ ] 94. アウトライン・画像・Mermaidの遅延ロード最適化: `OutlineSidebar.tsx` のアウトライン抽出デバウンス、DOM内ローカル画像解決（`resolveImagesInDOM`）およびMermaidレンダリングのビューポート遅延評価による初期オープン負荷軽減
+- [ ] 95. 品質保証/パフォーマンステスト: 800KB/5000行の模擬Markdownファイルを生成・ロードし、強制リフロー排除・行番号仮想化・大容量オープン時間・全機能整合性を網羅検証するパフォーマンステストスクリプト（`scripts/verify-large-file-performance.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
+
+## Phase 26: 書式クリア機能（Clear Formatting / Bare）
+- [ ] 96. ソース整形ロジック: 始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク等）および複合装飾に対し、選択範囲に応じた自動分割・置換（中間分割・端点分割・全体解除・ネスト解除・範囲内一括クリア・空選択ガード）を行う純粋関数（`src/utils/format.ts` 等）の実装と単体テスト
+- [ ] 97. ソース直接編集モード: CodeMirror 6 において選択テキストの書式クリアを実行するコマンド/関数（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・キーマップ連携（`src/components/Editor/SourceEditor.tsx`）
+- [ ] 98. WYSIWYGモード: ProseMirror の `tr.removeMark(from, to)` による選択範囲の全インラインMark一括解除処理（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・空選択ガード（`src/components/Editor/Editor.tsx`）
+- [ ] 99. UI・OS連携・ショートカット: OSネイティブ「編集」メニューへの「書式をクリア (CmdOrCtrl+Shift+B)」追加（`src-tauri/src/menu.rs` / `menu:clear_formatting`）、`SHORTCUT_ITEMS`（`Ctrl+Shift+B`）・チートシート早見表への掲載、クイックアクションパレット（`EditorToolbar.tsx`）へのクリアボタン配置、および `App.tsx` でのイベント購読・動的実行ハンドラの実装
+- [ ] 100. 品質保証/自動テスト: WYSIWYG/ソース直接編集双方での部分装飾解除・分割整形、空選択ガード、ネイティブメニュー（18イベント）、ショートカット定義、ツールバーボタンを網羅検証する自動テストスクリプト（`scripts/verify-clear-formatting.mjs`）の作成と `scripts/verify-all.mjs` への統合、および全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）のパス確認
+

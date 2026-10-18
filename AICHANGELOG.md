@@ -1,3 +1,28 @@
+- 2026-10-18: タスク85「仕様策定・設計: ソース直接編集モード（CodeMirror 6）のレイアウト仕様（行番号ガターと本文の位置関係・パディング・スクロール領域）、GFM構文拡張、コードブロック言語ハイライト（JavaScript, TypeScript, Python, Rust, HTML, CSS, JSON, Markdown 等）、およびWYSIWYG/直接編集モード間の双方向コンテンツ同期（Ref整合性・元ファイル生ソース優先維持）の仕様を for_agent/（architecture.md, guardrails.md）に追記・改訂」を完了。
+  - **変更理由**: Phase 24（ソース直接編集モードの表示・レイアウト・構文ハイライト完全改善）の実装に先立ち、行番号ガターと本文が分離して巨大な余白が生じるレイアウト問題の解消、GFM拡張記法・主要プログラミング言語のフェンスドコードブロック構文ハイライト、およびWYSIWYG/直接編集モード間の双方向コンテンツ同期・Ref整合性・元ファイル生ソース優先維持の技術仕様とガードレール手順を明確に策定・定義するため。
+  - **Before**:
+    - `for_agent/architecture.md`: Phase 24 の「ソース直接編集モード表示・レイアウト・構文ハイライト完全改善仕様」が存在しなかった。
+    - `for_agent/guardrails.md`: ソース直接編集モードのレイアウト崩れ・ガター分離、GFM/コード言語ハイライト、双方向Ref同期に関するガードレール（3.24）が存在しなかった（また誤ったセクション番号 3.16 が残存していた）。
+    - `Plan.md`: タスク85が未完了（`- [ ]`）であった。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - 「ソース直接編集モード表示・レイアウト・構文ハイライト完全改善仕様 (Phase 24: Source Editor Display & Syntax Highlighting)」セクションを追加。
+      - レイアウト・スタイル仕様（行番号ガターと本文の一体化レイアウト、Typoraライクな等幅執筆空間、スクロール領域と高さ構造、Tailwind/Zinc調和ライト/ダークシンタックスハイライトテーマ）を策定。
+      - GFM構文拡張（表、タスクリスト、打消し線、自動リンク）および `@codemirror/language-data` による主要プログラミング言語（JS, TS, Python, Rust, HTML, CSS, JSON, Markdown, YAML, Bash, SQL 等）の構文ハイライト仕様を策定。
+      - WYSIWYG/直接編集モード間の双方向コンテンツ同期・Ref整合性（`isSourceModeRef` 同期漏れ解消）、元ファイル生ソース優先維持・未保存（Dirty）判定保護、および完成基準を策定。
+      - 改訂履歴に Phase 24 仕様策定の完了を追記。
+    - `for_agent/guardrails.md`:
+      - 重複していたセクション番号を「3.23. Windows + Node.js v22/v24環境における子プロセスでのバッチ/cmdファイル（pnpm.cmd等）実行」に修正。
+      - 「3.24. ソース直接編集モード（CodeMirror 6）のレイアウト崩れ・ガター分離と GFM/コード言語ハイライト・双方向Ref同期」を追記し、事象・原因・対策を体系化。
+    - `Plan.md`:
+      - タスク85を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。既存コードベースへの破壊的変更なし。
+
 - 2026-10-18: 全体レビュー（/review）を実施し、プロジェクト全体のビルド・テスト・仕様整合性を点検完了。
   - **変更理由**: Phase 23（セキュリティ強化・脆弱性対策）および開発計画全84タスクの完了を受け、仕様書正本（`architecture.md`, `guardrails.md`）と全実装コード（Rust バックエンド、React/TS フロントエンド、Milkdown/CodeMirror エディタコア、セキュリティ対策群、自動テストスイート）の完全な突き合わせ、エッジケースの点検、仕様書の最新化、およびフルビルド・全テストスイートの実行により回帰バグがないことを確認するため。
   - **点検・検証結果**:

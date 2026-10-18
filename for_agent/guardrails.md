@@ -300,7 +300,7 @@
   2. 後方互換および npm/ツール整合性のため、`package.json` にも `overrides` および `pnpm.overrides` を記述しておくこと。
   3. 設定更新後は `pnpm install` を実行して `pnpm-lock.yaml` にオーバーライド後の解決バージョンが反映されたことを確認し、`pnpm audit` が 0 件で合格することを確認すること。
 
-### 3.16 Windows + Node.js v22/v24環境における子プロセスでのバッチ/cmdファイル（pnpm.cmd等）実行
+### 3.23. Windows + Node.js v22/v24環境における子プロセスでのバッチ/cmdファイル（pnpm.cmd等）実行
 
 - **事象・ミス**:
   - テストスクリプト（`.mjs`）から `child_process.execFileSync("pnpm.cmd", ["audit"])` や `spawnSync` を実行すると、`spawnSync pnpm.cmd EINVAL` エラーで失敗する。
@@ -314,6 +314,20 @@
     const output = execSync("pnpm audit", { cwd: projectRoot, encoding: "utf-8", stdio: "pipe" });
     ```
   - これにより、プラットフォーム間（Windows / Linux / macOS）の差異を吸収しつつ、`EINVAL` や `DEP0190` 警告なしにクリーンに実行・検証できる。
+
+### 3.24. ソース直接編集モード（CodeMirror 6）のレイアウト崩れ・ガター分離と GFM/コード言語ハイライト・双方向Ref同期
+- **事象・ミス**:
+  1. ソース直接編集モードで `.cm-content` に `max-width: 960px; margin: 0 auto;` を設定した際、行番号ガター（`.cm-gutters`）がエディタ左端に固定されたままとなり、本文とガターの間に巨大な余白が発生して視線誘導が破壊される。
+  2. フェンスドコードブロック（```ts, ```rust, ```python 等）を記述してもキーワードや文字列に色が着かず、単色のプレーンテキストのまま表示される。
+  3. 「WYSIWYG表示に戻る」ボタン押下時に `setIsSourceMode(false)` のみ実行され `isSourceModeRef.current` が更新されず、以後のファイルオープンやタブ切替でモード状態の不整合が発生する。
+- **原因**:
+  - CodeMirror 6 の DOM 構造では `.cm-gutters` と `.cm-content` は兄弟要素として `.cm-scroller` 直下に配置されるため、`.cm-content` だけを中央揃えにするとガターと分離する。
+  - `@codemirror/lang-markdown` のデフォルト `markdown()` は基本Markdownのみであり、`codeLanguages` や GFM 拡張を明示的に指定しないとコードブロック内のシンタックスハイライトが機能しない。
+  - React の State と Ref の二重管理において、切り替えコールバックの更新漏れが生じたため。
+- **対策**:
+  1. `.cm-scroller` と `.cm-content` のレイアウト設計において、ガターと本文を分離させず、Typoraライクに一体化した等幅・快適パディング（`padding: 24px 32px` 等）のスタイルを定義すること。
+  2. `markdown({ codeLanguages: languages })` を設定し、`@codemirror/language-data` による主要言語（JS/TS/Python/Rust/HTML/CSS/JSON/YAML等）の動的パーサーと GFM 構文拡張を有効化すること。
+  3. `onExitSourceMode` および `handleToggleSourceMode` で必ず `isSourceModeRef.current = next` を同期更新し、WYSIWYG 切替時の未保存判定・生ソース完全保護を徹底すること。
 
 ---
 
