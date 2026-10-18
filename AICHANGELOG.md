@@ -1,3 +1,39 @@
+- 2026-10-18: タスク98「WYSIWYGモード: ProseMirror の tr.removeMark(from, to) による選択範囲の全インラインMark一括解除処理（clearFormatting）の実装と、コンポーネント ref 経由での外部公開・空選択ガード（src/components/Editor/Editor.tsx）」を完了。
+  - **変更理由**: WYSIWYGモード（Milkdown / ProseMirror）において、選択テキストのインライン装飾（太字・イタリック・打ち消し線・インラインコード・リンク・複合装飾等）を一括解除して素のテキストに戻す機能（書式クリア / Bare）を提供するため。ProseMirror の `tr.removeMark(from, to)` によるすべてのインラインMarkの一括解除、`tr.setStoredMarks([])` による追加入力マークの初期化、空選択ガード（`selection.empty` 時の no-op 保証）、コンポーネント ref（`EditorRef.clearFormatting`）経由での外部公開、およびショートカットキー（Ctrl+Shift+B / Cmd+Shift+B）による即時実行を実現するため。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorRef` に `clearFormatting` メソッドが定義されていなかった。
+      - `EditorProps` に `onClearFormatting` コールバックが定義されていなかった。
+      - ProseMirror の EditorView 上で全インラインMarkを一括解除する関数 `clearWysiwygFormatting` が存在しなかった。
+      - `MilkdownEditorContent` の `useImperativeHandle` で `clearFormatting` が外部公開されていなかった。
+      - `handleKeyDown` に `Ctrl+Shift+B` / `Cmd+Shift+B` のハンドリングが存在しなかった。
+    - `scripts/verify-wysiwyg-clear-formatting.mjs`:
+      - WYSIWYGモードにおける書式クリア機能、Ref公開、キーハンドラ、ProseMirror（tr.removeMark）状態管理、空選択ガードを検証するテストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`:
+      - 個別テスト数が48件であり、WYSIWYGモード書式クリアの検証が含まれていなかった。
+    - `Plan.md`: タスク98が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `@milkdown/kit/prose/view` から `EditorView` を import。
+      - `clearWysiwygFormatting(view: EditorView | any): boolean` コマンド/関数および `clearWysiwygFormattingCommand` エイリアスを実装・export。空選択ガード（`selection.empty || selection.from === selection.to` 時は `false` 返却）、`tr.removeMark(from, to)` による全インラインMark一括解除、`tr.setStoredMarks([])` による入力予定マーク初期化、`view.focus()` を実装。
+      - `EditorRef` インターフェースに `clearFormatting: () => boolean;` を追加。
+      - `EditorProps` インターフェースに `onClearFormatting?: () => void;` を追加。
+      - `MilkdownEditorContent` 内で `clearFormattingAction` コールバックを定義し、`useImperativeHandle` に `clearFormatting: clearFormattingAction` を追加して外部公開。
+      - `handleKeyDown` に `Ctrl+Shift+B` / `Cmd+Shift+B` ショートカットハンドラを追加（`preventDefault` および `clearFormattingAction()` 呼び出し）。
+    - `scripts/verify-wysiwyg-clear-formatting.mjs`:
+      - 新規作成。[Step 1] `Editor.tsx` の静的構成・エクスポート・ref公開検証、[Step 2] キーダウンハンドラ登録検証、[Step 3] ProseMirror 状態管理シミュレーション（空選択ガード、単一太字解除、複合装飾 strong/em/link/strike 一括解除、部分選択時の範囲外マーク保持）を網羅実行。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-wysiwyg-clear-formatting.mjs` を追加し、全 49 件の個別機能検証テストスイートとして統合。
+    - `Plan.md`:
+      - タスク98を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-wysiwyg-clear-formatting.mjs`: Exit Code 0 (全3ステップ合格)
+      - `pnpm test`: Exit Code 0 (全49個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `scripts/verify-wysiwyg-clear-formatting.mjs`, `scripts/verify-all.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク97「ソース直接編集モード: CodeMirror 6 において選択テキストの書式クリアを実行するコマンド/関数（clearFormatting）の実装と、コンポーネント ref 経由での外部公開・キーマップ連携（src/components/Editor/SourceEditor.tsx）」を完了。
   - **変更理由**: Markdownソースコード直接編集モード（CodeMirror 6）において、選択テキストのインライン装飾（太字・イタリック・打ち消し線・インラインコード・リンク・複合装飾等）を解除して素のテキストに戻す機能（書式クリア / Bare）を高速かつ安全に実行できるようにするため。ショートカットキー（Ctrl+Shift+B / Cmd+Shift+B）による即時実行、親コンポーネントからの ref 経由での外部呼び出し、空選択ガード、および最小変更差分（diff）置換による局所トランザクション（Forced Reparse 回避）を提供するため。
   - **Before**:

@@ -18,7 +18,7 @@ import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history"
 import { trailing } from "@milkdown/kit/plugin/trailing";
 import { wrapIn, lift } from "@milkdown/kit/prose/commands";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
-import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
+import { Decoration, DecorationSet, EditorView } from "@milkdown/kit/prose/view";
 import { $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -518,10 +518,40 @@ export const lineNumbersPlugin = $prose(() => {
   });
 });
 
+/**
+ * ProseMirror の EditorView において選択テキストのインライン書式（Mark）を一括解除するコマンド/関数
+ * 
+ * 選択範囲（Selection）が存在する場合に tr.removeMark(from, to) を実行し、
+ * すべてのインラインMark（太字、斜体、打消し線、インラインコード、リンク等）を一括解除します。
+ * 選択範囲が空（カーソルのみ）の場合は何もしません（空選択ガード）。
+ * 
+ * @param view ProseMirror EditorView
+ * @returns 書式クリアが実行された場合は true、空選択や失敗時は false
+ */
+export function clearWysiwygFormatting(view: EditorView | any): boolean {
+  if (!view || !view.state) return false;
+  const { state, dispatch } = view;
+  const { selection } = state;
+
+  if (selection.empty || selection.from === selection.to) {
+    // 空選択ガード: 選択範囲がない場合は何もしない
+    return false;
+  }
+
+  const tr = state.tr.removeMark(selection.from, selection.to);
+  tr.setStoredMarks([]);
+  dispatch(tr);
+  view.focus();
+  return true;
+}
+
+export const clearWysiwygFormattingCommand = clearWysiwygFormatting;
+
 export interface EditorRef {
   undo: () => boolean;
   redo: () => boolean;
   focus: () => void;
+  clearFormatting: () => boolean;
   getMarkdown: () => string;
   hasUserInteracted: () => boolean;
   markUserInteracted: () => void;
@@ -557,6 +587,7 @@ export interface EditorProps {
   isRightSidebarOpen?: boolean;
   theme?: "light" | "dark";
   initialScrollTop?: number;
+  onClearFormatting?: () => void;
 }
 
 export const defaultContent = `# ようこそ Typori へ
@@ -633,6 +664,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       isRightSidebarOpen = false,
       theme,
       initialScrollTop,
+      onClearFormatting,
     },
     ref
   ) => {
@@ -1136,6 +1168,30 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       return success;
     }, [loading, getEditor, tooltipState.linkRange, markUserInteracted]);
 
+    // 選択テキストの書式クリア（Clear Formatting / Bare）
+    const clearFormattingAction = useCallback(() => {
+      markUserInteracted();
+      if (loading) return false;
+      const editor = getEditor();
+      if (!editor) return false;
+
+      try {
+        const result = editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          if (!view) return false;
+          return clearWysiwygFormatting(view);
+        });
+
+        if (result) {
+          onClearFormatting?.();
+        }
+        return Boolean(result);
+      } catch (err) {
+        console.warn("Failed to clear formatting:", err);
+        return false;
+      }
+    }, [loading, getEditor, markUserInteracted, onClearFormatting]);
+
     // 表（テーブル）の挿入
     const insertTable = useCallback(
       (rows = 3, cols = 3) => {
@@ -1415,6 +1471,13 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         return;
       }
 
+      // Ctrl+Shift+B / Cmd+Shift+B: 書式クリア
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        clearFormattingAction();
+        return;
+      }
+
       // F8: フォーカスモード切替
       if (e.key === "F8") {
         e.preventDefault();
@@ -1463,6 +1526,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
             console.warn("Failed to focus editor:", err);
           }
         },
+        clearFormatting: clearFormattingAction,
         getMarkdown: () => {
           return normalizeLineEndings(prevContentRef.current ?? "");
         },
@@ -1507,6 +1571,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         deleteTableAction,
         checkIsInTable,
         insertImage,
+        clearFormattingAction,
       ]
     );
 
