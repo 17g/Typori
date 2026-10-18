@@ -9,9 +9,11 @@ Typori は、Rust (Tauri v2) と React 19、Milkdown、CodeMirror 6 で構築さ
 
 ## ✨ 主な特徴
 
-- ⚡ **超高速・軽量なデスクトップ体験**:
+- ⚡ **超高速・ゼロフラッシュ起動体験**:
   - バックエンドに Rust + Tauri v2 を採用し、低メモリ消費と高速起動を実現。
-  - OSネイティブなファイルI/Oとウィンドウ管理。
+  - 起動時の白画面フラッシュ（ホワイトブランク）を完全防止する0msテーマ同期スクリプト＆初期スケルトン基盤。
+  - ウィンドウ初期非表示ハンドシェイクとセーフティフォールバック（Rust/フロントエンド双方）。
+  - 重いモジュール（CodeMirror 6、Mermaid、各種モーダル）の遅延ロード（Code Splitting）と一括IPC（`init_workspace`）による高速起動。
 - 📝 **シームレスなWYSIWYG Markdown編集**:
   - Milkdown (ProseMirrorベース) によるリアルタイムWYSIWYGライクな編集。
   - リスト（箇条書き `-`、番号付きリスト `1.` 連番）、表（テーブル）、引用、リンクの視覚的編集。
@@ -20,6 +22,16 @@ Typori は、Rust (Tauri v2) と React 19、Milkdown、CodeMirror 6 で構築さ
 - 💻 **ソースコード直接編集モード**:
   - CodeMirror 6 による本格的なMarkdownソースコード直接編集。
   - ショートカット (`Ctrl + /`) またはメニューからワンタッチでWYSIWYGとソース編集を双方向同期切替。
+- 🔢 **行番号表示 & ガターハイライト**:
+  - エディタ左端に行番号を表示（WYSIWYGモードではブロック単位、ソース直接編集モードでは物理行単位）。
+  - キャレット行番号の強調ハイライト（強調文字＋背景ハイライト）。
+  - 表示メニューおよびショートカット (`Ctrl + Alt + L`) で簡単に切替可能（デフォルト有効、`localStorage` 永続化）。
+- 📊 **Mermaidダイアグラム インライン描画 & 編集**:
+  - ````mermaid コードブロックを検知し、各種ダイアグラム（フローチャート、シーケンス図、ER図、ガントチャート等）をインラインSVG描画。
+  - Typoraライクな直感的操作: 通常時は美しいSVGを表示し、クリック／選択時にソースコードを展開して編集可能。
+  - アプリケーション全体のライト/ダークテーマ切り替えに動的連動した再レンダリング。
+  - HTMLエクスポートおよびPDF印刷時にもMermaid図の描画結果を保持・出力。
+  - チートシート（`F1`）に代表的なMermaid記法サンプルを掲載。
 - 🎯 **フォーカスモード**:
   - カーソルが存在する行・ブロック以外を滑らかに暗くし、執筆中の思考に没入（デフォルト: `F8`）。
 - 🗂️ **柔軟なファイル管理 & タブ機能**:
@@ -31,13 +43,14 @@ Typori は、Rust (Tauri v2) と React 19、Milkdown、CodeMirror 6 で構築さ
   - エディタへの画像ファイル（PNG/JPG/SVG/GIF等）D&Dによる自動 `assets/` フォルダ保存。
   - ローカル相対パス画像の高速Blobプレビュー表示。
 - 📄 **高品質エクスポート**:
-  - **HTMLエクスポート**: pulldown-cmark による完全スタンドアロンHTML出力（ライト/ダークテーマCSS内蔵、印刷最適化）。
-  - **PDFエクスポート**: `@page` や `@media print` に最適化されたCSSとOS印刷ダイアログ連携による美しいPDF保存。
+  - **HTMLエクスポート**: pulldown-cmark による完全スタンドアロンHTML出力（ライト/ダークテーマCSS内蔵、印刷最適化、MermaidインラインSVG展開）。
+  - **PDFエクスポート**: `@page` や `@media print` に最適化されたCSSとOS印刷ダイアログ連携による美しいPDF保存（Mermaidレンダリング待機ハンドシェイク内蔵）。
 - 📑 **アウトライン（右サイドバー）**:
   - ドキュメント内の見出し（H1〜H6）をリアルタイムに解析し、ツリー構造で一覧表示。
   - 見出しクリックで該当ブロックへスムーズスクロール＆パルスハイライトジャンプ。
 - 🎨 **テーマシステム**:
   - ライトテーマ / ダークテーマ / OSシステム連動に対応（Tailwind CSS）。
+  - 起動直後の瞬時適用によりちらつきを完全防止。
 - ⌨️ **ショートカットカスタマイズ & チートシート**:
   - 全ショートカットキーのカスタマイズ画面（`Ctrl + ,`）と競合検知・永続化。
   - Markdown記法およびショートカット一覧を確認できるチートシート（`F1`）。
@@ -53,6 +66,7 @@ Typori は、Rust (Tauri v2) と React 19、Milkdown、CodeMirror 6 で構築さ
 | **ファイル検索** | `Ctrl + F` |
 | **ソース直接編集モード切替** | `Ctrl + /` |
 | **フォーカスモード切替** | `F8` |
+| **行番号表示切替** | `Ctrl + Alt + L` |
 | **タブ機能有効/無効切替** | `Ctrl + Shift + T` |
 | **右サイドバー（アウトライン）切替** | `Ctrl + Shift + O` |
 | **HTML形式エクスポート** | `Ctrl + Shift + E` |
@@ -70,6 +84,7 @@ Typori は、Rust (Tauri v2) と React 19、Milkdown、CodeMirror 6 で構築さ
 | **OS / バックエンド** | Rust, Tauri v2 |
 | **フロントエンド** | React 19, TypeScript, Vite |
 | **エディタコア** | Milkdown (ProseMirror), CodeMirror 6 |
+| **ダイアグラム** | Mermaid |
 | **スタイリング** | Tailwind CSS v4 |
 | **パーサー / 変換** | pulldown-cmark, remark-stringify, mdast |
 | **パッケージマネージャ** | pnpm, Cargo |
@@ -95,13 +110,16 @@ pnpm tauri dev
 
 ### テスト・品質検証
 ```powershell
-# フロントエンドビルド確認
+# フロントエンド型検査 & ビルド確認
 pnpm run build
 
-# バックエンド単体テスト
+# バックエンド単体テスト (28件全パス)
 cargo test --manifest-path src-tauri/Cargo.toml
 
-# 総合結合テストスイート実行
+# バックエンド静的解析 (警告0件)
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+# 総合結合テストスイート実行 (全40個別テスト・IPC 15コマンド・メニュー 17イベント)
 pnpm test
 ```
 
