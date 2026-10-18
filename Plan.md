@@ -169,4 +169,9 @@
 - [x] 107. エディタ全体レイアウト最適化（課題1）: ソース直接編集モードの中央寄せレイアウト設計（Typoraライクな最大幅コンテナ `max-width: 900px; margin: 0 auto;`、ガター一体型配置、左右自然余白）の実装
 - [x] 108. 品質保証・自動テスト: ソースモードのインデント（Tab操作・行頭空白）、レイアウト（中央寄せ）、行番号ON/OFF時の本文表示、縦スクロール性、およびOSネイティブメニューのチェック状態再帰同期を網羅検証する自動テストスクリプト（`scripts/verify-source-editor-indent-and-scroll.mjs`）の作成と総合テスト（`scripts/verify-all.mjs`）への統合、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格確認
 
+## Phase 29: 正式版 v1.8.1 リリースビルドの準備と成果物検証
+- [x] 109. バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.1 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)
+- [ ] 110. リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)
+
+
 

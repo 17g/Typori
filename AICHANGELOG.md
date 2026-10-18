@@ -1,3 +1,22 @@
+- 2026-10-19: タスク109「バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.1 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)」を完了。
+  - **変更理由**: 正式版 v1.8.1 リリースビルドの生成準備として、フロントエンド（`package.json`）、Tauri設定（`src-tauri/tauri.conf.json`）、バックエンド（`src-tauri/Cargo.toml`）のバージョン番号を `1.8.1` へ一括同期し、成果物検証スクリプトとの整合性を維持し、リリース設定の完全な一貫性を保証するため。
+  - **Before**:
+    - `package.json`: `version: "1.8.0"`
+    - `src-tauri/tauri.conf.json`: `version: "1.8.0"`
+    - `src-tauri/Cargo.toml`: `version = "1.8.0"`
+    - `Plan.md`: Phase 29 が未定義であった。
+  - **After**:
+    - `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`: `version` をすべて `"1.8.1"` に更新。
+    - `Plan.md`: 「Phase 29: 正式版 v1.8.1 リリースビルドの準備と成果物検証」を追加し、タスク109を `- [x]` に更新。
+    - `for_agent/architecture.md`: 改訂履歴にタスク109完了を追記。
+    - 検証結果:
+      - `node scripts/verify-release-config.mjs`: Exit Code 0 (全項目合格、バージョン完全一致)
+      - `pnpm test`: Exit Code 0 (全51個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `cargo check`: Exit Code 0 (typori v1.8.1 コンパイル成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `Plan.md`, `for_agent/architecture.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: 全体総合レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜28、全108タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（全40件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全51個別テスト、IPC 15コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・確定。
   - **変更理由**: Phase 28（ソース直接編集モードのインデント・レイアウト最適化および行番号・スクロール不具合の完全解消 / 全108タスク）までの全機能開発が完了したことを受け、仕様書（`for_agent/architecture.md`、`for_agent/guardrails.md`）と全実装コードベース（フロントエンド・バックエンド・テストスクリプト）を突き合わせ、要件の充足性、エッジケースの考慮、仕様書改訂履歴の同期、および回帰バグの完全排除を客観的根拠（Ground Truth）に基づいて保証・確定するため。
   - **Before**:
