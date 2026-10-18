@@ -1,3 +1,30 @@
+- 2026-10-18: タスク89「品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（scripts/verify-source-editor-display.mjs）の作成と scripts/verify-all.mjs への統合・全検証パス確認」を完了。
+  - **変更理由**: Phase 24 で実装したソース直接編集モード（CodeMirror 6）の等幅一体型レイアウト、Tailwind Zinc 調和シンタックスハイライトテーマ、GFM構文・主要言語コードブロックハイライト、および WYSIWYG / ソース直接編集モード間の双方向コンテンツ同期・Ref整合性・元生ソース100%保持の全要件を包括的・客観的に検証する自動テストスイートを整備し、リグレッションを永久に防止するため。
+  - **Before**:
+    - `scripts/verify-source-editor-display.mjs` が存在せず、Phase 24 のレイアウト構造（`.cm-content` のガター一体化、マージン0、パディング24px 32px、`.cm-scroller` 最下部120px余白）、Tailwind Zinc 調和ハイライトテーマ定義、主要11言語（JS/TS/Python/Rust/HTML/CSS/JSON/YAML/Bash/SQL等）の言語定義・動的ロード、GFM構文木（Table/Task/Strikethrough/FencedCode）のASTパース、App.tsx の同期的 Ref/State 管理、および未操作生Markdownテキスト100%忠実保持の総合検証スクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テストスクリプト数が 41 件であり、Phase 24 向け総合テストが統合されていなかった。
+    - `Plan.md`: タスク89が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-source-editor-display.mjs`:
+      - [Step 1] SourceEditor.tsx の親コンテナ構造、CodeMirror ラッパー（`flex-1 min-h-0 w-full overflow-hidden`）、CodeMirror 本体（`height="100%"`）、ヘッダーバナー、customTheme レイアウト（`.cm-content` の `padding: 24px 32px`, `margin: 0`, `boxSizing: border-box`、`.cm-scroller` の `overflow: auto`, `paddingBottom: 120px`, `lineHeight: 1.7`、`.cm-gutters` の境界線、アクティブ行・選択一致ハイライト）の静的検証を実装。
+      - [Step 2] Typori 調和シンタックスハイライトテーマ（`typoriLightHighlightStyle` / `typoriDarkHighlightStyle`）の各トークンカラー定義（見出し、リンク、コード、キーワード、文字列、コメント、数値等）および動的適用ロジックの静的検証を実装。
+      - [Step 3] `@codemirror/lang-markdown` + `@codemirror/language-data` のランタイム検証を実装。主要11言語（JS, TS, Python, Rust, HTML, CSS, JSON, Markdown, YAML, Bash, SQL）および拡張子の `LanguageDescription` 照合、代表言語（JS, Rust, Python）の動的パーサーロード（`load()`）、および GFM 構文（Table, TableHeader, TableRow, TableCell, Strikethrough, Task, TaskMarker, FencedCode, CodeInfo）の AST パース検証を実装。
+      - [Step 4] `App.tsx` の `handleToggleSourceMode`、`handleExitSourceMode`、`handleSave`、`isSourceModeRef` 同期的即時更新、未操作時の生ソース保護、スクロール位置退避・復元、OS ネイティブメニューリスナー（`menu:toggle_source_mode`）の静的検証を実装。
+      - [Step 5] 独自HTMLコメント、インラインHTML、非標準インデント箇条書き、生URL等を含む複雑な文書を用いた双方向モード切替シミュレーションテストを実装。未操作での切替時に元テキストがバイト単位で100%保持されること、直接編集モードでの入力が `isDirty` を正しく立てること、WYSIWYG 復帰後も編集内容と未保存状態が完全に維持されること、保存時に元ファイル固有のHTMLコメントや生テキストが破壊されずそのままディスクに反映されることを検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に `verify-source-editor-display.mjs` を追加し、全 42 件の個別テストスイートとして統合。
+    - `for_agent/architecture.md`:
+      - 改訂履歴に Phase 24 タスク89完了を追記。
+    - `Plan.md`:
+      - タスク89を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-editor-display.mjs`: Exit Code 0 (全5ステップ合格)
+      - `pnpm test`: Exit Code 0 (全42個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-source-editor-display.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。既存機能への破壊的変更なし。
+
 - 2026-10-18: タスク88「モード切替 & コンテンツ完全同期の堅牢化: App.tsx の handleToggleSourceMode、onExitSourceMode、handleSelectFile における isSourceModeRef 同期漏れ解消、WYSIWYG切替時の未保存判定・生ソース完全保護、およびエディタ間でのカーソル・スクロール位置の破棄防止」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）と WYSIWYG モード（Milkdown / ProseMirror）の相互切り替えにおいて、`onExitSourceMode` での `isSourceModeRef` 同期漏れによるレースコンディションや、未編集ドキュメント切替時の Milkdown による自動シリアライズ上書き（生ソースの破壊）を防止し、さらにモード切替時にエディタのスクロール位置がトップへ跳躍する UX 上の課題を解消するため。
   - **Before**:

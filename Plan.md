@@ -140,7 +140,7 @@
 - [x] 86. 構文ハイライト & GFM対応: `@codemirror/language-data` 等による主要プログラミング言語構文パーサーの導入、`@codemirror/lang-markdown` への GFM 拡張（表、タスクリスト、自動リンク、打消し線）および `codeLanguages` の設定、Typori向けライト/ダークシンタックスハイライトテーマの整備（`src/components/Editor/SourceEditor.tsx`）
 - [x] 87. レイアウト・スタイル修正: `SourceEditor.tsx` の flexbox 高さ構造（`flex-1 h-full` 重複の解消・`.cm-scroller` の overflow 最適化）、および `.cm-content` と `.cm-gutters` のマージン・パディング統合（中央寄せによるガター分離の解消、Typoraライクな美しい等幅エディタレイアウトの確立）
 - [x] 88. モード切替 & コンテンツ完全同期の堅牢化: `App.tsx` の `handleToggleSourceMode`、`onExitSourceMode`、`handleSelectFile` における `isSourceModeRef` 同期漏れ解消、WYSIWYG切替時の未保存判定・生ソース完全保護、およびエディタ間でのカーソル・スクロール位置の破棄防止
-- [ ] 89. 品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（`scripts/verify-source-editor-display.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
+- [x] 89. 品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（`scripts/verify-source-editor-display.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
 
 ## Phase 25: 大容量ファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化
 - [ ] 90. 仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を `for_agent/` に追記・改訂
