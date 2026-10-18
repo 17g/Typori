@@ -340,6 +340,18 @@
   1. 言語名やエイリアスによる照合を行う場合は、`LanguageDescription.matchLanguageName(languages, name, true)` を使用し、正規の言語名（`"python"`, `"rust"`, `"javascript"` 等）を指定すること。
   2. ファイル拡張子（`.py`, `.rs`, `.ts` 等）から言語パーサーを解決・検証する場合は、`LanguageDescription.matchFilename(languages, `dummy.${ext}`)` を使用すること。
 
+### 3.26. 大容量ファイル（800KB/5000行+）オープン時の強制リフロー（Forced Reflow）防止とビューポート仮想化
+- **事象・ミス**:
+  - 800KB / 5000行を超える大容量 Markdown ファイルを開いた際、画面が数秒間完全にフリーズ（UIブロッキング）し、スクロール時にも顕著なコマ落ち・カクつき（FPS低下）が発生する。
+- **原因**:
+  - WYSIWYG エディタ（Milkdown / ProseMirror）の行番号プラグイン（`lineNumbersPlugin`）が、ドキュメント全体の全ブロック（数千ノード）に対して `view.coordsAtPos(pos)` を同期的ループで呼び出していたため。`coordsAtPos` はブラウザのレイアウトツリー計算を同期強制（Forced Reflow / Layout Thrashing）するため、ノード数に比例して指数関数的にメインスレッドを占有する。
+  - 加えて、初回マウント時における全件シリアライズや、画面外の画像解決・アウトライン抽出の一斉同期実行が重複していたため。
+- **対策**:
+  1. 行番号ガター等の DOM 座標計算では、全ブロックを走査せず、ビューポート可視領域（`scrollTop` 〜 `scrollTop + clientHeight` ＋上下バッファ）内のブロックのみを対象に仮想化計算すること。
+  2. 座標取得や DOM 更新はスクロールイベントごとに即時同期実行せず、`requestAnimationFrame` を用いて 1 フレーム内にデバウンス集約すること。
+  3. 初回マウント時（`listenerCtx.mounted`）の不要な全件シリアライズを抑制し、ディスク上の正規化済みテキストをそのまま初期保存基準値として活用すること。
+  4. 大容量ファイル（300KB/2000行以上）では、CodeMirror 6 の仮想スクロール特性を活かした高速オープン連携をサポートすること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

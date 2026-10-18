@@ -358,6 +358,34 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
   - WYSIWYGモードとソース直接編集モードの切り替え（Ctrl+/、ツールバーボタン、ヘッダーボタン、ネイティブメニュー）において、`isSourceModeRef` が完全に同期し、未保存ステータスとコンテンツが100%保持されること。
   - 自動検証スクリプト（`scripts/verify-source-editor-display.mjs`）が作成され、総合結合テストスイート（`scripts/verify-all.mjs`）に統合されて `pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 でパスすること。
 
+- 大容量ファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化仕様 (Phase 25: Performance & Large File Optimization):
+  - **背景と課題**:
+    - 通常サイズ（数十KB〜数百行程度）のドキュメントでは快適に動作する一方、5000行・800KB超の大規模仕様書やログ・技術ノート等の大容量 Markdown ファイルを開いた際に、以下のボトルネックにより数秒間の UI フリーズ（メインスレッドブロッキング）やスクロールのもたつきが発生していた:
+      1. WYSIWYG モード（Milkdown）の `lineNumbersPlugin` が、ドキュメント内の全ブロック（数千ノード）に対して `view.coordsAtPos(pos)` を同期的ループで呼び出し、ブラウザの強制レイアウト再計算（Forced Reflow / Layout Thrashing）を連続して引き起こしていた。
+      2. Milkdown のマウント完了時（`listenerCtx.mounted`）に、初期コンテンツの不要な全件シリアライズ（`getMarkdown()`）が同期実行され、巨大ドキュメントの文字列化でメインスレッドが占有されていた。
+      3. 右サイドバーのアウトライン（見出し抽出）やローカル画像パス解決（`resolveImagesInDOM`）、Mermaid ダイアグラムの探索処理がファイルオープン直後に一斉に同期実行されていた。
+  - **1. パフォーマンス目標・要件**:
+    - **ファイルオープン時間目標**: 800KB / 5000行+ の大容量 Markdown ファイルにおいて、オープン処理開始からエディタ操作可能になるまでの時間を大幅短縮（フリーズ時間 0.5秒以内、CodeMirror 仮想スクロール時は即時体感レスポンス）。
+    - **Forced Reflow の完全排除**: 描画更新処理（ガター行番号更新等）において、全ブロック走査による同期レイアウト読み取りを廃止し、レンダリングフレーム（16.6ms / 60fps）を阻害しないこと。
+  - **2. WYSIWYG 行番号ガターのビューポート仮想化 (Virtualization)**:
+    - **可視領域限定計算**: エディタのスクロール位置（`scrollTop`）およびビューポート高さ（`clientHeight`）を取得し、画面内に可視なブロックノード（および上下一定のバッファ範囲、例: 画面外 上下 200px）のみを探索・座標計算の対象とする。
+    - **二分探索 / 近傍推定によるノード特定**: ドキュメント全体（数千ブロック）を先頭から全件ループ走査するのではなく、スクロール量に応じた概算位置から近傍の可視ブロックを効率的に特定する。
+    - **`requestAnimationFrame` による更新デバウンス**: スクロールイベントごとに即時同期実行せず、`requestAnimationFrame` で最新フレームに集約してガター DOM の座標・テキストを更新する。
+  - **3. 初回マウント時シリアライズ最適化**:
+    - ファイルオープン直後において、すでにディスク読み込み時の生コンテンツ（LF正規化済み）が `savedContentRef` に保持されているため、`mounted` フックでの不要な全件シリアライズを抑制する。
+    - ユーザーによる明示的な編集（キーストローク・コマンド）が発生して初めてシリアライズ・差分検知を行うよう遅延・最適化する。
+  - **4. 大容量ファイル検知と高速オープンモード連携 (Smart Large-File Handler)**:
+    - **閾値判定**: ファイル読み込み時にコンテンツサイズ（300KB 以上 または 2000行以上等）を検知。
+    - **CodeMirror 6 の仮想スクロール特性の活用**: CodeMirror 6 はデフォルトで強力なビューポート仮想化（画面外行の DOM を生成しない）を備えているため、大容量ファイルに対しても極めて軽量に即時オープン可能。大容量ファイルオープン時は直接編集モードへの高速オープン連携やスムーズな編集切替をサポートする。
+  - **5. アウトライン・画像・Mermaid の遅延ロード最適化**:
+    - **アウトライン抽出**: `OutlineSidebar` での見出しパース・抽出処理にデバウンス（150ms〜200ms）を適用し、オープン直後の競合負荷を低減。
+    - **ローカル画像パス解決**: DOM 全体の走査をビューポート近傍に限定するか、アイドル時（`requestIdleCallback` 等）に段階的に実行。
+    - **Mermaid ダイアグラム**: 可視領域外のダイアグラムは初期レンダリングを保留し、IntersectionObserver 等によるビューポート接近時の遅延描画（Lazy Render）を可能とする。
+  - **6. 完成基準**:
+    - 800KB / 5000行以上の模擬 Markdown ファイルをロードした際、UI の長期フリーズが発生せず、スクロールおよび入力が軽快に行えること。
+    - WYSIWYG モードの行番号ガターが可視領域のみを仮想化描画し、全ブロックの Forced Reflow が発生しないこと。
+    - 総合結合テストスイート（`scripts/verify-all.mjs`）にパフォーマンステスト（`scripts/verify-large-file-performance.mjs`）が統合され、全テスト・ビルド・Rust単体テストが Exit Code 0 でパスすること。
+
 - 書式クリア機能仕様 (Phase 26: Clear Formatting / Bare):
   - **目的**: 太字・イタリック・打ち消し線・インラインコード・リンク等、始まりと終わりがある記法（デリミタ囲み記法）が適用されている文字列の一部分または全体を選択した際に、装飾を解除して素のテキスト（Bare）に戻す機能を提供する。
   - **対象記法（始まりと終わりのあるインライン記法全般）**:
@@ -464,4 +492,5 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-18: ソース直接編集モードの構文ハイライト & GFM対応（Phase 24 タスク86）の実装および品質保証の完了。@codemirror/language-data による主要140+言語の構文ハイライト、@codemirror/lang-markdown への GFM 拡張（markdownLanguage）と codeLanguages の設定、Tailwind Zinc 調和ライト/ダークシンタックスハイライトテーマ（typoriLightHighlightStyle / typoriDarkHighlightStyle）の実装、および scripts/verify-source-editor.mjs による言語マッチ・GFMパース・テーマエクスポートの自動検証パスを確認。
 - 2026-10-18: モード切替 & コンテンツ完全同期の堅牢化（Phase 24 タスク88）の実装および品質保証の完了。App.tsx の handleToggleSourceMode、handleExitSourceMode、handleSelectFile における isSourceModeRef の即時同期的更新による同期漏れ・レースコンディション解消、WYSIWYG切替時の未保存判定保護および未編集時の生ソース（savedContentRef）100%忠実保護、エディタ間でのスクロール位置退避・復元（editorScrollTopRef / initialScrollTop / requestAnimationFrame）による不自然なスクロール跳躍防止を実装。全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy: Exit Code 0）のパスを確認。
 - 2026-10-18: ソース直接編集モード表示・レイアウト・構文ハイライト・完全同期の品質保証・自動テスト（Phase 24 タスク89）の実装および全検証完了。自動テストスクリプト（`scripts/verify-source-editor-display.mjs`）を作成し、等幅一体レイアウト・余白・スクロール構造、Typori調和シンタックスハイライトテーマ（ライト/ダーク）、GFM構文要素（テーブル・打消し線・タスクリスト・コードブロック）ASTパース、主要11言語（JS/TS/Python/Rust/HTML/CSS/JSON等）構文パーサー動的ロード、App.tsx双方向Ref/State同期、未操作生Markdownテキスト100%保持シミュレーションを網羅検証。`scripts/verify-all.mjs`（全42個別検証テスト）に統合し、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認して Phase 24 の全タスクを完了。
+- 2026-10-18: 大容量Markdownファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化仕様（Phase 25）を策定。オープン時間目標（フリーズ0.5秒以内）、WYSIWYG行番号ガターのビューポート仮想化（Forced Reflow完全排除・可視領域限定計算・rAFデバウンス）、Milkdown初回マウント時全件シリアライズ抑制、大容量ファイル検知（300KB/2000行+閾値）とCodeMirror 6仮想スクロール高速オープン連携、アウトライン・画像・Mermaidの遅延ロード最適化、およびパフォーマンステスト完成基準を定義。
 

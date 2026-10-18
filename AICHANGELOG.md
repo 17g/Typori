@@ -1,3 +1,32 @@
+- 2026-10-18: タスク90「仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を for_agent/ に追記・改訂」を完了。
+  - **変更理由**: 800KB/5000行+ を超える大容量 Markdown ファイルを開いた際に、WYSIWYG モード（Milkdown）の `lineNumbersPlugin` による全ブロック走査 `coordsAtPos` ループ（Forced Reflow / Layout Thrashing）やマウント完了時の不要な全件シリアライズ、画像/Mermaid/アウトラインの一斉同期実行により UI が数秒間フリーズする問題を解消するため、パフォーマンス要件・ビューポート仮想化設計・シリアライズ最適化・大容量ファイル検知高速オープン連携を仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に明確化・定義するため。
+  - **Before**:
+    - `for_agent/architecture.md`:
+      - Phase 25 の仕様セクションが存在せず、大容量 Markdown ファイルのオープン時間目標、強制リフローの完全排除、行番号ガターのビューポート仮想化、初回マウント時シリアライズ抑制、大容量ファイル検知（300KB/2000行+）と CodeMirror 6 仮想スクロール高速オープン連携、画像/アウトライン/Mermaid の遅延ロード、およびパフォーマンステスト完成基準が未定義であった。
+    - `for_agent/guardrails.md`:
+      - 大容量ファイル読み込み時の Forced Reflow 防止や仮想化ガター計算、初回シリアライズ抑制に関する注意喚起および再発防止対策（3.26）が存在しなかった。
+    - `Plan.md`: タスク90が未完了（`- [ ]`）であった。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - 「大容量ファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化仕様 (Phase 25: Performance & Large File Optimization)」セクションを新設・追記。
+        1. パフォーマンス目標・要件（オープン時間目標: フリーズ0.5秒以内、Forced Reflow 完全排除）
+        2. WYSIWYG 行番号ガターのビューポート仮想化（可視領域限定計算、二分探索/近傍推定、`requestAnimationFrame` 更新デバウンス）
+        3. 初回マウント時シリアライズ最適化（`listenerCtx.mounted` での不要な文字列化抑制、能動編集時の遅延シリアライズ）
+        4. 大容量ファイル検知と高速オープンモード連携（300KB/2000行+ 閾値判定、CodeMirror 6 仮想スクロール特性の活用）
+        5. アウトライン・画像・Mermaid の遅延ロード最適化（抽出デバウンス、アイドル解決、Lazy Render）
+        6. 完成基準（800KB/5000行+ パフォーマンステスト検証）
+      - 改訂履歴に Phase 25 仕様策定の完了を追記。
+    - `for_agent/guardrails.md`:
+      - 「3.26. 大容量ファイル（800KB/5000行+）オープン時の強制リフロー（Forced Reflow）防止とビューポート仮想化」を新設。事象、原因（`coordsAtPos` の同期ループによる Layout Thrashing）、対策（可視領域仮想化、rAF集約、初回シリアライズ抑制、CodeMirror 連携）を明文化。
+    - `Plan.md`:
+      - タスク90を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全42個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。既存コードへの破壊的変更なし。
+
 - 2026-10-18: タスク89「品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（scripts/verify-source-editor-display.mjs）の作成と scripts/verify-all.mjs への統合・全検証パス確認」を完了。
   - **変更理由**: Phase 24 で実装したソース直接編集モード（CodeMirror 6）の等幅一体型レイアウト、Tailwind Zinc 調和シンタックスハイライトテーマ、GFM構文・主要言語コードブロックハイライト、および WYSIWYG / ソース直接編集モード間の双方向コンテンツ同期・Ref整合性・元生ソース100%保持の全要件を包括的・客観的に検証する自動テストスイートを整備し、リグレッションを永久に防止するため。
   - **Before**:

@@ -143,7 +143,7 @@
 - [x] 89. 品質保証/自動テスト: 直接編集モードのレイアウト、GFM構文・コードブロックハイライト、モード切替時のテキスト完全保持を網羅検証する自動テストスクリプト（`scripts/verify-source-editor-display.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
 
 ## Phase 25: 大容量ファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化
-- [ ] 90. 仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を `for_agent/` に追記・改訂
+- [x] 90. 仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を `for_agent/` に追記・改訂
 - [ ] 91. WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: `src/components/Editor/Editor.tsx` の `lineNumbersPlugin` における全ブロック同期 `coordsAtPos` ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・`requestAnimationFrame`）の実装
 - [ ] 92. Milkdown初回マウント時シリアライズ最適化: `Editor.tsx` の `listenerCtx.mounted` における大容量ファイルの不要な全件シリアライズ（`serializer`）を抑制し、初期レンダリング時のメインスレッドブロックをゼロ化
 - [ ] 93. 大容量ファイル検知と直接編集モード高速オープン連携（Smart Large-File Handler）: 巨大ファイル（閾値: 300KB以上または2000行以上等）読み込み時におけるスムーズな高速オープン処理（CodeMirror 6 の仮想スクロール特性を活かした即時オープンまたはモード案内）の実装（`App.tsx`）
