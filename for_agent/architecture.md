@@ -503,6 +503,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-18: 書式クリアのUI・OS連携・ショートカット（Phase 26 タスク99）の実装および全検証完了。`src-tauri/src/menu.rs` の「編集」メニューに「書式をクリア (CmdOrCtrl+Shift+B)」および `menu:clear_formatting` イベント送出を追加。`SHORTCUT_ITEMS`（`Ctrl+Shift+B`）およびチートシート早見表への掲載、クイックアクションパレット（`EditorToolbar.tsx`）へのクリアボタン配置、`src/App.tsx` でのイベントリスナー・モード別動的ディスパッチ（`handleClearFormatting`）・グローバルキーダウン検知・`SourceEditorRef` 配線を実装。全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認。
 - 2026-10-18: 書式クリア総合品質保証テスト・全体統合検証（Phase 26 タスク100）の実装および全検証完了。自動テストスクリプト `scripts/verify-clear-formatting.mjs` を作成し、純粋ロジック（空選択・部分分割・複合装飾・リンク解除）、ソース直接編集 CodeMirror 6、WYSIWYG ProseMirror（`tr.removeMark`）、ツールバーボタン配置、OSネイティブメニュー全18イベント、ショートカット定義、`App.tsx` 動的ディスパッチ、およびE2Eシナリオを網羅検証。`scripts/verify-all.mjs`（全50個別検証テスト、15IPCコマンド、18メニューイベント）へ統合し、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認して Phase 26 および開発計画全100タスクの完了を達成。
 - 2026-10-18: 全体総合レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜26、全100タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（全39件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全50個別テスト、IPC 15コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
+- 2026-10-18: 正式版 v1.8.0 リリースビルド準備・バージョン整合性点検（Phase 27 タスク101）の完了。package.json, tauri.conf.json, Cargo.toml のバージョン番号を 1.8.0 へ同期し、成果物検証スクリプト（scripts/verify-release-bundle.mjs）の動的バージョン解決対応、および scripts/verify-release-config.mjs による整合性検証（Exit Code 0）を確認。全検証コマンド（pnpm test / cargo test / cargo check / cargo clippy: Exit Code 0）のパスを確認。
 
 
 

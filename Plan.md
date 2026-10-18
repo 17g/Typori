@@ -157,3 +157,7 @@
 - [x] 99. UI・OS連携・ショートカット: OSネイティブ「編集」メニューへの「書式をクリア (CmdOrCtrl+Shift+B)」追加（`src-tauri/src/menu.rs` / `menu:clear_formatting`）、`SHORTCUT_ITEMS`（`Ctrl+Shift+B`）・チートシート早見表への掲載、クイックアクションパレット（`EditorToolbar.tsx`）へのクリアボタン配置、および `App.tsx` でのイベント購読・動的実行ハンドラの実装
 - [x] 100. 品質保証/自動テスト: WYSIWYG/ソース直接編集双方での部分装飾解除・分割整形、空選択ガード、ネイティブメニュー（18イベント）、ショートカット定義、ツールバーボタンを網羅検証する自動テストスクリプト（`scripts/verify-clear-formatting.mjs`）の作成と `scripts/verify-all.mjs` への統合、および全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）のパス確認
 
+## Phase 27: 正式版 v1.8.0 リリースビルドの準備と成果物検証
+- [x] 101. バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.0 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)
+- [ ] 102. リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)
+

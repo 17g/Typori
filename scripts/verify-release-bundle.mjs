@@ -15,9 +15,13 @@ const rootDir = path.resolve(__dirname, "..");
 
 console.log("=== リリースビルド生成成果物の完全性検証 ===");
 
+const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf-8"));
+const version = packageJson.version;
+console.log(`対象バージョン: v${version}`);
+
 const releaseDir = path.join(rootDir, "src-tauri", "target", "release");
-const nsisBundlePath = path.join(releaseDir, "bundle", "nsis", "Typori_0.1.0_x64-setup.exe");
-const msiBundlePath = path.join(releaseDir, "bundle", "msi", "Typori_0.1.0_x64_en-US.msi");
+const nsisBundlePath = path.join(releaseDir, "bundle", "nsis", `Typori_${version}_x64-setup.exe`);
+const msiBundlePath = path.join(releaseDir, "bundle", "msi", `Typori_${version}_x64_en-US.msi`);
 const exePath = path.join(releaseDir, "typori.exe");
 
 // 1. 各成果物の存在確認
