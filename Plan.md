@@ -151,7 +151,7 @@
 - [x] 95. 品質保証/パフォーマンステスト: 800KB/5000行の模擬Markdownファイルを生成・ロードし、強制リフロー排除・行番号仮想化・大容量オープン時間・全機能整合性を網羅検証するパフォーマンステストスクリプト（`scripts/verify-large-file-performance.mjs`）の作成と `scripts/verify-all.mjs` への統合・全検証パス確認
 
 ## Phase 26: 書式クリア機能（Clear Formatting / Bare）
-- [ ] 96. ソース整形ロジック: 始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク等）および複合装飾に対し、選択範囲に応じた自動分割・置換（中間分割・端点分割・全体解除・ネスト解除・範囲内一括クリア・空選択ガード）を行う純粋関数（`src/utils/format.ts` 等）の実装と単体テスト
+- [x] 96. ソース整形ロジック: 始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク等）および複合装飾に対し、選択範囲に応じた自動分割・置換（中間分割・端点分割・全体解除・ネスト解除・範囲内一括クリア・空選択ガード）を行う純粋関数（`src/utils/format.ts` 等）の実装と単体テスト
 - [ ] 97. ソース直接編集モード: CodeMirror 6 において選択テキストの書式クリアを実行するコマンド/関数（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・キーマップ連携（`src/components/Editor/SourceEditor.tsx`）
 - [ ] 98. WYSIWYGモード: ProseMirror の `tr.removeMark(from, to)` による選択範囲の全インラインMark一括解除処理（`clearFormatting`）の実装と、コンポーネント ref 経由での外部公開・空選択ガード（`src/components/Editor/Editor.tsx`）
 - [ ] 99. UI・OS連携・ショートカット: OSネイティブ「編集」メニューへの「書式をクリア (CmdOrCtrl+Shift+B)」追加（`src-tauri/src/menu.rs` / `menu:clear_formatting`）、`SHORTCUT_ITEMS`（`Ctrl+Shift+B`）・チートシート早見表への掲載、クイックアクションパレット（`EditorToolbar.tsx`）へのクリアボタン配置、および `App.tsx` でのイベント購読・動的実行ハンドラの実装

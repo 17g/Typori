@@ -25,14 +25,16 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（45件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（47件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
    ```
    - TypeScript コンパイル（`tsc`）および Vite プロダクションビルドにエラーがないことを確認する。
 3. **バックエンド単体テスト & 静的解析**:
+   ※ `Cargo.toml` は `<root>/src-tauri` にあるため、必ず `Cwd` を `<root>/src-tauri` に指定して実行すること（または `cd src-tauri`）。
    ```powershell
+   # 作業ディレクトリ: src-tauri
    cargo test
    cargo check
    cargo clippy -- -D warnings

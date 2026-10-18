@@ -1,4 +1,31 @@
-- 2026-10-18: タスク95「品質保証/パフォーマンステスト: 800KB/5000行の模擬Markdownファイルを生成・ロードし、強制リフロー排除・行番号仮想化・大容量オープン時間・全機能整合性を網羅検証するパフォーマンステストスクリプト（scripts/verify-large-file-performance.mjs）の作成と scripts/verify-all.mjs への統合・全検証パス確認」を完了。
+- 2026-10-18: タスク96「ソース整形ロジック: 始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク等）および複合装飾に対し、選択範囲に応じた自動分割・置換（中間分割・端点分割・全体解除・ネスト解除・範囲内一括クリア・空選択ガード）を行う純粋関数（src/utils/format.ts 等）の実装と単体テスト」を完了。
+  - **変更理由**: 太字・イタリック・打ち消し線・インラインコード・リンク等の始まりと終わりのあるインライン記法が適用されている文字列において、ユーザーが一部分または全体を選択した際に装飾を解除して素のテキスト（Bare）に戻す機能（書式クリア）を実現するため。ソース直接編集モード（CodeMirror 6）および各種エディタ操作から利用可能な、ネスト・複合装飾・端点交差・空白トリム・空選択ガードに対応した堅牢で副作用のない純粋関数モジュール（`src/utils/format.ts`）を提供するため。
+  - **Before**:
+    - `src/utils/format.ts`:
+      - インライン記法の構文解析（`parseInlineSpans`）、書式クリア変換（`clearInlineFormatting`）、全装飾一括除去（`stripFormatting`）、装飾存在判定（`hasFormatting`）を提供するモジュールが存在しなかった。
+    - `scripts/verify-clear-formatting-logic.mjs`:
+      - 書式クリアロジック（中間分割、先頭分割、末尾分割、全体解除、ネスト解除、リンク解除、複数装飾一括クリア、端点交差、空選択ガード等）を検証する単体テストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`:
+      - 個別テスト数が46件であり、書式クリアロジックの単体検証が含まれていなかった。
+    - `Plan.md`: タスク96が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/utils/format.ts`:
+      - 新規作成。Markdown のインライン記法（太字 `**`/`__`、イタリック `*`/`_`、打ち消し線 `~~`、コード `` ` ``、リンク `[text](url)`、複合装飾 `***`/`___` 等）を検出するインラインパーサー `parseInlineSpans`、選択範囲に応じた自動分割・解除・整形置換関数 `clearInlineFormatting`、一括プレーンテキスト化関数 `stripFormatting`、装飾判定関数 `hasFormatting` を実装・export。
+      - CommonMark の左右フランキングおよびデリミタスタックマッチングに準拠し、ネストした複合装飾の開閉順序（LIFO/FIFO）整合性、デリミタ境界の空白トリム（`**Hello** ` / ` **typori**`）、空選択時のガード（`from === to` で `changed: false` 返却）を実装。
+    - `scripts/verify-clear-formatting-logic.mjs`:
+      - 新規作成。[Step 1] `src/utils/format.ts` ファイル・エクスポート定義検証、[Step 2] 空選択ガード検証、[Step 3] 太字の各種分割・解除（中間分割、先頭分割、末尾分割、全体解除、日本語空白なし分割、アンダースコア記法）検証、[Step 4] イタリック・打ち消し線・インラインコード検証、[Step 5] リンク解除・分割検証、[Step 6] 複合装飾・ネスト・複数装飾一括クリア・端点交差検証、[Step 7] プレーンテキスト選択および `stripFormatting` 検証を網羅実行。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に `verify-clear-formatting-logic.mjs` を追加し、全 47 件の個別機能検証テストスイートとして統合。
+    - `Plan.md`:
+      - タスク96を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-clear-formatting-logic.mjs`: Exit Code 0 (全7ステップ合格)
+      - `pnpm test`: Exit Code 0 (全47個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/utils/format.ts`, `scripts/verify-clear-formatting-logic.mjs`, `scripts/verify-all.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
   - **変更理由**: Phase 25 で実装された大容量ファイル最適化群（WYSIWYG行番号ビューポート仮想化、マウント時シリアライズ完全抑制、Smart Large-File Handlerによる高速直接編集オープン連携、アウトライン・画像・Mermaid遅延ロード）が、800KB/5000行以上の実データに対しても設計どおりのパフォーマンス目標（オープンフリーズ0.5秒未満、Forced Reflow完全排除、メインスレッド占有ゼロ、全機能整合性維持）を達成していることを客観的かつ網羅的に自動検証するため。
   - **Before**:
     - `scripts/verify-large-file-performance.mjs`:
