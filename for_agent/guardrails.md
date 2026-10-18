@@ -406,6 +406,16 @@
   3. `SourceEditor.tsx` の extensions に `keymap.of([indentWithTab])`（またはキーマップ定義内）を組み込み、Tab / Shift+Tab によるインデント・アンインデントを有効化すること。また `.cm-content` / `.cm-line` に `white-space: break-spaces` を適用して行頭空白を完全に保護すること。
   4. `src-tauri/src/menu.rs` に `Submenu` を再帰的にトラバースするヘルパー関数 `find_check_menu_item` を実装し、`set_line_numbers_menu_checked` でサブメニュー配下の `CheckMenuItem` を確実に取得して `set_checked` を実行すること。
 
+### 3.31. Windows環境における `tauri = { features = ["test"] }` 導入時の `0xc0000139` (STATUS_ENTRYPOINT_NOT_FOUND) クラッシュとヘッドレステスト設計
+- **事象・ミス**:
+  - `Cargo.toml` の `[dev-dependencies]` に `tauri = { version = "2", features = ["test"] }` を追加して `tauri::test::mock_app()` を単体テスト内で使おうとすると、Windows 環境で `cargo test` 実行時にテストバイナリが `0xc0000139 (STATUS_ENTRYPOINT_NOT_FOUND)` で即時異常終了する。
+- **原因**:
+  - Windows 環境では、Tauri の `test` フィーチャーが WebView2 や特定のネイティブ GUI / OS DLL エントリポイントに暗黙依存するため、CLI（PowerShell）からのヘッドレスな `cargo test` 実行環境でシンボル解決に失敗する。
+- **対策**:
+  1. `src-tauri/Cargo.toml` に `tauri` の `test` フィーチャーを追加しないこと。
+  2. メニュー走査やデータツリー探索などのロジックは、Tauri のランタイムハンドルに依存しない純粋なジェネリック再帰探索ヘルパー（例: `find_in_menu_tree`）としてコアロジックを抽出し、モックデータ構造を用いて単体テストを安全かつ高速に検証すること。
+  3. 実機でのメニュー整合性やIPCコマンド検証は、既存の `scripts/verify-native-menu.mjs` および総合結合テストスイート（`pnpm test` / `scripts/verify-all.mjs`）で網羅検証すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

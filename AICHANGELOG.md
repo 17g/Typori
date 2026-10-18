@@ -1,3 +1,32 @@
+- 2026-10-18: タスク104「バックエンド修正（問題点C）: `src-tauri/src/menu.rs` における Submenu 再帰探索ヘルパー（`find_check_menu_item`）の実装、`set_line_numbers_menu_checked` の確実なチェック状態同期への改修、および Rust 単体テストの追加」を完了。
+  - **変更理由**: Tauri v2 では `Menu::get(id)` がルートメニュー直下のアイテムのみを参照し、`Submenu`（「表示」メニュー等）の配下にネストされたアイテムを再帰走査しないため、フロントエンドで行番号表示を切り替えた際に `set_line_numbers_menu_checked` で `CheckMenuItem` の取得に失敗してチェック状態が反映されない不具合（問題点C）を解消するため。
+  - **Before**:
+    - `src-tauri/src/menu.rs`:
+      - `set_line_numbers_menu_checked` 内で `menu.get("toggle_line_numbers")` を直接呼び出していたため、サブメニュー配下のアイテムが取得できず `None` となっていた。
+      - `create_app_menu`, `handle_menu_event`, `find_check_menu_item` が `Wry` 固定であり、テストやモックに対応していなかった。
+      - Submenu の再帰探索関数が存在しなかった。
+    - `src-tauri/src/menu.rs` (tests):
+      - `test_menu_event_ids` のみで、メニュー構造の探索ロジックに関する単体テストが存在しなかった（単体テスト全39件）。
+    - `Plan.md`: タスク104が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src-tauri/src/menu.rs`:
+      - 任意の階層・データ構造に対応する汎用ツリー探索高階関数 `find_in_menu_tree` を実装。
+      - `find_check_menu_item<R: Runtime>` および `find_check_item_in_items<R: Runtime>` を実装し、ルート直下のアイテムおよび `Submenu` 内部を再帰探索して指定IDの `CheckMenuItem` を確実に特定・取得。
+      - `create_app_menu<R: Runtime>` および `handle_menu_event<R: Runtime>` をジェネリック化し、Tauri Runtime 非依存に拡張。
+      - `set_line_numbers_menu_checked` を改修し、`find_check_menu_item(&menu, "toggle_line_numbers")` により確実に `CheckMenuItem` を取得して `set_checked` を実行するよう修正。
+      - 単体テスト `test_find_in_menu_tree_recursive_search` を追加し、ルート階層、1階層サブメニュー（`toggle_line_numbers`）、2階層以上の深層サブメニュー、存在しないID、および非チェックアイテムの除外を網羅検証（単体テスト全40件 passed）。
+    - `for_agent/guardrails.md`:
+      - 3.31「Windows環境における `tauri = { features = ["test"] }` 導入時の `0xc0000139` (STATUS_ENTRYPOINT_NOT_FOUND) クラッシュとヘッドレステスト設計」を追記。
+    - `for_agent/architecture.md`:
+      - 改訂履歴にタスク104完了を追記。
+    - 検証結果:
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `cargo check`: Exit Code 0
+      - `pnpm test`: Exit Code 0 (全50個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+  - **影響範囲**: `src-tauri/src/menu.rs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク103「仕様策定・設計: ソース直接編集モードのレイアウト・インデント仕様（中央寄せコンテナ・左右余白・Tabキーインデント）、Flexbox幅・縦スクロール健全化仕様、およびOSネイティブメニューチェック状態再帰同期仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・追記」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）における横幅潰れ・縦スクロール不具合（問題点A & B）、OSネイティブメニュー「表示」内の「行番号を表示」のSubmenuネストによるチェック状態同期不良（問題点C）、および全体中央寄せレイアウト・Tabキーインデント・行頭空白描画の課題（課題1, 2, 3）を根本解消するため、設計仕様および再発防止ガードレールを `for_agent/` 配下の仕様書正本に策定・同期するため。
   - **Before**:

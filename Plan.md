@@ -163,7 +163,7 @@
 
 ## Phase 28: ソース直接編集モードのインデント・レイアウト最適化および行番号・スクロール不具合の完全解消
 - [x] 103. 仕様策定・設計: ソース直接編集モードのレイアウト・インデント仕様（中央寄せコンテナ・左右余白・Tabキーインデント）、Flexbox幅・縦スクロール健全化仕様、およびOSネイティブメニューチェック状態再帰同期仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・追記
-- [ ] 104. バックエンド修正（問題点C）: `src-tauri/src/menu.rs` における Submenu 再帰探索ヘルパー（`find_check_menu_item`）の実装、`set_line_numbers_menu_checked` の確実なチェック状態同期への改修、および Rust 単体テストの追加
+- [x] 104. バックエンド修正（問題点C）: `src-tauri/src/menu.rs` における Submenu 再帰探索ヘルパー（`find_check_menu_item`）の実装、`set_line_numbers_menu_checked` の確実なチェック状態同期への改修、および Rust 単体テストの追加
 - [ ] 105. エディタスタイル・スクロール修正（問題点A & B）: `SourceEditor.tsx` の `.cm-scroller` 縦スクロール高さ修正（`height: 100%`, `maxHeight: 100%`, `overflowY: auto`）および `.cm-content` の Flexbox 幅潰れ解消（`minWidth: 0`, `flexGrow: 1`, `width: 100%`）
 - [ ] 106. インデント操作・描画修正（課題2 & 3）: `SourceEditor.tsx` への `indentWithTab` キーマップ登録（Tab / Shift+Tab によるインデント・アンインデント有効化）、行頭空白の描画保証（`white-space: break-spaces / pre-wrap`）およびネストリストのインデント保持
 - [ ] 107. エディタ全体レイアウト最適化（課題1）: ソース直接編集モードの中央寄せレイアウト設計（Typoraライクな最大幅コンテナ `max-width: 900px; margin: 0 auto;`、ガター一体型配置、左右自然余白）の実装
