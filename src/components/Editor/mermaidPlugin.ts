@@ -328,13 +328,6 @@ export class MermaidNodeView implements NodeView {
         svgEl.classList.add("max-w-full", "h-auto");
         svgEl.style.maxWidth = "100%";
       }
-      if (result.bindFunctions) {
-        try {
-          result.bindFunctions(this.previewContainer);
-        } catch {
-          // ignore bindFunctions error
-        }
-      }
     } else {
       // 構文エラー耐性ハンドリング: エディタを壊さずに控えめなエラーメッセージを表示
       const errorMsg = escapeHtml(result.error || "構文エラーが発生しました。");

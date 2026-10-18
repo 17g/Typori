@@ -52,7 +52,8 @@ export function initMermaid(theme: MermaidTheme = "light", force: boolean = fals
     startOnLoad: false,
     theme: theme === "dark" ? "dark" : "default",
     darkMode: isDark,
-    securityLevel: "loose",
+    securityLevel: "strict",
+    secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize"],
     fontFamily:
       'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     suppressErrorRendering: true,
@@ -210,6 +211,69 @@ export async function validateMermaidCode(code: string): Promise<MermaidValidati
 }
 
 /**
+ * レンダリングされた SVG 文字列から危険な要素・属性を除去・サニタイズします (CRIT-01 / MED-03)。
+ * 
+ * - 危険なタグ (<script>, <iframe>, <object>, <embed>, <form>, <base> 等) の完全除去
+ * - インラインイベントハンドラ属性 (onload, onerror, onclick などの on* 属性) の除去
+ * - javascript:, vbscript:, data:text/html スキームを含む危険な URI 属性の無害化
+ * 
+ * @param svg 生の SVG 文字列
+ * @returns サニタイズ済みの安全な SVG 文字列
+ */
+export function sanitizeMermaidSvg(svg: string): string {
+  if (!svg || typeof svg !== "string") return "";
+
+  let sanitized = svg;
+
+  // 1. 危険な要素（<script>, <iframe>, <object>, <embed>, <form>, <base> 等）を再帰的に除去
+  let prev: string;
+  do {
+    prev = sanitized;
+    sanitized = sanitized
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<script\b[^>]*\/?>/gi, "")
+      .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, "")
+      .replace(/<iframe\b[^>]*\/?>/gi, "")
+      .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, "")
+      .replace(/<object\b[^>]*\/?>/gi, "")
+      .replace(/<embed\b[^>]*>[\s\S]*?<\/embed>/gi, "")
+      .replace(/<embed\b[^>]*\/?>/gi, "")
+      .replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, "")
+      .replace(/<form\b[^>]*\/?>/gi, "")
+      .replace(/<base\b[^>]*\/?>/gi, "");
+  } while (sanitized !== prev);
+
+  // 2. インラインイベントハンドラ（onload, onerror, onclick などの on* 属性）を除去
+  sanitized = sanitized.replace(/\s+on[a-zA-Z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+
+  // 3. 危険な URI スキーム（javascript:, vbscript:, data:text/html 等）を含む属性を除去
+  sanitized = sanitized.replace(
+    /\s+(?:href|xlink:href|src|action)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+    (fullMatch: string, q1?: string, q2?: string, q3?: string) => {
+      const rawVal = q1 ?? q2 ?? q3 ?? "";
+      const val = rawVal.replace(/[\s\x00-\x1f\x7f-\x9f]/g, "").toLowerCase();
+      // HTMLエンティティデコード (簡易数値・文字参照)
+      const decodedVal = val
+        .replace(/&#x([0-9a-f]+);?/gi, (_: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#([0-9]+);?/gi, (_: string, dec: string) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/[\s\x00-\x1f\x7f-\x9f]/g, "")
+        .toLowerCase();
+
+      if (
+        decodedVal.startsWith("javascript:") ||
+        decodedVal.startsWith("vbscript:") ||
+        decodedVal.startsWith("data:text/html")
+      ) {
+        return "";
+      }
+      return fullMatch;
+    }
+  );
+
+  return sanitized;
+}
+
+/**
  * Mermaid コードを SVG 文字列にレンダリングします。
  * 構文エラー発生時も例外をスローせず、エラー情報を含むオブジェクトを返却します。
  * 
@@ -250,12 +314,12 @@ export async function renderMermaidSvg(
     // インラインスタイルの背景色指定を最適化（transparentへ正規化）
     if (svg) {
       svg = svg.replace(/background-color:\s*(?:white|#fff(?:fff)?|rgb\(255,\s*255,\s*255\));?/gi, "background-color: transparent;");
+      svg = sanitizeMermaidSvg(svg);
     }
 
     return {
       success: true,
       svg,
-      bindFunctions: result.bindFunctions,
     };
   } catch (err) {
     cleanupMermaidTempElements(id);

@@ -1,3 +1,24 @@
+- 2026-10-18: タスク79「Mermaid XSS対策 (CRIT-01 / MED-03): src/utils/mermaid.ts の securityLevel: "strict" 化および secure ロック設定追加、SVG出力サニタイズ関数（sanitizeMermaidSvg）の実装、src/components/Editor/mermaidPlugin.ts の bindFunctions 呼び出し除去、および src/utils/mermaidExport.ts の正規表現フォールバック時エラーメッセージHTMLエスケープ修正」を完了。
+  - **変更理由**: Markdown ファイル内の悪意あるコードブロック（`%%{init: {'securityLevel': 'loose'}}%%` によるディレクティブ上書き、クリックイベント `click Node call ...` や `javascript:` URL によるスクリプト実行、不正な SVG タグ・イベントハンドラ属性、コールバックバインド、エクスポートエラーメッセージ経由の Stored XSS）を多層防御（Defense-in-Depth）で完全に防止し、WebView 内でのローカルファイル流出や任意操作（RCE相当）を未然に遮断するため。
+  - **Before**:
+    - `src/utils/mermaid.ts`: `securityLevel: "loose"` が設定されており、`secure` ロック設定が存在しなかったため、Markdown 内のディレクティブでセキュリティ設定が動的に上書きされるリスクがあった。また、SVG 出力に対するサニタイズ関数が存在しなかった。
+    - `src/components/Editor/mermaidPlugin.ts`: `result.bindFunctions` を呼び出しており、任意の JavaScript コールバックが実行される脆弱性があった。
+    - `src/utils/mermaidExport.ts`: 正規表現フォールバック `replaceMermaidRegex` においてエラーメッセージがエスケープされずに HTML 出力されていた。
+  - **After**:
+    - `src/utils/mermaid.ts`:
+      - `initMermaid` において `securityLevel: "strict"` を設定し、図内のスクリプト実行を禁止。
+      - `secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize"]` を設定し、Markdown 内ディレクティブによるセキュリティ設定の動的オーバーライドを完全ロック。
+      - `sanitizeMermaidSvg` 関数を実装・エクスポートし、危険な要素（`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>` 等の再帰的除去）、インラインイベント属性（`on*`）、および危険な URI スキーム（`javascript:`, `vbscript:`, `data:text/html`、HTMLエンティティや制御文字による難読化も含む）を完全除去・無害化。
+      - `renderMermaidSvg` において SVG 出力前に `sanitizeMermaidSvg` を適用。
+    - `src/components/Editor/mermaidPlugin.ts`:
+      - `result.bindFunctions` の呼び出しを完全に除去し、不正なコールバック実行を防止。
+    - `src/utils/mermaidExport.ts`:
+      - `escapeHtml` 関数を実装・エクスポートし、`replaceMermaidRegex` でのエラーメッセージ出力時に `escapeHtml` を適用して HTML エスケープを徹底。
+    - テスト整備:
+      - `scripts/verify-security-hardening.mjs` を新規作成し、Task 79 の静的・動的サニタイズ挙動を検証。
+      - `scripts/verify-all.mjs` に `verify-security-hardening.mjs` を統合（全41件テスト）。
+  - **影響範囲**: `src/utils/mermaid.ts`, `src/components/Editor/mermaidPlugin.ts`, `src/utils/mermaidExport.ts`, `scripts/verify-security-hardening.mjs`, `scripts/verify-all.mjs`, `AICHANGELOG.md`, `Plan.md`。
+
 - 2026-10-18: ドキュメント最新化: `README.md` を Phase 19〜21 の最新仕様（行番号表示、Mermaidダイアグラム、ゼロフラッシュ起動高速化）に同期。
   - **変更理由**: リリースビルド準備の一環として、直近で追加された主要機能（行番号表示機能、Mermaidダイアグラムインライン描画・編集、起動高速化・ゼロフラッシュ基盤、ショートカット `Ctrl+Alt+L`、技術スタック、テスト件数）を `README.md` に正確に反映するため。
   - **Before**:

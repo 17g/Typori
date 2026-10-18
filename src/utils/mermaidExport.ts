@@ -30,6 +30,19 @@ export function decodeHtmlEntities(str: string): string {
 }
 
 /**
+ * HTML 特殊文字をエスケープします (CRIT-01 / MED-03)。
+ */
+export function escapeHtml(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * HTML文字列内に Mermaid コードブロックが存在するかを判定します。
  */
 export function hasMermaidInHtml(htmlContent: string): boolean {
@@ -98,7 +111,7 @@ async function replaceMermaidRegex(
       const containerHtml = `<div class="typori-mermaid-svg" data-mermaid-processed="true" style="display:flex;justify-content:center;margin:20px 0;overflow-x:auto;page-break-inside:avoid;break-inside:avoid;">${renderResult.svg}</div>`;
       resultHtml = resultHtml.replace(item.fullMatch, containerHtml);
     } else {
-      const errorMsg = renderResult.error || "構文が無効です";
+      const errorMsg = escapeHtml(renderResult.error || "構文が無効です");
       const errorHtml = preserveErrorBlock
         ? `<div class="typori-mermaid-error-container" style="margin:16px 0;page-break-inside:avoid;break-inside:avoid;"><div class="typori-mermaid-error" style="color:#ef4444;font-size:13px;margin-bottom:8px;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:4px;border-left:3px solid #ef4444;">Mermaid 構文エラー: ${errorMsg}</div>${item.fullMatch}</div>`
         : `<div class="typori-mermaid-error" style="color:#ef4444;font-size:13px;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:4px;border-left:3px solid #ef4444;">Mermaid 構文エラー: ${errorMsg}</div>`;

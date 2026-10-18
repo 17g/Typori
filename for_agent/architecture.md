@@ -79,7 +79,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - HTMLエクスポート: Rust側コマンド `convert_markdown_to_html` / `export_to_html` (pulldown-cmark利用) により、CommonMark/GFM（テーブル・タスクリスト・打ち消し線など）に完全準拠したスタンドアロンHTML文書（ドキュメントタイトル、レスポンシブタイポグラフィ、ライト/ダークテーマCSSスタイル内蔵、印刷最適化）を高速・安全に生成・保存。UI側の `ExportModal`、ヘッダーのエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+E)、およびOSネイティブメニュー連携 (`menu:export_html`) と連動。
 - PDFエクスポート: Rust側コマンド `export_to_pdf_html` および `convert_markdown_to_html` による印刷最適化スタイル内蔵HTML（`@page` ページマージン・A4サイズ自動調整、背景白・文字黒のハイコントラスト印刷カラー、見出し直後の改ページ回避、テーブル・画像・コードブロックの途中分割防止）の生成と、フロントエンド側の非表示iframe・印刷API連携（`printHtmlContent` / `printMarkdownDocument`）により、OS標準の印刷ダイアログ（「PDFに保存」対応）をシームレスに起動。UI側の `ExportModal`（HTML/PDF形式タブ切替）、ヘッダーのPDFエクスポートボタン、カスタマイズ可能なショートカット (Ctrl+Shift+P / Ctrl+P)、およびOSネイティブメニュー連携 (`menu:export_pdf`) と連動。
 - アウトライン（右サイドバー）機能: 開いているMarkdownドキュメントの見出し（`#`〜`######`）をリアルタイムに抽出し、インデント付きツリーで表示。見出しクリック時にはWYSIWYG（ProseMirror DOM）およびソース直接編集モード（CodeMirror 6）の該当見出し位置へスムーズスクロールし、ターゲット要素を一時的にパルスハイライト描画。右サイドバーの開閉はヘッダーボタン、ショートカット (Ctrl+Shift+O)、およびOSネイティブメニュー (`menu:toggle_right_sidebar`) と双方向連動。
-- 全体結合テスト・品質保証: 全40項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（15コマンド）、OSネイティブメニューイベント双方向整合性（17イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
+- 全体結合テスト・品質保証: 全41項目の個別機能検証スクリプト、Tauri IPCコマンド登録整合性（15コマンド）、OSネイティブメニューイベント双方向整合性（17イベント）、ショートカット定義競合なしを一括検証する総合テストスイート (`scripts/verify-all.mjs`) を整備。`pnpm test`、`pnpm run build`、`cargo test`、`cargo check`、`cargo clippy` の全自動検証パス。
 - クイックアクションパレット（EditorToolbar）のフロート表示・スクロール制御仕様:
   フォーカスモード切替、ソース直接編集切替、画像/表挿入、リンク編集、引用、Undo/Redoを提供するクイックアクションパレットについて、エディタスクロール時に本文と一緒に画面外へ押し流されて消えてしまう問題を解消し、以下の通り仕様を策定・定義する。
   - **仕様方針の整理と採択**:
@@ -278,6 +278,44 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - バンドル生成先: `src-tauri/target/release/bundle/`
 - アプリケーション固有アイコン: デフォルトのTauriアイコンから、Typori固有の独自アイコン（スカイブルー〜ミントグラデーション背景に白い角丸「T」モノグラムを配したMinimal Tデザイン）を採用。Tauri CLI (`pnpm tauri icon`) により全プラットフォーム向けマルチ解像度アセット（Windows `.ico`, macOS `.icns`, Linux/Web用各種PNG、タイル用画像一式）を生成・配置。
 
+## セキュリティ強化・脆弱性対策仕様 (Phase 23: Security Hardening)
+- **目的**: 悪意のあるMarkdownファイルや外部入力を開いた際に、WebView内でのStored XSS（クロスサイトスクリプティング）およびTauri IPCブリッジ（`window.__TAURI_INTERNALS__`）経由でのローカルファイル流出・任意操作（RCE相当）やDoS（サービス拒否）が発生することを多層防御（Defense-in-Depth）で防止する。
+- **1. MermaidダイアグラムのXSS完全防止 (CRIT-01 / MED-03)**:
+  - **Mermaid初期化設定の厳格化 (`src/utils/mermaid.ts`)**:
+    - `securityLevel: "strict"` を設定し、図内のHTMLタグやクリックイベント（`click Node call ...` / `javascript:` URL）によるスクリプト実行を禁止する。
+    - `secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize"]` を設定し、Markdown内の `%%{init: {'securityLevel': 'loose'}}%%` ディレクティブによるセキュリティ設定の動的オーバーライドを封じる。
+  - **SVG出力のサニタイズ (`src/utils/mermaid.ts`, `src/components/Editor/mermaidPlugin.ts`, `src/utils/mermaidExport.ts`)**:
+    - `renderMermaidDiagram` が返却するSVG文字列（およびDOM挿入直前）に対し、危険な要素（`<script>`, `<iframe>`, `<object>`, `<embed>`）やインラインイベントハンドラ属性（`onload`, `onerror`, `onclick` 等の `on*` 属性）、および `javascript:` / `vbscript:` / `data:text/html` スキームを含む属性を除去・無害化するサニタイズ関数（`sanitizeMermaidSvg`）を適用する。
+    - `mermaidPlugin.ts` における `result.bindFunctions` の呼び出しを廃止し、任意のJavaScriptコールバックバインドを防止する。
+    - `mermaidExport.ts` の正規表現フォールバック（`replaceMermaidRegex`）において、エラーメッセージ出力時に必ず `escapeHtml(errorMsg)` を適用する。
+- **2. Content Security Policy (CSP) の有効化と外部URLスキーム検証 (HIGH-01 / MED-01)**:
+  - **Tauri CSP設定 (`src-tauri/tauri.conf.json`)**:
+    - `"csp": null`（無効状態）を廃止し、外部スクリプト読み込みや不正な外部通信、`object-src` を制限するCSPポリシーを設定する。
+    - ローカルアセット（`'self'`, `asset:`, `http://asset.localhost`, `blob:`, `data:`, `https:`）、Tauri IPC通信（`ipc:`, `http://ipc.localhost`）、およびテーマ初期化・Tailwind/Milkdown/Mermaidのインラインスタイル・スクリプト動作を損なわないポリシーを構成する。
+  - **外部リンク起動時のURLスキームホワイトリスト検証 (`src/components/Editor/Editor.tsx`, `src/components/Editor/LinkTooltip.tsx`)**:
+    - `openUrl(url)` およびフォールバック `window.open` を呼び出す前に、URLスキーム検証ヘルパー（`isSafeExternalUrl`）を通し、`http:`、`https:`、`mailto:` スキームのみを許可する（`file:`, `javascript:`, `ms-msdt:`, カスタムURIスキーム等を拒否）。
+    - `window.open` フォールバック時は `noopener,noreferrer` を指定する。
+- **3. HTMLエクスポート・PDF印刷時のHTMLサニタイズとiframe隔離 (HIGH-02)**:
+  - **Markdown→HTML変換時のサニタイズ (`src-tauri/src/fs.rs`)**:
+    - `convert_markdown_to_html` において、`pulldown-cmark` が出力したHTMLボディから危険なタグ（`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`, `<meta http-equiv=...>` 等）、インラインイベント属性（`on[a-z]+\s*=`）、および `href` / `src` / `xlink:href` / `action` 内の `javascript:` / `vbscript:` / `data:text/html` スキームを無害化するサニタイズ処理（`sanitize_exported_html`）を実装する。
+    - GFM標準要素（見出し、強調、表、チェックボックス `<input type="checkbox" disabled>`、コードブロック、画像、安全なリンク）および `.typori-mermaid-svg` 等は完全に保持する。
+  - **PDF印刷用iframeの保護 (`src/api/fs.ts`)**:
+    - `printHtmlContent` で非表示 `iframe` にHTMLを書き込む際にもフロントエンド側で危険な `<script>` タグやイベントハンドラが含まれないことを保証し、親ウィンドウ（`window.parent.__TAURI_INTERNALS__`）へのアクセスを防止する。
+- **4. バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02)**:
+  - **画像保存時のパストラバーサル防止と拡張子検証 (`src-tauri/src/fs.rs`)**:
+    - `get_unique_file_path` / `save_image_binary` / `save_image_file` において、受け取った `file_name` からディレクトリ成分（`../`, `/`, `\`）を除去しファイル名成分（`Path::new(&file_name).file_name()`）のみを抽出するとともに、`is_image_extension` により許可された画像拡張子（`png`, `jpg`, `jpeg`, `gif`, `webp`, `svg`, `bmp`, `ico`, `avif`）であることを検証する。
+  - **画像パス解決とバイナリ読み込みの制限 (`src-tauri/src/fs.rs`)**:
+    - `resolve_image_path` において、`..`（ParentDir）によるベースディレクトリ外への上位トラバーサルや非画像拡張子の指定を拒否する。
+    - `read_file_binary` において、対象ファイルが許可された画像拡張子であることを検証し、かつファイルサイズ上限（`MAX_IMAGE_FILE_SIZE = 50 * 1024 * 1024` バイト = 50MB）を超える場合はエラーを返してOOM（メモリ枯渇）DoSおよび任意非画像ファイルの読み出しを防止する。
+  - **ファイル検索の再帰深度制限とシンボリックリンク除外 (`src-tauri/src/fs.rs`)**:
+    - `search_dir_recursive` において、最大再帰深度（`MAX_SEARCH_DEPTH = 16`）を設定し、シンボリックリンク（`ft.is_symlink()`）の追跡をスキップすることで、循環リンクや巨大ツリーによるスタックオーバーフロー・応答停止を防止する。
+- **5. 依存パッケージの既知脆弱性解消 (LOW-01)**:
+  - **`package.json` の `pnpm.overrides` 設定**:
+    - 間接依存の `source-map-js`（`GHSA-68fv-2mgg-jv7q`: High）を `>=1.2.2`、`katex`（`GHSA-238p-pmpm-9mq7`: Low）を `>=0.18.2` にオーバーライド解決し、`pnpm audit` での検出脆弱性をゼロにする。
+- **完成基準**:
+  - 上記1〜5のセキュリティ対策がすべて実装され、既存の全機能（WYSIWYG編集、Mermaid描画・テーマ連動・エクスポート、画像D&D・クリップボード貼り付け・ローカル画像表示、HTML/PDFエクスポート、サイドバー検索）および既存テストが一切破壊されないこと。
+  - セキュリティ強化項目を検証する自動テストスクリプト（`scripts/verify-security-hardening.mjs`）が `scripts/verify-all.mjs` に統合され、`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 で通過すること。
+
 ## 改訂履歴
 - 2026-09-26: 初版策定
 - 2026-09-27: 新規ファイル作成機能 (`create_file`) のデータフローを追記
@@ -336,3 +374,4 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-17: 起動高速化・ホワイトブランク完全解消仕様（Phase 21）を策定。ハイブリッド・ウィンドウ表示制御（初期非表示 `visible: false` からの描画完了後即時 `show()` ＋セーフティフォールバック＋ `index.html` 0msテーマ背景色・スケルトン適用）、重いモジュール（CodeMirror 6、各種モーダル、Mermaid）の動的インポート分割（Code Splitting）、および起動時ワークスペース初期化IPCの一括化（`init_workspace`）を定義。
 - 2026-10-18: Phase 21 起動高速化・ゼロフラッシュ・コード分割（タスク71〜76）の実装および品質保証の完了。Rust `init_workspace` 一括IPC、ウィンドウ初期非表示と表示ハンドシェイク、0msテーマ判定・スケルトン基盤、`React.lazy()` モジュール遅延ロードとチャンク最適化、自動テストスクリプト `verify-startup-acceleration.mjs` の整備と総合テスト統合（全40個別テスト合格）。
 - 2026-10-18: Phase 22 リリースビルドの準備と成果物検証（タスク77〜78）。バージョン番号（package.json / tauri.conf.json / Cargo.toml: 0.1.0）、アイコンアセット、NSIS/MSI設定、リリースプロファイル最適化設定の点検、テスト件数（単体テスト28件、総合テスト40件、IPC 15コマンド）の同期、およびリリースビルド手順・チェックリストの整備を実施。
+- 2026-10-18: セキュリティ強化・脆弱性対策仕様（Phase 23）を策定。ペネトレーションテスト結果に基づき、Mermaidの `securityLevel: "strict"` 化・`secure` ロック・SVGサニタイズ・`bindFunctions` 廃止・エラーHTMLエスケープ（CRIT-01 / MED-03）、Content Security Policy (CSP) 設定と外部リンクURLスキームホワイトリスト検証（HIGH-01 / MED-01）、HTMLエクスポート・PDF印刷時の生HTMLサニタイズとiframe隔離（HIGH-02）、バックエンドファイルシステムIPCのパストラバーサル防止・画像拡張子検証・ファイルサイズ上限（50MB）・再帰深度上限・シンボリックリンク除外（HIGH-03 / MED-02）、および `pnpm.overrides` による間接依存パッケージの脆弱性解消（LOW-01）を定義。

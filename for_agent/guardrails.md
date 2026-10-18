@@ -25,7 +25,7 @@
    ```powershell
    pnpm test
    ```
-   - `scripts/verify-all.mjs` により、全個別機能テスト（40件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
+   - `scripts/verify-all.mjs` により、全個別機能テスト（41件）、Tauri IPC コマンド登録整合性（15コマンド）、OSネイティブメニューイベント整合性（17イベント）、ショートカット定義の整合性を網羅検証する。
 2. **フロントエンド型検査 & ビルド検証**:
    ```powershell
    pnpm run build
@@ -241,6 +241,19 @@
   1. ウィンドウ表示は、フロントエンド初期化完了時の `getCurrentWindow().show()` 呼び出しに加えて、フロントエンド側（400ms）およびRustバックエンド側（`setup` 内の500msスレッド）の双方に「自動 `show()` セーフティフォールバック」を設けてハングを二重に防止すること。
   2. `src-tauri/src/lib.rs` でのインポートは既存の静的検査との互換性を崩さないよう、`use tauri::Emitter;` の行をそのまま維持し、追加のトレイトは別行（`use tauri::Manager;`）で宣言すること。
   3. APIの移行に伴って呼び出しが消えたインポートは、TypeScriptの型検査（`tsc`）で TS6133 エラーが発生するため、忘れずに `import` リストを整理すること。
+
+### 3.19. Mermaid ダイアグラムの XSS 防止と SVG サニタイズ整合性
+- **事象・ミス**:
+  - Markdown ファイル内に記述された悪意あるディレクティブ（`%%{init: {'securityLevel': 'loose'}}%%`）や、ダイアグラム内のリンク・クリックイベント（`javascript:` / `click Node call ...`）により、WebView 内で任意のスクリプトが実行（Stored XSS）されるリスクが生じる。
+  - エクスポート時のエラー出力において未エスケープの文字列を出力すると、エラーメッセージ内の HTML タグがそのまま評価されてしまう。
+- **原因**:
+  - Mermaid の初期化設定で `securityLevel` が loose に設定されていたり、ディレクティブによるオーバーライド（`secure` 設定未適用）が可能な場合、コードブロック記述者によってセキュリティ制約が解除されるため。
+  - レンダリングされた SVG やエラーメッセージ文字列をサニタイズせずに DOM/HTML へ直接挿入してしまうため。
+- **対策**:
+  1. `initMermaid` で必ず `securityLevel: "strict"` および `secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize"]` を設定し、図単位の動的オーバーライドをロックすること。
+  2. レンダリングされた SVG は DOM 挿入および返却前に `sanitizeMermaidSvg` を通し、`<script>`, <iframe>, <object>, <embed>, <form>, <base> などのタグ、`on*` 属性、および `javascript:` / `vbscript:` / `data:text/html` スキームを完全に除去・無害化すること。
+  3. `mermaidPlugin.ts` での `result.bindFunctions` の呼び出しを行わないこと。
+  4. エクスポートやプレビューでエラーメッセージを HTML 出力する際は、必ず `escapeHtml` を適用すること。
 
 ---
 
