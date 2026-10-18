@@ -386,7 +386,11 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           color: isDark ? "#f4f4f5" : "#27272a",
         },
         ".cm-scroller": {
+          height: "100%",
+          maxHeight: "100%",
           overflow: "auto",
+          overflowY: "auto",
+          boxSizing: "border-box",
           lineHeight: "1.7",
           paddingBottom: "120px",
           minHeight: "100%",
@@ -395,6 +399,9 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           padding: "24px 32px",
           margin: "0",
           boxSizing: "border-box",
+          minWidth: 0,
+          flexGrow: 1,
+          width: "100%",
         },
         ".cm-gutters": {
           backgroundColor: isDark ? "#18181b" : "#ffffff",

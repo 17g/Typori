@@ -1,3 +1,22 @@
+- 2026-10-18: タスク105「エディタスタイル・スクロール修正（問題点A & B）: `SourceEditor.tsx` の `.cm-scroller` 縦スクロール高さ修正（`height: 100%`, `maxHeight: 100%`, `overflowY: auto`）および `.cm-content` の Flexbox 幅潰れ解消（`minWidth: 0`, `flexGrow: 1`, `width: 100%`）」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）において、行番号OFF時やリサイズ時に `.cm-content` の幅が潰れたり折り返しが崩れる不具合（問題点A）、および長文Markdown編集時に `.cm-scroller` が親要素の高さを超過して縦スクロールが正常に機能しなくなる不具合（問題点B）を解消するため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `.cm-scroller` に `height: 100%`、`maxHeight: 100%`、`overflowY: auto`、`boxSizing: border-box` が指定されておらず、親コンテナの高さを突き抜ける可能性があった。
+      - `.cm-content` に `minWidth: 0`、`flexGrow: 1`、`width: 100%` が指定されておらず、Flexbox コンテナ下で行番号ガターの表示/非表示（ON/OFF）切り替えやウィンドウリサイズ時にコンテンツ幅が縮小・潰れる問題があった。
+    - `Plan.md`: タスク105が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `customTheme` の `.cm-scroller` に `height: "100%"`, `maxHeight: "100%"`, `overflow: "auto"`, `overflowY: "auto"`, `boxSizing: "border-box"` を設定し、仮想スクロールコンテナが親要素の高さを超過せず、スムーズな縦スクロール操作を保証。
+      - `customTheme` の `.cm-content` に `minWidth: 0`, `flexGrow: 1`, `width: "100%"` を設定し、行番号ガターの有無やリサイズ時でも本文幅が潰れず、常に利用可能な幅一杯にフィットして折り返されるよう改善。
+    - `for_agent/architecture.md`: 改訂履歴にタスク105完了を追記。
+    - 検証結果:
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `pnpm test`: Exit Code 0 (全50個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク104「バックエンド修正（問題点C）: `src-tauri/src/menu.rs` における Submenu 再帰探索ヘルパー（`find_check_menu_item`）の実装、`set_line_numbers_menu_checked` の確実なチェック状態同期への改修、および Rust 単体テストの追加」を完了。
   - **変更理由**: Tauri v2 では `Menu::get(id)` がルートメニュー直下のアイテムのみを参照し、`Submenu`（「表示」メニュー等）の配下にネストされたアイテムを再帰走査しないため、フロントエンドで行番号表示を切り替えた際に `set_line_numbers_menu_checked` で `CheckMenuItem` の取得に失敗してチェック状態が反映されない不具合（問題点C）を解消するため。
   - **Before**:
