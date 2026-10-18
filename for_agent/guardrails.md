@@ -362,7 +362,15 @@
 - **対策**:
   1. `OutlineSidebar`: コンテンツ変更時のアウトライン抽出にデバウンス（`OUTLINE_DEBOUNCE_MS = 150`）を適用し、タイピング中や初期表示時の同期パースを抑制すること。
   2. `resolveImagesInDOM`: ビューポート近傍（上下400pxバッファ）の可視画像を優先解決し、画面外画像はスクロール連動デバウンス（150ms）およびアイドル時（500ms遅延）に段階解決すること。また重複解決中フラグ（`resolvingImagesRef`）で多重読み込みを防止すること。
-  3. `MermaidNodeView`: `IntersectionObserver`（`rootMargin: "300px 0px"`）を用いてビューポート接近時にのみ遅延レンダリング（Lazy Render）を行い、画面外のダイアグラムは初期描画を保留すること。アクティブ化時（クリック等）には即時描画し、`destroy` 時に observer を確実に切断すること。
+### 3.28. Node.js テストスクリプト（`.mjs`）から React/JSX コンポーネント（`.tsx`）を直接 `import` することによる `ERR_UNKNOWN_FILE_EXTENSION` エラー
+- **事象・ミス**:
+  - テストスクリプト（`.mjs`）から `import("../src/components/Editor/Editor.tsx")` のように `.tsx` ファイルを動的インポートしようとすると、`TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".tsx"` で失敗する。
+- **原因**:
+  - Node.js は JSX/TSX 構文をネイティブにサポートしておらず、トランスパイラ（Vite / Babel / tsx）を通さずに `node scripts/*.mjs` を直接実行する場合、拡張子 `.tsx` は未知の形式として拒否される。
+  - 一方で、JSX を含まない純粋な TypeScript ファイル（`.ts`）は、Node 22/24 の実験的型ストリッピング機能等により直接インポート可能な場合があるため、`.ts` と混同して `.tsx` をインポートしてしまうミスが発生しやすい。
+- **対策**:
+  1. テストスクリプト内では、React コンポーネント（`.tsx`）を直接 `import()` せず、`fs.readFileSync` による静的構造・エクスポート・実装検査を行うこと。
+  2. `.tsx` 内のロジック（二分探索、仮想化計算、シミュレーション等）を動的にテストする場合は、純粋ロジック部分を `src/utils/*.ts` などの `.ts` モジュールに抽出してインポートするか、テストスクリプト側で同一アルゴリズムのシミュレーション関数を定義して振る舞いを検証すること。
 
 ---
 

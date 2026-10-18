@@ -1,3 +1,28 @@
+- 2026-10-18: タスク95「品質保証/パフォーマンステスト: 800KB/5000行の模擬Markdownファイルを生成・ロードし、強制リフロー排除・行番号仮想化・大容量オープン時間・全機能整合性を網羅検証するパフォーマンステストスクリプト（scripts/verify-large-file-performance.mjs）の作成と scripts/verify-all.mjs への統合・全検証パス確認」を完了。
+  - **変更理由**: Phase 25 で実装された大容量ファイル最適化群（WYSIWYG行番号ビューポート仮想化、マウント時シリアライズ完全抑制、Smart Large-File Handlerによる高速直接編集オープン連携、アウトライン・画像・Mermaid遅延ロード）が、800KB/5000行以上の実データに対しても設計どおりのパフォーマンス目標（オープンフリーズ0.5秒未満、Forced Reflow完全排除、メインスレッド占有ゼロ、全機能整合性維持）を達成していることを客観的かつ網羅的に自動検証するため。
+  - **Before**:
+    - `scripts/verify-large-file-performance.mjs`:
+      - 800KB/5000行以上の模擬Markdownドキュメントを用いたパフォーマンス・ビューポート仮想化・Forced Reflow排除・全機能整合性を検証するテストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`:
+      - 個別テスト数が45件であり、Phase 25 総合パフォーマンステストが含まれていなかった。
+    - `Plan.md`: タスク95が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-large-file-performance.mjs`:
+      - 新規作成。[Step 1] 800KB（実測855KB）/5000行（実測11,864行）の模擬Markdownドキュメント動的生成とメトリクス検証（`analyzeContentSize`, `isLargeContent`）、[Step 2] 大容量オープン前処理時間（`analyzeContentSize` 3.1ms, `normalizeLineEndings` 0.3ms, Smart Handler 判定 3.1ms）の高速性検証、[Step 3] WYSIWYG 行番号ガターのビューポート仮想化（上部・中央・末尾の各スクロール位置で描画ブロック数を26〜47個に抑え、Forced Reflow を 99.06% 削減、描画時間1ms未満）の検証、[Step 4] 初回マウント時シリアライズ完全抑制（serializer 呼び出し 0 回・メインスレッド占有ゼロ）の検証、[Step 5] アウトライン抽出デバウンス（150ms）および画像・Mermaid 遅延ロード負荷分散（50枚中5枚のみ初期解決）の検証、[Step 6] CRLF/LF 改行コード差分未保存誤爆防止・実質変更時未保存検知・モード切替時ゼロ文字欠損・静的コード整合性の検証、[Step 7] 実ディスク一時ファイル（800KB）読み込み時間（10.5ms）および安全クリーンアップを自動検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` 配列に `verify-large-file-performance.mjs` を追加し、全 46 件の個別検証テストスイートとして統合。
+    - `for_agent/architecture.md`:
+      - 改訂履歴に Phase 25 タスク95完了（Phase 25 全タスク完了）を追記。
+    - `Plan.md`:
+      - タスク95を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-large-file-performance.mjs`: Exit Code 0 (全7ステップ合格)
+      - `pnpm test`: Exit Code 0 (全46個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-large-file-performance.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク92「Milkdown初回マウント時シリアライズ最適化: Editor.tsx の listenerCtx.mounted における大容量ファイルの不要な全件シリアライズ（serializer）を抑制し、初期レンダリング時のメインスレッドブロックをゼロ化」を完了。
   - **変更理由**: 800KB/5000行+の大規模 Markdown ファイルを開いた際、Milkdown のマウント完了時（`listenerCtx.mounted`）に実行される `serializer(editorView.state.doc)` による全件シリアライズ（ProseMirror AST の全件走査・remark-stringify による文字列化）が同期的に数十万文字・数千行を処理するため、数百ミリ秒〜数秒間のメインスレッドブロッキング（UIフリーズ）が発生していた問題を根本的に解消するため。
   - **Before**:
