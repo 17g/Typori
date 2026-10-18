@@ -144,7 +144,7 @@
 
 ## Phase 25: 大容量ファイル（800KB/5000行+）オープン高速化とパフォーマンス最適化
 - [x] 90. 仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を `for_agent/` に追記・改訂
-- [ ] 91. WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: `src/components/Editor/Editor.tsx` の `lineNumbersPlugin` における全ブロック同期 `coordsAtPos` ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・`requestAnimationFrame`）の実装
+- [x] 91. WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: `src/components/Editor/Editor.tsx` の `lineNumbersPlugin` における全ブロック同期 `coordsAtPos` ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・`requestAnimationFrame`）の実装
 - [ ] 92. Milkdown初回マウント時シリアライズ最適化: `Editor.tsx` の `listenerCtx.mounted` における大容量ファイルの不要な全件シリアライズ（`serializer`）を抑制し、初期レンダリング時のメインスレッドブロックをゼロ化
 - [ ] 93. 大容量ファイル検知と直接編集モード高速オープン連携（Smart Large-File Handler）: 巨大ファイル（閾値: 300KB以上または2000行以上等）読み込み時におけるスムーズな高速オープン処理（CodeMirror 6 の仮想スクロール特性を活かした即時オープンまたはモード案内）の実装（`App.tsx`）
 - [ ] 94. アウトライン・画像・Mermaidの遅延ロード最適化: `OutlineSidebar.tsx` のアウトライン抽出デバウンス、DOM内ローカル画像解決（`resolveImagesInDOM`）およびMermaidレンダリングのビューポート遅延評価による初期オープン負荷軽減

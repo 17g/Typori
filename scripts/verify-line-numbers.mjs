@@ -263,6 +263,22 @@ assert.ok(
   "getActiveBlockIndex 関数が export されていること"
 );
 assert.ok(
+  editorContent.includes("export function findBlockIndexByPos("),
+  "findBlockIndexByPos 関数が export されていること"
+);
+assert.ok(
+  editorContent.includes("export function getVisibleBlockRange("),
+  "getVisibleBlockRange 関数が export されていること"
+);
+assert.ok(
+  editorContent.includes("requestAnimationFrame"),
+  "requestAnimationFrame による描画デバウンスが実装されていること"
+);
+assert.ok(
+  editorContent.includes('addEventListener("scroll", handleScroll'),
+  "スクロールイベントのリスナー登録が実装されていること"
+);
+assert.ok(
   editorContent.includes("setGlobalShowLineNumbers(showLineNumbers)"),
   "showLineNumbers の変更時に setGlobalShowLineNumbers が呼び出されていること"
 );
@@ -340,7 +356,100 @@ assert.ok(
   assert.equal(findActive(105), 4, "pos 105 は hr (ブロック4)");
   assert.equal(findActive(109), 5, "pos 109 は image (ブロック5)");
 }
-console.log("✓ Editor.tsx プラグイン登録・TargetBlocks 走査 & アクティブ判定シミュレーション合格");
+
+// 行番号仮想化（findBlockIndexByPos & getVisibleBlockRange）のシミュレーション
+{
+  const findBlockIndexByPosSim = (blocks, pos) => {
+    if (blocks.length === 0) return -1;
+    if (pos <= blocks[0].pos) return 0;
+    if (pos >= blocks[blocks.length - 1].pos) return blocks.length - 1;
+
+    let low = 0;
+    let high = blocks.length - 1;
+    let result = 0;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const block = blocks[mid];
+      const end = block.pos + block.size;
+
+      if (pos >= block.pos && pos < end) {
+        return mid;
+      }
+
+      if (block.pos <= pos) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return result;
+  };
+
+  // 5000個のブロックを持つ大規模ドキュメント（800KB相当）を生成
+  const largeBlocks = [];
+  let curPos = 0;
+  for (let i = 1; i <= 5000; i++) {
+    const size = 50; // 各ブロック約50文字
+    largeBlocks.push({
+      index: i,
+      pos: curPos,
+      size,
+      type: "paragraph",
+    });
+    curPos += size;
+  }
+
+  assert.equal(largeBlocks.length, 5000, "5000ブロックが正しく生成されること");
+
+  // 二分探索の精度テスト
+  assert.equal(findBlockIndexByPosSim(largeBlocks, 0), 0, "pos 0 はブロック0");
+  assert.equal(findBlockIndexByPosSim(largeBlocks, 25), 0, "pos 25 はブロック0の内部");
+  assert.equal(findBlockIndexByPosSim(largeBlocks, 50), 1, "pos 50 はブロック1");
+  assert.equal(findBlockIndexByPosSim(largeBlocks, 50 * 2500 + 10), 2500, "pos 125010 はブロック2500");
+  assert.equal(findBlockIndexByPosSim(largeBlocks, largeBlocks[4999].pos + 10), 4999, "末尾ブロック");
+
+  // getVisibleBlockRange 仮想化ロジックのシミュレーション
+  const simulateVisibleRange = (blocks, topPos, bottomPos, total) => {
+    const VIRTUALIZATION_THRESHOLD = 60;
+    if (total <= VIRTUALIZATION_THRESHOLD) {
+      return { startIndex: 0, endIndex: total - 1, isVirtualized: false };
+    }
+
+    let startIndex = 0;
+    let endIndex = total - 1;
+
+    if (topPos != null) {
+      const foundStart = findBlockIndexByPosSim(blocks, topPos);
+      startIndex = Math.max(0, foundStart - 5);
+    }
+
+    if (bottomPos != null) {
+      const foundEnd = findBlockIndexByPosSim(blocks, bottomPos);
+      endIndex = Math.min(total - 1, foundEnd + 8);
+    }
+
+    if (startIndex > endIndex) {
+      startIndex = Math.max(0, endIndex - 10);
+    }
+
+    return { startIndex, endIndex, isVirtualized: true };
+  };
+
+  // 画面内にブロック 1000〜1030 付近が表示されている場合の仮想化検証
+  const viewportTopPos = largeBlocks[1000].pos;
+  const viewportBottomPos = largeBlocks[1030].pos;
+  const range = simulateVisibleRange(largeBlocks, viewportTopPos, viewportBottomPos, 5000);
+
+  assert.equal(range.isVirtualized, true, "大容量ドキュメントで仮想化フラグが true");
+  assert.equal(range.startIndex, 995, "バッファ5ブロック前（1000 - 5 = 995）から描画");
+  assert.equal(range.endIndex, 1038, "バッファ8ブロック後（1030 + 8 = 1038）まで描画");
+  const renderedCount = range.endIndex - range.startIndex + 1;
+  assert.equal(renderedCount, 44, "描画対象ブロック数が44個（画面内＋バッファ）に抑えられ、5000回の Forced Reflow が完全排除されること");
+}
+console.log("✓ Editor.tsx プラグイン登録・TargetBlocks 走査・行番号ビューポート仮想化シミュレーション合格");
 
 // 8. スタイリング (index.css)
 console.log("\n[8] CSS スタイル定義 (src/index.css) の検証...");

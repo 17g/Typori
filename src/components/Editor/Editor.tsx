@@ -198,6 +198,125 @@ export function getActiveBlockIndex(blocks: TargetBlockInfo[], targetPos: number
   return 0;
 }
 
+/**
+ * 与えられた pos に対して、その位置を含むか最も近い直前のブロックインデックスを二分探索で高速に特定する (O(log N))
+ */
+export function findBlockIndexByPos(blocks: TargetBlockInfo[], pos: number): number {
+  if (blocks.length === 0) return -1;
+  if (pos <= blocks[0].pos) return 0;
+  if (pos >= blocks[blocks.length - 1].pos) return blocks.length - 1;
+
+  let low = 0;
+  let high = blocks.length - 1;
+  let result = 0;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const block = blocks[mid];
+    const end = block.pos + block.size;
+
+    if (pos >= block.pos && pos < end) {
+      return mid;
+    }
+
+    if (block.pos <= pos) {
+      result = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return result;
+}
+
+export interface VisibleBlockRange {
+  startIndex: number;
+  endIndex: number;
+  isVirtualized: boolean;
+}
+
+/**
+ * ビューポート内の可視ブロックインデックス範囲を特定する
+ * 60ブロック以下の小規模ドキュメントは全件描画、大容量ドキュメントは大半の Forced Reflow を排除し仮想化描画する
+ */
+export function getVisibleBlockRange(
+  blocks: TargetBlockInfo[],
+  view: any,
+  bufferPx = 300
+): VisibleBlockRange {
+  const total = blocks.length;
+  if (total === 0) {
+    return { startIndex: 0, endIndex: -1, isVirtualized: false };
+  }
+
+  // 60ブロック以下の小規模ドキュメントは全件描画で十分高速
+  const VIRTUALIZATION_THRESHOLD = 60;
+  if (total <= VIRTUALIZATION_THRESHOLD) {
+    return { startIndex: 0, endIndex: total - 1, isVirtualized: false };
+  }
+
+  try {
+    const scrollContainer =
+      view.dom.closest?.(".typori-editor-wrapper") ||
+      view.dom.parentElement?.parentElement ||
+      view.dom.parentElement;
+
+    const containerRect = scrollContainer?.getBoundingClientRect?.() ?? view.dom.getBoundingClientRect();
+    const viewRect = view.dom.getBoundingClientRect();
+
+    // スクロールコンテナとエディタの交差領域を算出
+    const visibleTop = Math.max(containerRect.top, viewRect.top);
+    const visibleBottom = Math.min(containerRect.bottom, viewRect.bottom);
+
+    // 上下バッファを追加
+    const searchTop = visibleTop - bufferPx;
+    const searchBottom = visibleBottom + bufferPx;
+
+    const centerX = viewRect.left + Math.min(100, Math.max(20, viewRect.width / 4));
+
+    // ビューポート上端と下端の ProseMirror 位置を取得
+    const topResult = view.posAtCoords?.({
+      left: centerX,
+      top: Math.max(viewRect.top + 2, searchTop),
+    });
+
+    const bottomResult = view.posAtCoords?.({
+      left: centerX,
+      top: Math.min(viewRect.bottom - 2, searchBottom),
+    });
+
+    let startIndex = 0;
+    let endIndex = total - 1;
+
+    if (topResult?.pos != null) {
+      const foundStart = findBlockIndexByPos(blocks, topResult.pos);
+      // 上方向に5ブロックの余裕を持たせる
+      startIndex = Math.max(0, foundStart - 5);
+    }
+
+    if (bottomResult?.pos != null) {
+      const foundEnd = findBlockIndexByPos(blocks, bottomResult.pos);
+      // 下方向に8ブロックの余裕を持たせる
+      endIndex = Math.min(total - 1, foundEnd + 8);
+    }
+
+    // 逆転ガード
+    if (startIndex > endIndex) {
+      startIndex = Math.max(0, endIndex - 10);
+    }
+
+    return {
+      startIndex,
+      endIndex,
+      isVirtualized: true,
+    };
+  } catch {
+    // 例外発生時は全件フォールバック
+    return { startIndex: 0, endIndex: total - 1, isVirtualized: false };
+  }
+}
+
 let globalShowLineNumbers = true;
 export function setGlobalShowLineNumbers(enabled: boolean) {
   globalShowLineNumbers = enabled;
@@ -245,6 +364,9 @@ export const lineNumbersPlugin = $prose(() => {
     view(editorView) {
       let gutterEl: HTMLDivElement | null = null;
       let resizeObserver: ResizeObserver | null = null;
+      let scrollContainer: HTMLElement | null = null;
+      let rafId: number | null = null;
+      let isDestroyed = false;
 
       const ensureGutter = () => {
         if (gutterEl && gutterEl.isConnected) return gutterEl;
@@ -259,7 +381,8 @@ export const lineNumbersPlugin = $prose(() => {
         return gutterEl;
       };
 
-      const updateGutter = (view: any) => {
+      const renderGutter = (view: any) => {
+        if (isDestroyed) return;
         const pluginState = lineNumbersPluginKey.getState(view.state);
         const enabled = pluginState ? pluginState.enabled : getGlobalShowLineNumbers();
 
@@ -279,11 +402,19 @@ export const lineNumbersPlugin = $prose(() => {
         const blocks = pluginState?.blocks ?? getTargetBlocks(view.state.doc);
         const activeIndex = pluginState?.activeIndex ?? 0;
 
-        gutter.innerHTML = "";
+        if (blocks.length === 0) {
+          gutter.innerHTML = "";
+          return;
+        }
+
         const milkdownEl = view.dom.parentElement;
         const parentRect = milkdownEl ? milkdownEl.getBoundingClientRect() : view.dom.getBoundingClientRect();
 
-        for (let i = 0; i < blocks.length; i++) {
+        // ビューポート可視ブロック範囲のみを計算（仮想化）
+        const range = getVisibleBlockRange(blocks, view, 300);
+        const fragment = document.createDocumentFragment();
+
+        for (let i = range.startIndex; i <= range.endIndex; i++) {
           const block = blocks[i];
           const item = document.createElement("div");
           item.className = "typori-line-number-item";
@@ -301,33 +432,77 @@ export const lineNumbersPlugin = $prose(() => {
             // fallback if coordsAtPos fails
           }
 
-          gutter.appendChild(item);
+          fragment.appendChild(item);
+        }
+
+        gutter.innerHTML = "";
+        gutter.appendChild(fragment);
+      };
+
+      const scheduleUpdate = (view: any) => {
+        if (isDestroyed) return;
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          if (isDestroyed) return;
+          renderGutter(view);
+        });
+      };
+
+      const handleScroll = () => {
+        scheduleUpdate(editorView);
+      };
+
+      const setupScrollListener = () => {
+        if (scrollContainer && scrollContainer.isConnected) return;
+        const found =
+          editorView.dom.closest?.(".typori-editor-wrapper") ||
+          editorView.dom.parentElement?.parentElement ||
+          editorView.dom.parentElement;
+
+        if (found && found !== scrollContainer) {
+          if (scrollContainer) {
+            scrollContainer.removeEventListener("scroll", handleScroll);
+          }
+          scrollContainer = found as HTMLElement;
+          scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
         }
       };
 
       const timer = setTimeout(() => {
-        updateGutter(editorView);
+        setupScrollListener();
+        renderGutter(editorView);
       }, 0);
 
       const handleResize = () => {
-        updateGutter(editorView);
+        scheduleUpdate(editorView);
       };
       window.addEventListener("resize", handleResize);
 
       if (typeof ResizeObserver !== "undefined" && editorView.dom.parentElement) {
         resizeObserver = new ResizeObserver(() => {
-          updateGutter(editorView);
+          scheduleUpdate(editorView);
         });
         resizeObserver.observe(editorView.dom);
       }
 
       return {
         update(view) {
-          updateGutter(view);
+          setupScrollListener();
+          scheduleUpdate(view);
         },
         destroy() {
+          isDestroyed = true;
           clearTimeout(timer);
+          if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+          }
           window.removeEventListener("resize", handleResize);
+          if (scrollContainer) {
+            scrollContainer.removeEventListener("scroll", handleScroll);
+            scrollContainer = null;
+          }
           if (resizeObserver) {
             resizeObserver.disconnect();
             resizeObserver = null;

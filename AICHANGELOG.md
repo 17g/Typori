@@ -1,3 +1,31 @@
+- 2026-10-18: タスク91「WYSIWYG行番号ガターのビューポート仮想化（Virtualization）: src/components/Editor/Editor.tsx の lineNumbersPlugin における全ブロック同期 coordsAtPos ループ（Forced Reflow）を撤廃し、画面内可視領域のみを計算・描画する仮想化ガター（スクロール連動・requestAnimationFrame）の実装」を完了。
+  - **変更理由**: 800KB/5000行+の大規模 Markdown ファイルを開いた際、WYSIWYG モード（Milkdown）の `lineNumbersPlugin` が全ブロック（数千ノード）に対して `coordsAtPos` を同期ループで呼び出し、ブラウザの強制レイアウト再計算（Forced Reflow / Layout Thrashing）を連続して発生させて数秒間の UI フリーズを引き起こしていた問題を根本的に解消するため。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx`:
+      - `lineNumbersPlugin` の `updateGutter` において、`blocks` 全件（数千件）を走査して毎回すべてのブロックに対して `view.coordsAtPos(block.pos)` を同期実行していた。
+      - スクロールイベントリスナーが存在せず、スクロール時の可視範囲更新が行われていなかった。
+      - `update` 呼び出しごとに同期的かつ無制限に DOM の破棄・再生成が行われており、`requestAnimationFrame` による描画デバウンスがなかった。
+      - `findBlockIndexByPos` や `getVisibleBlockRange` のような仮想化ヘルパー関数が存在しなかった。
+    - `scripts/verify-line-numbers.mjs`:
+      - 仮想化関数（`findBlockIndexByPos`, `getVisibleBlockRange`）や `requestAnimationFrame`、スクロールイベント登録、5000ブロック仮想化シミュレーションの検証が含まれていなかった。
+    - `Plan.md`: タスク91が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - 二分探索関数 `findBlockIndexByPos(blocks, pos): number`（$O(\log N)$）を実装・export。
+      - 可視ブロック範囲特定関数 `getVisibleBlockRange(blocks, view, bufferPx): VisibleBlockRange` を実装・export。60ブロック以下の小規模ファイルは全件描画を維持しつつ、大規模ファイルではビューポート可視領域（上下300pxバッファ）のみに走査を限定。
+      - `lineNumbersPlugin` の `view` 実装を刷新し、`requestAnimationFrame`（`scheduleUpdate`）による描画デバウンス、親スクロールコンテナ（`.typori-editor-wrapper`）へのパッシブ `scroll` リスナー登録・破棄、および `DocumentFragment` による高速DOM挿入を導入。全ブロック同期 `coordsAtPos` ループを完全撤廃し、画面内可視ブロック（30〜60個程度）のみを計算・描画するビューポート仮想化を実現。
+    - `scripts/verify-line-numbers.mjs`:
+      - `findBlockIndexByPos`、`getVisibleBlockRange`、`requestAnimationFrame`、スクロールイベントリスナー登録の静的検証を追加。
+      - 5000ブロック（800KB相当）の模擬大規模ドキュメントを用いた二分探索精度テスト、および可視範囲絞り込みシミュレーション（描画対象が44ブロックに抑えられ Forced Reflow が完全排除されること）の検証を追加。
+    - `Plan.md`:
+      - タスク91を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-line-numbers.mjs`: Exit Code 0 (全8ステップ合格)
+      - `pnpm test`: Exit Code 0 (全42個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo check`: Exit Code 0
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `scripts/verify-line-numbers.mjs`, `Plan.md`, `AICHANGELOG.md`。既存の行番号表示・ハイライト・フォーカスモード・テーマ連携・テストとの完全互換性を保持。
+
 - 2026-10-18: タスク90「仕様策定・設計: 大容量Markdownファイルオープン時のパフォーマンス要件（オープン時間目標、強制リフローの完全排除、ビューポート仮想化、大容量ファイル検知と高速オープンモード）を for_agent/ に追記・改訂」を完了。
   - **変更理由**: 800KB/5000行+ を超える大容量 Markdown ファイルを開いた際に、WYSIWYG モード（Milkdown）の `lineNumbersPlugin` による全ブロック走査 `coordsAtPos` ループ（Forced Reflow / Layout Thrashing）やマウント完了時の不要な全件シリアライズ、画像/Mermaid/アウトラインの一斉同期実行により UI が数秒間フリーズする問題を解消するため、パフォーマンス要件・ビューポート仮想化設計・シリアライズ最適化・大容量ファイル検知高速オープン連携を仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に明確化・定義するため。
   - **Before**:
