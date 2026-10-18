@@ -300,6 +300,21 @@
   2. 後方互換および npm/ツール整合性のため、`package.json` にも `overrides` および `pnpm.overrides` を記述しておくこと。
   3. 設定更新後は `pnpm install` を実行して `pnpm-lock.yaml` にオーバーライド後の解決バージョンが反映されたことを確認し、`pnpm audit` が 0 件で合格することを確認すること。
 
+### 3.16 Windows + Node.js v22/v24環境における子プロセスでのバッチ/cmdファイル（pnpm.cmd等）実行
+
+- **事象・ミス**:
+  - テストスクリプト（`.mjs`）から `child_process.execFileSync("pnpm.cmd", ["audit"])` や `spawnSync` を実行すると、`spawnSync pnpm.cmd EINVAL` エラーで失敗する。
+  - 回避策として `{ shell: true }` を渡すと `[DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities...` の警告が発生する。
+- **原因**:
+  - Node.js の Windows コマンドインジェクション対策（CVE-2024-27980）により、Windows 上で `.cmd` / `.bat` スクリプトをシェルなし（`shell: false`）の `spawnSync` / `execFileSync` で引数付き実行することが拒否（`EINVAL`）される仕様となった。また、引数配列と `shell: true` の併用は引数エスケープの安全性の観点から非推奨警告の対象となった。
+- **対策**:
+  - Node.js スクリプト内から `pnpm audit` や `git` などの CLI ツールを同期実行する場合は、`child_process.execSync` を使用してコマンドライン文字列を渡すこと:
+    ```javascript
+    import { execSync } from "node:child_process";
+    const output = execSync("pnpm audit", { cwd: projectRoot, encoding: "utf-8", stdio: "pipe" });
+    ```
+  - これにより、プラットフォーム間（Windows / Linux / macOS）の差異を吸収しつつ、`EINVAL` や `DEP0190` 警告なしにクリーンに実行・検証できる。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

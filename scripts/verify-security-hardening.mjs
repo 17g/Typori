@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -552,7 +553,77 @@ assert.ok(
 );
 console.log("✓ fs.rs: resolve_image_path での上位ディレクトリトラバーサル拒否処理を確認");
 
+// ==================================================================
+// [Part 5] 依存パッケージの既知脆弱性解消・オーバーライド (LOW-01 / Task 83) 検証
+// ==================================================================
+console.log("\n[5] 依存パッケージの既知脆弱性解消・オーバーライド (LOW-01 / Task 83) の検証...");
+
+// 5.1 package.json の overrides および pnpm.overrides 設定検証
+const packageJsonPath = path.resolve(projectRoot, "package.json");
+assert.ok(fs.existsSync(packageJsonPath), "package.json が存在すること");
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+
+assert.ok(
+  packageJson.overrides &&
+    packageJson.overrides["source-map-js"] === ">=1.2.2" &&
+    packageJson.overrides["katex"] === ">=0.18.2",
+  "package.json の overrides に source-map-js (>=1.2.2) および katex (>=0.18.2) が指定されていること"
+);
+
+assert.ok(
+  packageJson.pnpm &&
+    packageJson.pnpm.overrides &&
+    packageJson.pnpm.overrides["source-map-js"] === ">=1.2.2" &&
+    packageJson.pnpm.overrides["katex"] === ">=0.18.2",
+  "package.json の pnpm.overrides に source-map-js (>=1.2.2) および katex (>=0.18.2) が指定されていること"
+);
+console.log("✓ package.json: overrides および pnpm.overrides 設定を確認");
+
+// 5.2 pnpm-workspace.yaml の overrides 設定検証
+const workspaceYamlPath = path.resolve(projectRoot, "pnpm-workspace.yaml");
+assert.ok(fs.existsSync(workspaceYamlPath), "pnpm-workspace.yaml が存在すること");
+const workspaceYamlContent = fs.readFileSync(workspaceYamlPath, "utf-8");
+assert.ok(
+  workspaceYamlContent.includes('source-map-js: ">=1.2.2"') &&
+    workspaceYamlContent.includes('katex: ">=0.18.2"'),
+  "pnpm-workspace.yaml の overrides に source-map-js および katex のバージョン制限が定義されていること"
+);
+console.log("✓ pnpm-workspace.yaml: overrides 設定を確認");
+
+// 5.3 pnpm-lock.yaml のオーバーライド反映確認
+const pnpmLockPath = path.resolve(projectRoot, "pnpm-lock.yaml");
+assert.ok(fs.existsSync(pnpmLockPath), "pnpm-lock.yaml が存在すること");
+const pnpmLockContent = fs.readFileSync(pnpmLockPath, "utf-8");
+assert.ok(
+  pnpmLockContent.includes("source-map-js@1.2.2") || pnpmLockContent.includes("source-map-js: 1.2.2"),
+  "pnpm-lock.yaml で source-map-js 1.2.2 が解決されていること"
+);
+assert.ok(
+  pnpmLockContent.includes("katex@0.18.9") || pnpmLockContent.includes("katex: 0.18.9"),
+  "pnpm-lock.yaml で katex 0.18.9 (>=0.18.2) が解決されていること"
+);
+console.log("✓ pnpm-lock.yaml: オーバーライドによる安全バージョンの解決を確認");
+
+// 5.4 pnpm audit による脆弱性 0 件検証
+try {
+  const auditOutput = execSync("pnpm audit", {
+    cwd: projectRoot,
+    encoding: "utf-8",
+    stdio: "pipe",
+  });
+  assert.ok(
+    auditOutput.includes("No known vulnerabilities found") ||
+      auditOutput.includes("0 vulnerabilities"),
+    "pnpm audit で既知の脆弱性が 0 件であること"
+  );
+  console.log("✓ pnpm audit: 検出された脆弱性 0 件 (No known vulnerabilities found) を確認");
+} catch (err) {
+  console.error("pnpm audit 失敗:\n", err.stdout || err.stderr || err.message);
+  throw err;
+}
+
 console.log("\n==================================================================");
-console.log(" >>> Phase 23 セキュリティ強化 (Task 79, Task 80, Task 81, Task 82) 合格 <<< ");
+console.log(" >>> Phase 23 全セキュリティ強化・脆弱性対策 (Task 79〜84) 合格 <<< ");
 console.log("==================================================================");
+
 

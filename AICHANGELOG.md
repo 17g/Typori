@@ -1,3 +1,28 @@
+- 2026-10-18: タスク84「品質保証/自動テスト: Phase 23 の全セキュリティ対策（Mermaid厳格化・サニタイズ、CSP・URLスキーム検証、エクスポートHTMLサニタイズ、IPC境界防御・サイズ/深度制限、依存関係オーバーライド）を網羅検証する自動テストスクリプト（scripts/verify-security-hardening.mjs）の作成と scripts/verify-all.mjs への統合、および全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）のパス確認」を完了。
+  - **変更理由**: Phase 23 で実装した全5領域のセキュリティ対策（①Mermaid XSS対策・厳格化・サニタイズ、②防御的CSP設定・外部URLスキーム検証、③HTMLエクスポート/PDF印刷時の危険生HTMLサニタイズ、④バックエンドファイルシステムIPCのパストラバーサル防止・画像拡張子検証・サイズ上限50MB・再帰深度上限16階層、⑤pnpm v11/v12 overrides による既知脆弱性解消）が長期的に後退（リグレッション）しないよう、ワンストップの自動検証スクリプト（`scripts/verify-security-hardening.mjs`）で網羅的に担保し、総合テスト（`scripts/verify-all.mjs`）および全CI検証コマンドでExit Code 0を確認して開発計画（Plan.md 全84タスク）を完全に完了させるため。
+  - **Before**:
+    - `scripts/verify-security-hardening.mjs`: Part 1〜Part 4 までの検証のみが含まれ、Task 83（依存関係オーバーライド `package.json` / `pnpm-workspace.yaml` / `pnpm-lock.yaml` / `pnpm audit`）の検証（Part 5）が含まれていなかった。
+    - `Plan.md`: タスク84が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-security-hardening.mjs`:
+      - `[Part 5] 依存パッケージの既知脆弱性解消・オーバーライド (LOW-01 / Task 83) 検証` を追加。
+      - `package.json` の `overrides` / `pnpm.overrides`、`pnpm-workspace.yaml` の `overrides`、`pnpm-lock.yaml` での安全バージョン解決、および `pnpm audit`（脆弱性 0 件）を自動検証。
+      - Node.js v24 Windows 環境で `child_process.execSync` を用いてプラットフォーム互換かつ警告なしで `pnpm audit` を実行。
+      - 最終サマリーメッセージを「>>> Phase 23 全セキュリティ強化・脆弱性対策 (Task 79〜84) 合格 <<<」に更新。
+    - `for_agent/guardrails.md`:
+      - 「3.16 Windows + Node.js v22/v24環境における子プロセスでのバッチ/cmdファイル（pnpm.cmd等）実行」を追記。
+    - `for_agent/architecture.md`:
+      - 改訂履歴にタスク84完了およびPhase 23・開発計画全84タスクの完了を追記。
+    - `Plan.md`:
+      - タスク84を `- [x]` に更新（全タスク完了）。
+    - 検証結果:
+      - `node scripts/verify-security-hardening.mjs`: Exit Code 0 (Part 1〜Part 5 全合格)
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-security-hardening.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク83「依存パッケージの既知脆弱性解消 (LOW-01): package.json への pnpm.overrides（source-map-js: ">=1.2.2", katex: ">=0.18.2"）追加とロックファイル更新、pnpm audit での検出脆弱性0件の確認」を完了。
   - **変更理由**: 間接依存パッケージに含まれていた既知の脆弱性（`source-map-js` の ReDoS / Event Loop DoS 脆弱性 `GHSA-68fv-2mgg-jv7q` [High]、および `katex` のプロトタイプ汚染バイパス脆弱性 `GHSA-238p-pmpm-9mq7` [Low]）を解消し、`pnpm audit` で検出される脆弱性を 0 件にしてサプライチェーンセキュリティを強化するため。
   - **Before**:
