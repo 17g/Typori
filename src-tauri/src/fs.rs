@@ -131,13 +131,20 @@ const IGNORED_SEARCH_DIRS: &[&str] = &[
     ".gemini",
 ];
 
+/// ファイル検索の最大再帰深度 (16階層) - スタックオーバーフロー/循環リンク防止
+pub const MAX_SEARCH_DEPTH: usize = 16;
+
+/// 画像ファイルの最大許容サイズ (50MB) - DoS/OOM防止
+pub const MAX_IMAGE_FILE_SIZE: u64 = 50 * 1024 * 1024;
+
 fn search_dir_recursive(
     dir: &std::path::Path,
     query_lower: &str,
     results: &mut Vec<FileEntry>,
     max_results: usize,
+    current_depth: usize,
 ) {
-    if results.len() >= max_results {
+    if results.len() >= max_results || current_depth >= MAX_SEARCH_DEPTH {
         return;
     }
 
@@ -153,9 +160,19 @@ fn search_dir_recursive(
             break;
         }
 
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+
+        // シンボリックリンクは循環リンクやトラバーサルDoSを防ぐため追跡・検索をスキップ
+        if ft.is_symlink() {
+            continue;
+        }
+
+        let is_dir = ft.is_dir();
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
 
         if is_dir && IGNORED_SEARCH_DIRS.contains(&name.as_str()) {
             continue;
@@ -178,7 +195,13 @@ fn search_dir_recursive(
         if results.len() >= max_results {
             break;
         }
-        search_dir_recursive(&sub_dir, query_lower, results, max_results);
+        search_dir_recursive(
+            &sub_dir,
+            query_lower,
+            results,
+            max_results,
+            current_depth + 1,
+        );
     }
 }
 
@@ -208,7 +231,7 @@ pub fn search_files(
     let mut results = Vec::new();
     let query_lower = trimmed_query.to_lowercase();
 
-    search_dir_recursive(root, &query_lower, &mut results, max_count);
+    search_dir_recursive(root, &query_lower, &mut results, max_count, 0);
 
     results.sort_by(|a, b| {
         b.is_dir
@@ -236,13 +259,20 @@ pub fn is_image_extension(ext: &str) -> bool {
 }
 
 /// 衝突を避けるためのユニークなファイルパスを生成します。
+/// パストラバーサル防止のため、ファイル名成分のみを抽出して dir 配下に安全に配置します。
 pub fn get_unique_file_path(dir: &std::path::Path, file_name: &str) -> (std::path::PathBuf, String) {
-    let path = std::path::Path::new(file_name);
+    let clean_name = std::path::Path::new(file_name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+        .unwrap_or("image.png");
+
+    let path = std::path::Path::new(clean_name);
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
 
-    let mut candidate = dir.join(file_name);
-    let mut candidate_name = file_name.to_string();
+    let mut candidate = dir.join(clean_name);
+    let mut candidate_name = clean_name.to_string();
     let mut counter = 1;
 
     while candidate.exists() {
@@ -266,9 +296,37 @@ pub fn save_image_file(
         return Err(format!("Source image file '{}' does not exist", source_path));
     }
 
-    let file_name = src
+    // 画像拡張子の検証
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !is_image_extension(ext) {
+        return Err(format!(
+            "File '{}' has unsupported or invalid image extension",
+            source_path
+        ));
+    }
+
+    // ファイルサイズ上限（50MB）の検証
+    let metadata = fs::metadata(src)
+        .map_err(|e| format!("Failed to get metadata for '{}': {}", source_path, e))?;
+    if metadata.len() > MAX_IMAGE_FILE_SIZE {
+        return Err(format!(
+            "Image file size exceeds limit of 50MB ({} bytes)",
+            metadata.len()
+        ));
+    }
+
+    // パストラバーサル防止: ファイル名成分のみを抽出
+    let raw_name = src
         .file_name()
         .and_then(|n| n.to_str())
+        .ok_or_else(|| format!("Invalid file name for '{}'", source_path))?;
+    let file_name = std::path::Path::new(raw_name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
         .ok_or_else(|| format!("Invalid file name for '{}'", source_path))?;
 
     let base_dir = if let Some(doc) = document_path {
@@ -309,6 +367,33 @@ pub fn save_image_binary(
     document_path: Option<String>,
     workspace_dir: Option<String>,
 ) -> Result<SavedImage, String> {
+    // データサイズ上限（50MB）の検証
+    if data.len() as u64 > MAX_IMAGE_FILE_SIZE {
+        return Err(format!(
+            "Image binary data exceeds limit of 50MB ({} bytes)",
+            data.len()
+        ));
+    }
+
+    // パストラバーサル防止: ファイル名成分のみを抽出
+    let clean_file_name = std::path::Path::new(&file_name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+        .ok_or_else(|| format!("Invalid image file name: '{}'", file_name))?;
+
+    // 画像拡張子の検証
+    let ext = std::path::Path::new(clean_file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !is_image_extension(ext) {
+        return Err(format!(
+            "Image '{}' has unsupported or invalid image extension",
+            file_name
+        ));
+    }
+
     let base_dir = if let Some(doc) = document_path {
         let p = std::path::PathBuf::from(doc);
         p.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -324,7 +409,7 @@ pub fn save_image_binary(
             .map_err(|e| format!("Failed to create assets directory: {}", e))?;
     }
 
-    let (dest_path, unique_name) = get_unique_file_path(&assets_dir, &file_name);
+    let (dest_path, unique_name) = get_unique_file_path(&assets_dir, clean_file_name);
 
     fs::write(&dest_path, data)
         .map_err(|e| format!("Failed to write image to '{}': {}", dest_path.display(), e))?;
@@ -340,18 +425,44 @@ pub fn save_image_binary(
 }
 
 /// 指定されたファイルのバイナリデータを読み込みます。
+/// 画像ファイルのみ許可し、ファイルサイズ上限（50MB）を適用します。
 #[tauri::command]
 pub fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
-    fs::read(&path).map_err(|e| format!("Failed to read binary file '{}': {}", path, e))
+    let p = std::path::Path::new(&path);
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+    if !is_image_extension(ext) {
+        return Err(format!("File '{}' is not a supported image file", path));
+    }
+
+    let metadata = fs::metadata(p)
+        .map_err(|e| format!("Failed to get metadata for binary file '{}': {}", path, e))?;
+
+    if metadata.len() > MAX_IMAGE_FILE_SIZE {
+        return Err(format!(
+            "Binary file size exceeds limit of 50MB ({} bytes)",
+            metadata.len()
+        ));
+    }
+
+    fs::read(p).map_err(|e| format!("Failed to read binary file '{}': {}", path, e))
 }
 
 /// 相対パスとドキュメントパスから画像の絶対パスを解決します。
+/// 画像拡張子を検証し、`..` によるベースディレクトリ外への上位トラバーサルを拒否します。
 #[tauri::command]
 pub fn resolve_image_path(
     image_src: String,
     document_path: Option<String>,
     workspace_dir: Option<String>,
 ) -> Result<String, String> {
+    let ext = std::path::Path::new(&image_src)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !is_image_extension(ext) {
+        return Err(format!("File '{}' is not a supported image file", image_src));
+    }
+
     let p = std::path::Path::new(&image_src);
     if p.is_absolute() {
         return Ok(image_src);
@@ -368,11 +479,27 @@ pub fn resolve_image_path(
 
     let normalized = image_src.trim_start_matches("./").trim_start_matches(".\\");
     let mut full = base_dir;
+    let mut depth: isize = 0;
+
     for part in normalized.split(['/', '\\']) {
-        if !part.is_empty() && part != "." {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            depth -= 1;
+            if depth < 0 {
+                return Err(format!(
+                    "Path traversal detected: '{}' navigates outside the base directory",
+                    image_src
+                ));
+            }
+            full.pop();
+        } else {
+            depth += 1;
             full.push(part);
         }
     }
+
     Ok(full.to_string_lossy().to_string())
 }
 
@@ -1895,6 +2022,219 @@ This is safe content with a [link](https://example.com).
         assert!(html.contains("Safe Document"));
         assert!(html.contains("https://example.com"));
         assert!(html.contains("Task 1"));
+    }
+
+    #[test]
+    fn test_get_unique_file_path_sanitizes_traversal() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = temp_dir.join(format!("typori_test_traversal_{}", timestamp));
+        fs::create_dir_all(&dir).unwrap();
+
+        // ../../evil.png のようなパストラバーサル入力を渡しても、dir直下の evil.png にサニタイズされる
+        let (path, name) = get_unique_file_path(&dir, "../../evil.png");
+        assert_eq!(name, "evil.png");
+        assert_eq!(path, dir.join("evil.png"));
+
+        // Windows形式のトラバーサル ..\..\sub\malicious.jpg
+        let (path_win, name_win) = get_unique_file_path(&dir, "..\\..\\sub\\malicious.jpg");
+        assert_eq!(name_win, "malicious.jpg");
+        assert_eq!(path_win, dir.join("malicious.jpg"));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_save_image_file_security_validations() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = temp_dir.join(format!("typori_test_save_img_sec_{}", timestamp));
+        fs::create_dir_all(&base_dir).unwrap();
+
+        let doc_path = base_dir.join("test.md");
+        fs::write(&doc_path, "# Doc").unwrap();
+
+        // 1. 非画像拡張子のファイルは拒否される
+        let text_file = base_dir.join("malicious.txt");
+        fs::write(&text_file, "text data").unwrap();
+        let res_txt = save_image_file(
+            text_file.to_string_lossy().to_string(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_txt.is_err());
+        assert!(res_txt.unwrap_err().contains("unsupported or invalid image extension"));
+
+        // 2. 正常な画像拡張子は成功する
+        let valid_img = base_dir.join("valid.png");
+        fs::write(&valid_img, &[137, 80, 78, 71, 13, 10, 26, 10]).unwrap();
+        let res_valid = save_image_file(
+            valid_img.to_string_lossy().to_string(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_valid.is_ok());
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_save_image_binary_security_validations() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = temp_dir.join(format!("typori_test_save_bin_sec_{}", timestamp));
+        fs::create_dir_all(&base_dir).unwrap();
+
+        let doc_path = base_dir.join("test.md");
+        fs::write(&doc_path, "# Doc").unwrap();
+
+        // 1. 非画像拡張子は拒否される
+        let res_script = save_image_binary(
+            "payload.sh".to_string(),
+            b"echo evil".to_vec(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_script.is_err());
+        assert!(res_script.unwrap_err().contains("unsupported or invalid image extension"));
+
+        // 2. パストラバーサルを含むファイル名でも assets 直下に安全にサニタイズ保存される
+        let res_traversal = save_image_binary(
+            "../../escape.webp".to_string(),
+            b"RIFFmockWEBP".to_vec(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_traversal.is_ok());
+        let saved = res_traversal.unwrap();
+        assert_eq!(saved.file_name, "escape.webp");
+        assert_eq!(saved.relative_path, "assets/escape.webp");
+        assert_eq!(
+            std::path::Path::new(&saved.absolute_path),
+            base_dir.join("assets").join("escape.webp")
+        );
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_resolve_image_path_security() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = temp_dir.join(format!("typori_test_resolve_sec_{}", timestamp));
+        fs::create_dir_all(&base_dir).unwrap();
+
+        let doc_path = base_dir.join("sub").join("test.md");
+        fs::create_dir_all(doc_path.parent().unwrap()).unwrap();
+        fs::write(&doc_path, "# Doc").unwrap();
+
+        // 1. 非画像拡張子の指定は拒否される
+        let res_pdf = resolve_image_path(
+            "document.pdf".to_string(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_pdf.is_err());
+        assert!(res_pdf.unwrap_err().contains("not a supported image file"));
+
+        // 2. `..` によるベースディレクトリ外への上位トラバーサルは拒否される
+        let res_traversal = resolve_image_path(
+            "../../outside.png".to_string(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_traversal.is_err());
+        assert!(res_traversal.unwrap_err().contains("Path traversal detected"));
+
+        // 3. 正常な画像パスは解決される
+        let res_valid = resolve_image_path(
+            "assets/photo.png".to_string(),
+            Some(doc_path.to_string_lossy().to_string()),
+            None,
+        );
+        assert!(res_valid.is_ok());
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_read_file_binary_security() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = temp_dir.join(format!("typori_test_read_bin_sec_{}", timestamp));
+        fs::create_dir_all(&base_dir).unwrap();
+
+        // 1. 非画像ファイル（テキストファイル、ソースコード等）の読み出し拒否
+        let text_file = base_dir.join("secret.key");
+        fs::write(&text_file, "secret credentials").unwrap();
+        let res_txt = read_file_binary(text_file.to_string_lossy().to_string());
+        assert!(res_txt.is_err());
+        assert!(res_txt.unwrap_err().contains("not a supported image file"));
+
+        // 2. 正常な画像ファイルの読み込み
+        let img_file = base_dir.join("photo.png");
+        fs::write(&img_file, &[137, 80, 78, 71, 13, 10, 26, 10]).unwrap();
+        let res_img = read_file_binary(img_file.to_string_lossy().to_string());
+        assert!(res_img.is_ok());
+        assert_eq!(res_img.unwrap(), vec![137, 80, 78, 71, 13, 10, 26, 10]);
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_search_files_depth_limit() {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base_dir = temp_dir.join(format!("typori_test_depth_{}", timestamp));
+        fs::create_dir_all(&base_dir).unwrap();
+
+        // 深度18の深いディレクトリ構造を作成
+        let mut current = base_dir.clone();
+        for i in 0..18 {
+            current = current.join(format!("d{}", i));
+            fs::create_dir_all(&current).unwrap();
+        }
+        // 深度18の位置にターゲットファイルを配置
+        fs::write(current.join("deep_target.md"), "# deep").unwrap();
+        // 深度5の位置にターゲットファイルを配置
+        let mut depth5 = base_dir.clone();
+        for i in 0..5 {
+            depth5 = depth5.join(format!("d{}", i));
+        }
+        fs::write(depth5.join("shallow_target.md"), "# shallow").unwrap();
+
+        let res = search_files(
+            base_dir.to_string_lossy().to_string(),
+            "target".to_string(),
+            None,
+        );
+        assert!(res.is_ok());
+        let entries = res.unwrap();
+        let names: Vec<String> = entries.iter().map(|e| e.name.clone()).collect();
+        // 深度5は発見される
+        assert!(names.contains(&"shallow_target.md".to_string()));
+        // 深度18（MAX_SEARCH_DEPTH = 16 超過）は探索が打ち切られて発見されない
+        assert!(!names.contains(&"deep_target.md".to_string()));
+
+        let _ = fs::remove_dir_all(base_dir);
     }
 }
 

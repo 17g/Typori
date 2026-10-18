@@ -1,3 +1,31 @@
+- 2026-10-18: タスク82「バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02): src-tauri/src/fs.rs の画像保存（get_unique_file_path / save_image_binary / save_image_file）・画像パス解決（resolve_image_path）・バイナリ読み込み（read_file_binary）におけるパストラバーサル防止・画像拡張子検証・ファイルサイズ上限（50MB）の実装、および search_files（search_dir_recursive）の再帰深度上限（16階層）・シンボリックリンク除外とRust単体テスト追加」を完了。
+  - **変更理由**: 悪意のある Markdown や外部入力により、バックエンド IPC コマンド（画像保存、パス解決、バイナリ読み込み、再帰検索）経由でパストラバーサルによる任意領域へのファイル書き込み・読み出し、大容量ファイル読み込みによるメモリ枯渇（OOM DoS）、循環シンボリックリンクや極端に深いディレクトリ構造によるスタックオーバーフロー・応答停止が発生するリスクを多層防御（Defense-in-Depth）で遮断するため。
+  - **Before**:
+    - `src-tauri/src/fs.rs`:
+      - `get_unique_file_path`: `file_name` に相対パスや親ディレクトリ（`..`）が含まれている場合でも `dir.join(file_name)` しており、assets ディレクトリ外へ脱出するパストラバーサルが可能であった。
+      - `save_image_file` / `save_image_binary`: ファイル名のパストラバーサルサニタイズや画像拡張子検証が行われておらず、ファイルサイズの上限チェックも存在しなかった。
+      - `read_file_binary`: 対象ファイルの拡張子検証やファイルサイズ上限チェックが存在せず、任意の非画像ファイル（秘密鍵等）の読み出しや大容量ファイルによる OOM のリスクがあった。
+      - `resolve_image_path`: `..`（ParentDir）によるベースディレクトリ外への上位トラバーサルや非画像拡張子の指定を制限していなかった。
+      - `search_dir_recursive`: 再帰深度制限がなく、シンボリックリンク（`ft.is_symlink()`）も追跡していたため、循環リンクや巨大ツリーによるスタックオーバーフローのリスクがあった。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - セキュリティ定数 `MAX_SEARCH_DEPTH: usize = 16`（最大再帰深度）および `MAX_IMAGE_FILE_SIZE: u64 = 50 * 1024 * 1024`（50MB上限）を定義。
+      - `get_unique_file_path`: `std::path::Path::new(file_name).file_name()` によりファイル名成分のみを抽出し、パス区切り文字や `..` を完全にサニタイズして常に `dir` 直下に安全配置。
+      - `save_image_file`: 画像拡張子検証（`is_image_extension`）、ファイルサイズ上限（50MB）、およびファイル名サニタイズを実装。
+      - `save_image_binary`: バイナリデータサイズ上限（50MB）、ファイル名成分抽出・サニタイズ、および画像拡張子検証を実装。
+      - `read_file_binary`: 画像拡張子検証（`is_image_extension`）およびファイルサイズ上限（50MB）を適用し、非画像ファイル読み出しと OOM DoS を防止。
+      - `resolve_image_path`: 画像拡張子検証を適用し、各コンポーネントのトラバーサル深度を追跡して `..` によるベースディレクトリ外への上位トラバーサル（`Path traversal detected`）を確実に拒否。
+      - `search_dir_recursive`: `ft.is_symlink()` によるシンボリックリンクのスキップ、および `current_depth >= MAX_SEARCH_DEPTH`（16階層）による探索打ち切りを実装。
+      - バックエンド単体テストにパストラバーサルサニタイズ、画像保存拡張子/サイズ検証、バイナリ保存検証、パス解決セキュリティ、バイナリ読み込みセキュリティ、検索再帰深度制限の6テストを追加（単体テスト全39件 passed）。
+    - `scripts/verify-security-hardening.mjs`:
+      - `[Part 4] バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02) 検証` を追加し、定数定義、深度制限・リンク除外、パストラバーサル防止、画像拡張子検証、50MB上限ガード、上位トラバーサル拒否の静的・動的検証を自動テストに統合。
+    - 検証結果:
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+  - **影響範囲**: `src-tauri/src/fs.rs`, `scripts/verify-security-hardening.mjs`, `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク81「HTMLエクスポート・PDF印刷時のサニタイズ強化 (HIGH-02): src-tauri/src/fs.rs の convert_markdown_to_html における危険な生HTMLタグ（<script>, <iframe>, <object> 等）・インラインイベントハンドラ・危険URIスキームのサニタイズ処理（sanitize_exported_html）と単体テストの実装、および src/api/fs.ts の printHtmlContent における安全化」を完了。
   - **変更理由**: Markdown ファイル内に記述された悪意ある生 HTML（`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`, `<meta http-equiv...>`）やイベントハンドラ属性（`onload`, `onerror`, `onclick`）、危険な URI スキーム（`javascript:`, `vbscript:`, `data:text/html`）が、HTML エクスポートや PDF 印刷用 iframe において実行され、親ウィンドウ（`window.parent.__TAURI_INTERNALS__`）にアクセスされる脆弱性（Stored XSS）を防止するため。
   - **Before**:

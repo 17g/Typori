@@ -463,7 +463,96 @@ console.log("✓ src/api/fs.ts: sanitizeExportHtml 定義および printHtmlCont
   console.log("✓ sanitizeExportHtml: 危険タグ除去・イベントハンドラ除去・危険スキーム無害化・GFM要素保持を確認");
 }
 
+// ==================================================================
+// [Part 4] バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02) 検証
+// ==================================================================
+console.log("\n[4] バックエンドファイルシステムIPCの境界防御・DoS対策 (HIGH-03 / MED-02) の検証...");
+
+// 4.1 セキュリティ定数（MAX_SEARCH_DEPTH / MAX_IMAGE_FILE_SIZE）の定義検証
+assert.ok(
+  fsRsContent.includes("pub const MAX_SEARCH_DEPTH: usize = 16;"),
+  "src-tauri/src/fs.rs に MAX_SEARCH_DEPTH: usize = 16 が定義されていること"
+);
+assert.ok(
+  fsRsContent.includes("pub const MAX_IMAGE_FILE_SIZE: u64 = 50 * 1024 * 1024;"),
+  "src-tauri/src/fs.rs に MAX_IMAGE_FILE_SIZE: u64 = 50 * 1024 * 1024 (50MB) が定義されていること"
+);
+console.log("✓ fs.rs: MAX_SEARCH_DEPTH (16階層) および MAX_IMAGE_FILE_SIZE (50MB) 定数定義を確認");
+
+// 4.2 search_dir_recursive の再帰深度制限およびシンボリックリンク除外検証
+assert.ok(
+  fsRsContent.includes("current_depth >= MAX_SEARCH_DEPTH"),
+  "search_dir_recursive で current_depth >= MAX_SEARCH_DEPTH による探索深度打ち切りが実装されていること"
+);
+assert.ok(
+  fsRsContent.includes("if ft.is_symlink() {") && fsRsContent.includes("continue;"),
+  "search_dir_recursive で ft.is_symlink() を検知してスキップする処理が実装されていること"
+);
+console.log("✓ fs.rs: ファイル検索の最大再帰深度 (16) ガードおよびシンボリックリンクスキップ処理を確認");
+
+// 4.3 get_unique_file_path / save_image_file / save_image_binary のパストラバーサル防止検証
+assert.ok(
+  fsRsContent.includes("clean_name = std::path::Path::new(file_name)") ||
+    fsRsContent.includes(".file_name()") && fsRsContent.includes("clean_name"),
+  "get_unique_file_path 内でファイル名成分の抽出とサニタイズが行われていること"
+);
+assert.ok(
+  fsRsContent.includes("clean_file_name = std::path::Path::new(&file_name)") ||
+    (fsRsContent.includes("save_image_binary") && fsRsContent.includes(".file_name()")),
+  "save_image_binary 内で file_name のパストラバーサル除去（ファイル名成分抽出）が行われていること"
+);
+console.log("✓ fs.rs: 画像保存時のパストラバーサル除去・ファイル名サニタイズ処理を確認");
+
+// 4.4 画像拡張子検証 (is_image_extension) の適用検証
+assert.ok(
+  fsRsContent.includes("pub fn is_image_extension(ext: &str) -> bool"),
+  "is_image_extension が定義されていること"
+);
+assert.ok(
+  fsRsContent.includes("save_image_file") && fsRsContent.includes("!is_image_extension(ext)"),
+  "save_image_file 内で is_image_extension(ext) による拡張子検証が行われていること"
+);
+assert.ok(
+  fsRsContent.includes("save_image_binary") && fsRsContent.includes("!is_image_extension(ext)"),
+  "save_image_binary 内で is_image_extension(ext) による拡張子検証が行われていること"
+);
+assert.ok(
+  fsRsContent.includes("resolve_image_path") && fsRsContent.includes("!is_image_extension(ext)"),
+  "resolve_image_path 内で is_image_extension(ext) による拡張子検証が行われていること"
+);
+assert.ok(
+  fsRsContent.includes("read_file_binary") && fsRsContent.includes("!is_image_extension(ext)"),
+  "read_file_binary 内で is_image_extension(ext) による拡張子検証が行われていること"
+);
+console.log("✓ fs.rs: save_image_file / save_image_binary / resolve_image_path / read_file_binary での画像拡張子検証を確認");
+
+// 4.5 ファイルサイズ上限（50MB）ガードの検証
+assert.ok(
+  fsRsContent.includes("metadata.len() > MAX_IMAGE_FILE_SIZE") &&
+    fsRsContent.includes("save_image_file"),
+  "save_image_file 内で MAX_IMAGE_FILE_SIZE によるファイルサイズ上限検証が行われていること"
+);
+assert.ok(
+  fsRsContent.includes("data.len() as u64 > MAX_IMAGE_FILE_SIZE") &&
+    fsRsContent.includes("save_image_binary"),
+  "save_image_binary 内で MAX_IMAGE_FILE_SIZE によるバイナリデータサイズ上限検証が行われていること"
+);
+assert.ok(
+  fsRsContent.includes("metadata.len() > MAX_IMAGE_FILE_SIZE") &&
+    fsRsContent.includes("read_file_binary"),
+  "read_file_binary 内で MAX_IMAGE_FILE_SIZE によるファイルサイズ上限検証が行われていること"
+);
+console.log("✓ fs.rs: save_image_file / save_image_binary / read_file_binary での 50MB 上限ガードを確認");
+
+// 4.6 resolve_image_path の上位トラバーサル拒否検証
+assert.ok(
+  fsRsContent.includes("Path traversal detected") &&
+    fsRsContent.includes('part == ".."'),
+  "resolve_image_path 内で .. によるベースディレクトリ外への上位トラバーサル検知・拒否が実装されていること"
+);
+console.log("✓ fs.rs: resolve_image_path での上位ディレクトリトラバーサル拒否処理を確認");
+
 console.log("\n==================================================================");
-console.log(" >>> Phase 23 セキュリティ強化 (Task 79, Task 80, Task 81) 合格 <<< ");
+console.log(" >>> Phase 23 セキュリティ強化 (Task 79, Task 80, Task 81, Task 82) 合格 <<< ");
 console.log("==================================================================");
 

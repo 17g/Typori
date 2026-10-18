@@ -271,6 +271,20 @@
   4. Rust 単体テスト等で HTML/CSS のハッシュ（`#`）を含む文字列を raw string に含める場合は、必ず `r##"..."##`（二重ハッシュ）を使用すること。
   5. 既存テストスクリプトが存在する API モジュールを変更する際は、テスト側で指定されている変数名やトークンとの完全整合性を維持すること。
 
+### 3.21. バックエンドファイルシステムIPCのパストラバーサル防止・拡張子/サイズ検証・検索再帰深度制限 (HIGH-03 / MED-02)
+- **事象・ミス**:
+  - `save_image_binary` や `save_image_file` に `../../etc/evil.png` のような相対パスを含むファイル名が渡された際、assets フォルダ外の予期しない場所にファイルが保存・上書きされてしまう。
+  - `read_file_binary` や `resolve_image_path` に秘密鍵ファイルや実行ファイル（`.exe`, `.key` 等）や巨大ファイルが指定され、重要データの漏洩やメモリ枯渇（OOM DoS）が発生する。
+  - `search_files` で循環シンボリックリンクや極端に深いディレクトリ構造を探索した際、スタックオーバーフローや無限ループによるアプリ停止が発生する。
+- **原因**:
+  - IPCコマンドへの引数をそのまま `dir.join(file_name)` したり、拡張子やファイルサイズを検証せずにファイルシステム操作を実行していたため。
+- **対策**:
+  1. `get_unique_file_path`, `save_image_file`, `save_image_binary` では、必ず `std::path::Path::new(file_name).file_name()` によりファイル名成分のみを抽出し、パス区切り文字や `..` を完全に無害化して配置すること。
+  2. 画像操作コマンド（`save_image_file`, `save_image_binary`, `resolve_image_path`, `read_file_binary`）では、必ず `is_image_extension` によるホワイトリスト拡張子検証を行うこと。
+  3. バイナリ読み込み・画像保存時には `MAX_IMAGE_FILE_SIZE`（50MB）の上限チェックを適用し、大容量ファイルによるメモリ消費やDoSを防止すること。
+  4. `resolve_image_path` においては、相対パスの各コンポーネントを検証し、`..` によるベースディレクトリ外への上位トラバーサルを拒否すること。
+  5. `search_dir_recursive` では、シンボリックリンク（`ft.is_symlink()`）をスキップし、最大再帰深度 `MAX_SEARCH_DEPTH`（16階層）を設定して探索を確実に打ち切ること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）
