@@ -1,3 +1,25 @@
+- 2026-10-18: タスク106「インデント操作・描画修正（課題2 & 3）: `SourceEditor.tsx` への `indentWithTab` キーマップ登録（Tab / Shift+Tab によるインデント・アンインデント有効化）、行頭空白の描画保証（`white-space: break-spaces / pre-wrap`）およびネストリストのインデント保持」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）において、Tabキー押下時にインデントが挿入されずエディタからブラウザのフォーカスが外れてしまう問題（課題2）、および行頭の連続空白（2スペース、4スペース等）がHTMLの空白縮約によって潰れ、ネストされたリストやインデント記法が視覚的に崩れる問題（課題3）を解消するため。
+  - **Before**:
+    - `package.json`: `@codemirror/commands` が直接の依存関係に定義されておらず、`indentWithTab` が利用できなかった。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `indentWithTab` がインポート・登録されておらず、Tabキー押下時にブラウザのフォーカスが次の要素へ抜けてしまっていた。
+      - `customTheme` の `.cm-content` および `.cm-line` に `whiteSpace: "break-spaces"` が設定されておらず、行頭の連続空白やネストリストのインデントが視覚的に崩れる可能性があった。
+    - `Plan.md`: タスク106が未完了（`- [ ]`）であった。
+  - **After**:
+    - `package.json`: `dependencies` に `@codemirror/commands` (^6.11.1) を追加。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `@codemirror/commands` から `indentWithTab` をインポート。
+      - `indentKeymap` として `Prec.highest(keymap.of([indentWithTab]))` を定義し、`extensions` 配列に追加。これにより Tab / Shift+Tab によるインデント（indentMore）/ アンインデント（indentLess）を最優先で実行し、フォーカス外れを確実に防止。
+      - `customTheme` の `.cm-content` および `.cm-line` に `whiteSpace: "break-spaces"`, `wordBreak: "break-word"` を設定し、行頭の連続空白（2スペース・4スペース等）の描画保証とネストリスト・コードブロックのインデント保持を確立。
+    - `for_agent/architecture.md`: 改訂履歴にタスク106完了を追記。
+    - 検証結果:
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `pnpm test`: Exit Code 0 (全50個別テスト、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `package.json`, `pnpm-lock.yaml`, `src/components/Editor/SourceEditor.tsx`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク105「エディタスタイル・スクロール修正（問題点A & B）: `SourceEditor.tsx` の `.cm-scroller` 縦スクロール高さ修正（`height: 100%`, `maxHeight: 100%`, `overflowY: auto`）および `.cm-content` の Flexbox 幅潰れ解消（`minWidth: 0`, `flexGrow: 1`, `width: 100%`）」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）において、行番号OFF時やリサイズ時に `.cm-content` の幅が潰れたり折り返しが崩れる不具合（問題点A）、および長文Markdown編集時に `.cm-scroller` が親要素の高さを超過して縦スクロールが正常に機能しなくなる不具合（問題点B）を解消するため。
   - **Before**:

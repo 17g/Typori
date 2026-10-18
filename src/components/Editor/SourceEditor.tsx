@@ -5,6 +5,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { indentWithTab } from "@codemirror/commands";
 import { clearInlineFormatting } from "../../utils/format";
 
 /**
@@ -372,6 +373,12 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
       );
     }, [handleToggleOrExit]);
 
+    // Tab / Shift+Tab によるインデント・アンインデント (indentWithTab)
+    // エディタからのフォーカス抜けを防止し、インデント・逆インデントを最優先で有効化
+    const indentKeymap = useMemo(() => {
+      return Prec.highest(keymap.of([indentWithTab]));
+    }, []);
+
   // Typori向けのエディタカスタムスタイル
   const customTheme = useMemo(() => {
     const isDark = theme === "dark";
@@ -402,6 +409,11 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           minWidth: 0,
           flexGrow: 1,
           width: "100%",
+          whiteSpace: "break-spaces",
+          wordBreak: "break-word",
+        },
+        ".cm-line": {
+          whiteSpace: "break-spaces",
         },
         ".cm-gutters": {
           backgroundColor: isDark ? "#18181b" : "#ffffff",
@@ -453,9 +465,10 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
       EditorView.lineWrapping,
       domEventExtension,
       keymapExtension,
+      indentKeymap,
       customTheme,
     ];
-  }, [markdownExtension, highlightExtension, domEventExtension, keymapExtension, customTheme]);
+  }, [markdownExtension, highlightExtension, domEventExtension, keymapExtension, indentKeymap, customTheme]);
 
   const basicSetupOptions = useMemo(
     () => ({
