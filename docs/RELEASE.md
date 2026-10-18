@@ -10,7 +10,7 @@
 
 ### 1-1. バックエンド (Rust) 検証
 ```powershell
-# 単体テスト (28件全パス)
+# 単体テスト (39件全パス)
 cargo test --manifest-path src-tauri/Cargo.toml
 
 # 静的解析・Linter (警告0件)
@@ -28,7 +28,7 @@ pnpm run build
 
 ### 1-3. 総合結合テストスイート
 ```powershell
-# 全機能結合テスト (40件全パス)、Tauri IPC整合性 (15コマンド)、OSネイティブメニュー整合性 (17イベント)、ショートカット競合検証
+# 全機能結合テスト (41件全パス)、Tauri IPC整合性 (15コマンド)、OSネイティブメニュー整合性 (17イベント)、ショートカット競合検証
 pnpm test
 # または
 node scripts/verify-all.mjs
