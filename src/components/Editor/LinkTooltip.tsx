@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { isSafeExternalUrl } from "../../utils/url";
+
+export { isSafeExternalUrl };
 
 export interface LinkTooltipProps {
   isOpen: boolean;
@@ -108,9 +111,25 @@ export const LinkTooltip: React.FC<LinkTooltipProps> = ({
             {href.trim() && (
               <button
                 type="button"
-                onClick={() => onOpenUrl(href.trim())}
-                title="ブラウザで開く"
-                className="p-1.5 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
+                onClick={() => {
+                  const target = href.trim();
+                  if (isSafeExternalUrl(target)) {
+                    onOpenUrl(target);
+                  } else {
+                    console.warn("Blocked potentially unsafe URL in LinkTooltip:", target);
+                  }
+                }}
+                disabled={!isSafeExternalUrl(href.trim())}
+                title={
+                  isSafeExternalUrl(href.trim())
+                    ? "ブラウザで開く"
+                    : "安全なURL（http, https, mailto）のみ開くことができます"
+                }
+                className={`p-1.5 rounded transition-colors ${
+                  isSafeExternalUrl(href.trim())
+                    ? "text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    : "text-zinc-400 dark:text-zinc-600 opacity-50 cursor-not-allowed"
+                }`}
               >
                 <svg
                   className="w-4 h-4"

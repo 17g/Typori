@@ -1,3 +1,26 @@
+- 2026-10-18: タスク80「CSP設定と外部URLスキーム検証 (HIGH-01 / MED-01): src-tauri/tauri.conf.json への防御的 Content Security Policy (CSP) 設定追加、および src/components/Editor/Editor.tsx / src/components/Editor/LinkTooltip.tsx における外部リンク起動時の許可スキーム（http:, https:, mailto:）ホワイトリスト検証の実装」を完了。
+  - **変更理由**: 悪意のある Markdown や不正な外部リンク（`file:`, `javascript:`, `ms-msdt:`, `data:text/html` 等）を開いた際に、ローカルファイルへのアクセス、任意のプロトコルハンドラ実行、または WebView 内での不正スクリプト読み込み・外部通信が発生するリスクを防御的 CSP および厳格なホワイトリスト検証によって多層防御（Defense-in-Depth）で遮断するため。
+  - **Before**:
+    - `src-tauri/tauri.conf.json`: `"security": { "csp": null }` となっており、Content Security Policy が無効化されていたため、外部スクリプトの読み込みやプラグイン要素（object/embed）の実行を制限できていなかった。
+    - `src/components/Editor/Editor.tsx`: `openExternalUrl` において URL のスキーム検証を行わずに直接 `openUrl(url)` を呼び出しており、フォールバックの `window.open(url, "_blank")` でも `noopener,noreferrer` が指定されていなかった。
+    - `src/components/Editor/LinkTooltip.tsx`: ツールチップ内の「ブラウザで開く」ボタンにおいて URL スキームの検証が行われておらず、危険なスキームでもボタンが有効であった。
+    - `src/utils/url.ts`: 外部URL検証用の共通ユーティリティが存在しなかった。
+  - **After**:
+    - `src-tauri/tauri.conf.json`:
+      - 防御的 CSP（`default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' data:; img-src 'self' asset: http://asset.localhost blob: data: https:; font-src 'self' data: https:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost blob: data:; object-src 'none'; frame-src 'self' blob: data:; base-uri 'self'; form-action 'self';`）を設定。
+      - `object-src 'none'` により不要なプラグインを遮断し、ローカルアセット、Tauri IPC 通信、インラインテーマ・Tailwind・Mermaid スタイルおよび印刷用 iframe を維持したセキュアな構成を確立。
+    - `src/utils/url.ts`:
+      - `ALLOWED_EXTERNAL_URL_SCHEMES`（`http:`, `https:`, `mailto:`）を定義。
+      - `isSafeExternalUrl` 関数を実装し、空文字・制御文字・ヌルバイト・相対パスおよび危険スキーム（`javascript:`, `vbscript:`, `data:text/html`, `file:`, `ms-msdt:` 等）を完全に遮断。
+    - `src/components/Editor/Editor.tsx`:
+      - `openExternalUrl` において `isSafeExternalUrl(url)` ガードを実装し、危険な URL のブラウザ起動をブロック。
+      - `window.open` フォールバック時に `"noopener,noreferrer"` を指定し、親ウィンドウへの参照漏洩を防止。
+    - `src/components/Editor/LinkTooltip.tsx`:
+      - 外部リンク起動ボタンに `isSafeExternalUrl` ガードを適用し、安全な URL のみ起動可能とし、危険な URL ではボタンを `disabled` 化。
+    - 自動検証スイート整備 (`scripts/verify-security-hardening.mjs`):
+      - Part 2 として `tauri.conf.json` の CSP 設定、`src/utils/url.ts` の定数・関数定義、`isSafeExternalUrl` の動的単体テスト（許可スキーム・ブロック対象・制御文字・境界値）、および `Editor.tsx` / `LinkTooltip.tsx` の静的連携検証を追加し、`pnpm test` にて合格を確認。
+  - **影響範囲**: `src-tauri/tauri.conf.json`, `src/utils/url.ts`, `src/components/Editor/Editor.tsx`, `src/components/Editor/LinkTooltip.tsx`, `scripts/verify-security-hardening.mjs`, `AICHANGELOG.md`, `Plan.md`。
+
 - 2026-10-18: タスク79「Mermaid XSS対策 (CRIT-01 / MED-03): src/utils/mermaid.ts の securityLevel: "strict" 化および secure ロック設定追加、SVG出力サニタイズ関数（sanitizeMermaidSvg）の実装、src/components/Editor/mermaidPlugin.ts の bindFunctions 呼び出し除去、および src/utils/mermaidExport.ts の正規表現フォールバック時エラーメッセージHTMLエスケープ修正」を完了。
   - **変更理由**: Markdown ファイル内の悪意あるコードブロック（`%%{init: {'securityLevel': 'loose'}}%%` によるディレクティブ上書き、クリックイベント `click Node call ...` や `javascript:` URL によるスクリプト実行、不正な SVG タグ・イベントハンドラ属性、コールバックバインド、エクスポートエラーメッセージ経由の Stored XSS）を多層防御（Defense-in-Depth）で完全に防止し、WebView 内でのローカルファイル流出や任意操作（RCE相当）を未然に遮断するため。
   - **Before**:

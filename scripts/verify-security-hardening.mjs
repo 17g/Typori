@@ -169,6 +169,138 @@ assert.ok(
   console.log("✓ mermaidExport.ts: エラーメッセージの HTML エスケープ処理を確認");
 }
 
+// ==================================================================
+// [Part 2] Content Security Policy (CSP) 設定 & 外部リンクURLスキーム検証 (HIGH-01 / MED-01) 検証
+// ==================================================================
+console.log("\n[2] Content Security Policy (CSP) 設定 & 外部リンクURLスキーム検証 (HIGH-01 / MED-01) の検証...");
+
+// 2.1 tauri.conf.json の CSP 設定検証
+const tauriConfPath = path.resolve(projectRoot, "src-tauri/tauri.conf.json");
+assert.ok(fs.existsSync(tauriConfPath), "src-tauri/tauri.conf.json が存在すること");
+const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
+
+const csp = tauriConf.app?.security?.csp;
+assert.ok(typeof csp === "string" && csp.length > 0, "security.csp が有効な文字列として設定されていること (null でないこと)");
+assert.ok(csp.includes("object-src 'none'"), "CSP に object-src 'none' が設定されていること");
+assert.ok(csp.includes("default-src 'self'"), "CSP に default-src 'self' が設定されていること");
+assert.ok(csp.includes("ipc:") && csp.includes("http://ipc.localhost"), "CSP に Tauri IPC 通信 (ipc:, http://ipc.localhost) が許可されていること");
+assert.ok(csp.includes("script-src 'self' 'unsafe-inline'"), "CSP に script-src 'self' 'unsafe-inline' が設定されていること (インラインテーマ・Vite対応)");
+assert.ok(csp.includes("style-src 'self' 'unsafe-inline'"), "CSP に style-src 'self' 'unsafe-inline' が設定されていること (Tailwind・Mermaid対応)");
+assert.ok(
+  csp.includes("img-src") &&
+    csp.includes("https:") &&
+    csp.includes("blob:") &&
+    csp.includes("data:") &&
+    (csp.includes("asset:") || csp.includes("http://asset.localhost")),
+  "CSP に img-src (self, asset, blob, data, https) が網羅されていること"
+);
+console.log("✓ tauri.conf.json: 防御的 CSP 設定（object-src 'none' / IPC許可 / アセット許可）を確認");
+
+// 2.2 src/utils/url.ts の存在および静的定義検証
+const urlUtilsPath = path.resolve(projectRoot, "src/utils/url.ts");
+assert.ok(fs.existsSync(urlUtilsPath), "src/utils/url.ts が存在すること");
+const urlUtilsContent = fs.readFileSync(urlUtilsPath, "utf-8").replace(/\r\n/g, "\n");
+
+assert.ok(
+  urlUtilsContent.includes("ALLOWED_EXTERNAL_URL_SCHEMES") &&
+    urlUtilsContent.includes('"http:"') &&
+    urlUtilsContent.includes('"https:"') &&
+    urlUtilsContent.includes('"mailto:"'),
+  "ALLOWED_EXTERNAL_URL_SCHEMES に http:, https:, mailto: が定義されていること"
+);
+assert.ok(
+  urlUtilsContent.includes("export function isSafeExternalUrl"),
+  "src/utils/url.ts から isSafeExternalUrl がエクスポートされていること"
+);
+console.log("✓ src/utils/url.ts: 許可スキーム定数および isSafeExternalUrl 関数定義を確認");
+
+// 2.3 isSafeExternalUrl の動的検証 (安全なURL・危険なスキーム・エスケープ・境界値)
+{
+  const allowedSchemes = ["http:", "https:", "mailto:"];
+  const isSafeExternalUrl = (url) => {
+    if (!url || typeof url !== "string") return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    if (/[\x00-\x1f\x7f-\x9f]/.test(trimmed)) return false;
+    try {
+      const parsed = new URL(trimmed);
+      const protocol = parsed.protocol.toLowerCase();
+      return allowedSchemes.includes(protocol);
+    } catch {
+      return false;
+    }
+  };
+
+  // 許可スキーム (Safe)
+  assert.equal(isSafeExternalUrl("https://github.com/tauri-apps/tauri"), true, "https: URL は許可されること");
+  assert.equal(isSafeExternalUrl("http://localhost:1420"), true, "http: URL は許可されること");
+  assert.equal(isSafeExternalUrl("mailto:support@typori.example.com"), true, "mailto: URL は許可されること");
+  assert.equal(isSafeExternalUrl("HTTPS://EXAMPLE.COM/PATH?QUERY=1#HASH"), true, "大文字スキーム HTTPS: も正規化されて許可されること");
+
+  // 危険なスキーム (Blocked)
+  assert.equal(isSafeExternalUrl("javascript:alert(1)"), false, "javascript: スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("javascript:void(0)"), false, "javascript: スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("vbscript:msgbox(1)"), false, "vbscript: スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="), false, "data:text/html スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("file:///C:/Windows/System32/cmd.exe"), false, "file: スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("file://etc/passwd"), false, "file: スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("ms-msdt:/id PCWDiagnostic"), false, "ms-msdt: スキームは拒否されること");
+  assert.equal(isSafeExternalUrl("custom-app://action"), false, "未許可のカスタムURLスキームは拒否されること");
+
+  // 境界値・不正構文 (Blocked)
+  assert.equal(isSafeExternalUrl(""), false, "空文字は拒否されること");
+  assert.equal(isSafeExternalUrl("   "), false, "空白のみは拒否されること");
+  assert.equal(isSafeExternalUrl(null), false, "null は拒否されること");
+  assert.equal(isSafeExternalUrl(undefined), false, "undefined は拒否されること");
+  assert.equal(isSafeExternalUrl("/relative/path/document.md"), false, "相対パスは拒否されること");
+  assert.equal(isSafeExternalUrl("#heading-1"), false, "アンカーフラグメントは拒否されること");
+  assert.equal(isSafeExternalUrl("https://example.com\x00evil"), false, "ヌルバイトを含むURLは拒否されること");
+  assert.equal(isSafeExternalUrl("javascript\n:alert(1)"), false, "改行制御文字を含む不正URLは拒否されること");
+
+  console.log("✓ isSafeExternalUrl: 許可スキーム (http/https/mailto) および拒否対象 (javascript/file/data/ms-msdt等) の動的テスト合格");
+}
+
+// 2.4 Editor.tsx の URL 検証および noopener,noreferrer 連携検証
+const editorPath = path.resolve(projectRoot, "src/components/Editor/Editor.tsx");
+assert.ok(fs.existsSync(editorPath), "src/components/Editor/Editor.tsx が存在すること");
+const editorContent = fs.readFileSync(editorPath, "utf-8").replace(/\r\n/g, "\n");
+
+assert.ok(
+  editorContent.includes('import { isSafeExternalUrl } from "../../utils/url";') ||
+    editorContent.includes("isSafeExternalUrl"),
+  "Editor.tsx で isSafeExternalUrl がインポートまたは利用されていること"
+);
+assert.ok(
+  editorContent.includes("if (!isSafeExternalUrl(url))"),
+  "Editor.tsx の openExternalUrl 内で isSafeExternalUrl(url) による検証ガードが存在すること"
+);
+assert.ok(
+  editorContent.includes('window.open(url, "_blank", "noopener,noreferrer")'),
+  "Editor.tsx の window.open フォールバック呼び出しで 'noopener,noreferrer' が指定されていること"
+);
+console.log("✓ Editor.tsx: openExternalUrl での isSafeExternalUrl ガードおよび noopener,noreferrer を確認");
+
+// 2.5 LinkTooltip.tsx の URL 検証およびボタン連携検証
+const tooltipPath = path.resolve(projectRoot, "src/components/Editor/LinkTooltip.tsx");
+assert.ok(fs.existsSync(tooltipPath), "src/components/Editor/LinkTooltip.tsx が存在すること");
+const tooltipContent = fs.readFileSync(tooltipPath, "utf-8").replace(/\r\n/g, "\n");
+
+assert.ok(
+  tooltipContent.includes('import { isSafeExternalUrl } from "../../utils/url";') ||
+    tooltipContent.includes("isSafeExternalUrl"),
+  "LinkTooltip.tsx で isSafeExternalUrl がインポートまたは利用されていること"
+);
+assert.ok(
+  tooltipContent.includes("isSafeExternalUrl(target)") ||
+    tooltipContent.includes("isSafeExternalUrl(href.trim())"),
+  "LinkTooltip.tsx 内で isSafeExternalUrl による URL 検証が行われていること"
+);
+assert.ok(
+  tooltipContent.includes("disabled={!isSafeExternalUrl(href.trim())}"),
+  "LinkTooltip.tsx の外部リンクボタンに disabled={!isSafeExternalUrl(href.trim())} が付与されていること"
+);
+console.log("✓ LinkTooltip.tsx: isSafeExternalUrl ガードおよびボタン無効化連動を確認");
+
 console.log("\n==================================================================");
-console.log(" >>> Phase 23 セキュリティ強化 (Task 79: Mermaid XSS対策) 合格 <<< ");
+console.log(" >>> Phase 23 セキュリティ強化 (Task 79, Task 80: CSP & 外部URL検証) 合格 <<< ");
 console.log("==================================================================");

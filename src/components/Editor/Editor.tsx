@@ -24,10 +24,13 @@ import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/re
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
 import { normalizeLineEndings } from "../../utils/text";
+import { isSafeExternalUrl } from "../../utils/url";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
 import { mermaidPlugin, rerenderAllMermaidDiagrams } from "./mermaidPlugin";
+
+export { isSafeExternalUrl };
 
 export const focusModePluginKey = new PluginKey("focusModePlugin");
 
@@ -695,11 +698,16 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
 
     // 外部リンクをブラウザで開く
     const openExternalUrl = useCallback(async (url: string) => {
+      if (!isSafeExternalUrl(url)) {
+        console.warn("Blocked potentially unsafe external URL:", url);
+        return;
+      }
+
       try {
         await openUrl(url);
       } catch (err) {
         console.warn("Failed to open URL via plugin-opener, falling back to window.open:", err);
-        window.open(url, "_blank");
+        window.open(url, "_blank", "noopener,noreferrer");
       }
     }, []);
 
