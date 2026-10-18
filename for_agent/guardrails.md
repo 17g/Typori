@@ -388,6 +388,24 @@
   2. `App.tsx` では `import type { SourceEditorRef } from "./components/Editor/SourceEditor"` により型のみを安全にインポートし、動的ディスパッチ時は `sourceEditorRef.current?.clearFormatting()` / `editorRef.current?.clearFormatting()` と安全に呼び出すこと。
   3. 書式クリアの純粋関数（`clearInlineFormatting`）を検証する際は、`changed: boolean` および `text: string` のプロパティ名に準拠してアサーションを行うこと。
 
+### 3.30. ソース直接編集モードのレイアウト・インデント・縦スクロールおよびOSネイティブメニューSubmenuチェック同期
+- **事象・ミス**:
+  1. ソース直接編集モードで画面全体に横長に広がり視認性が悪化する、または `.cm-content` のみに中央揃えを適用してガターと本文が乖離してしまう。
+  2. 行番号OFF時やリサイズ時に `.cm-content` の幅が潰れる（問題点A）。
+  3. 長文編集時に `.cm-scroller` が親要素の高さを突き抜け、最下部までスクロールできなくなる（問題点B）。
+  4. Tab キーを押すとインデントが挿入されずエディタからブラウザのフォーカスが外れてしまう、または行頭の連続空白が詰まってネストリストのインデントが潰れて見える（課題2 & 3）。
+  5. フロントエンドで行番号表示を切り替えた際、OSネイティブメニュー「表示」内の「行番号を表示」チェックボックスにチェック状態が反映されない（問題点C）。
+- **原因**:
+  1. CodeMirror 6 においてガターと本文は `.cm-scroller` 内の兄弟要素であり、コンテンツ要素のみにマージンを設定すると分離する。
+  2. `.cm-content` の Flexbox 幅縮小制約（`min-width: 0`, `flex-grow: 1`, `width: 100%`）の不足、および `.cm-scroller` の `max-height: 100%` 制約不足。
+  3. CodeMirror 6 のデフォルトキーマップに `@codemirror/commands` の `indentWithTab` が組み込まれていないため、Tab キーがブラウザ標準のフォーカス移動として捕捉されてしまう。また CSS で行頭空白の保持（`break-spaces`）が明示されていない。
+  4. Tauri v2 の `Menu::get(id)` はルートメニュー直下のアイテムのみを参照し、`Submenu` の内部アイテムを自動で再帰走査しないため、サブメニュー内の `CheckMenuItem` の取得に失敗する。
+- **対策**:
+  1. ソース直接編集モードの中央寄せは、ガターと本文の一体感を維持する最大幅レイアウト（`max-width: 900px; margin: 0 auto;`）を設計・適用すること。
+  2. `.cm-content` に `min-width: 0`, `flex-grow: 1`, `width: 100%` を設定して幅潰れを防止し、`.cm-scroller` に `height: 100%`, `max-height: 100%`, `overflow-y: auto` を適用してスクロール健全性を確立すること。
+  3. `SourceEditor.tsx` の extensions に `keymap.of([indentWithTab])`（またはキーマップ定義内）を組み込み、Tab / Shift+Tab によるインデント・アンインデントを有効化すること。また `.cm-content` / `.cm-line` に `white-space: break-spaces` を適用して行頭空白を完全に保護すること。
+  4. `src-tauri/src/menu.rs` に `Submenu` を再帰的にトラバースするヘルパー関数 `find_check_menu_item` を実装し、`set_line_numbers_menu_checked` でサブメニュー配下の `CheckMenuItem` を確実に取得して `set_checked` を実行すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

@@ -423,6 +423,51 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     - ショートカットのカスタマイズ、ネイティブメニュー連携、ツールバーボタン、チートシートへの掲載がすべて連動すること。
     - 自動検証スクリプトを `scripts/verify-all.mjs` に統合し、`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 で通過すること。
 
+- ソース直接編集モードのインデント・レイアウト最適化および行番号・スクロール不具合完全解消仕様 (Phase 28: Source Editor Indentation, Layout & Menu Sync):
+  - **背景と課題**:
+    - ソース直接編集モード（CodeMirror 6）において、以下の3つの不具合・課題が確認されていた:
+      1. **レイアウトとスクロールの不具合（問題点A & B）**:
+         - 行番号表示をOFFにした際や特定のウィンドウ幅において、`.cm-content` の幅が潰れたり折り返しが崩れる（問題点A）。
+         - 長文Markdownドキュメント編集時に、`.cm-scroller` が親要素の高さを突き抜けたり、スクロールバーが表示されず最下部までスクロールできない（問題点B）。
+      2. **OSネイティブメニューのチェック状態同期不具合（問題点C）**:
+         - 表示メニューの「行番号を表示」のチェック状態同期（`set_line_numbers_menu_checked`）において、トップレベルの `menu.get("toggle_line_numbers")` では Submenu（「表示」メニュー）配下にネストされたアイテムを取得できず、チェック同期が反映されない（問題点C）。
+      3. **インデント操作・描画・全体レイアウトの課題（課題1, 2, 3）**:
+         - **課題1（全体レイアウト）**: ソース直接編集モードが画面全体に横長に広がり、Typoraライクな中央寄せ・快適な左右余白となっていない。また単純に `.cm-content` を中央寄せするとガターと本文が分離してしまう。
+         - **課題2（Tabキーインデント）**: CodeMirror 6 のキーマップに `indentWithTab` が登録されていないため、Tab キー押下時にインデント挿入ではなくエディタからフォーカスが外れてしまう。
+         - **課題3（行頭空白・ネストリスト描画）**: 行頭スペース（2スペース、4スペース等）によるネストリストやコードブロックのインデントが正確に描画されず、視覚的に崩れる。
+  - **1. ソース直接編集モードのレイアウト設計（課題1）**:
+    - **中央寄せコンテナ配置**:
+      - Typoraライクな最大幅（`max-width: 900px; margin: 0 auto;`）のレイアウトを採用し、広画面でも視線移動が自然な快適な等幅エディタ体験を実現する。
+      - ガター（`.cm-gutters`）と本文（`.cm-content`）が分離せず一体となって中央に配置される構造を確立する。
+    - **自然な左右余白**:
+      - 画面端にテキストが張り付かないよう、十分な左右パディングを確保する。
+  - **2. Flexbox幅・縦スクロール健全化仕様（問題点A & B）**:
+    - **幅潰れ解消（問題点A）**:
+      - `.cm-content` に対し `min-width: 0`, `flex-grow: 1`, `width: 100%` を設定し、行番号ガターの表示/非表示（ON/OFF）切り替えやウィンドウリサイズ時でも本文幅が潰れず、常に利用可能なコンテナ幅一杯にフィットして自然に折り返されるようにする。
+    - **縦スクロール健全化（問題点B）**:
+      - `.cm-scroller` に対し `height: 100%`, `max-height: 100%`, `overflow-y: auto`, `box-sizing: border-box` を厳格に適用し、CodeMirror の仮想スクロールコンテナが親要素の高さを超過して突き抜けるのを確実に防止し、スムーズな縦スクロールバー操作を可能とする。
+  - **3. インデント操作・描画仕様（課題2 & 3）**:
+    - **Tab / Shift+Tab キー操作（課題2）**:
+      - `@codemirror/commands` より `indentWithTab` を導入し、エディタのキーマップ拡張（`extensions`）に登録する。
+      - これにより、Tab キー押下時にエディタからフォーカスが抜けることなく、キャレット位置や複数行選択範囲に対して適切なインデント（2スペースまたはタブ）を挿入し、Shift+Tab でアンインデント（逆インデント）を実行可能とする。
+    - **行頭空白・ネストリスト描画保証（課題3）**:
+      - `.cm-content` および `.cm-line` において `white-space: break-spaces`（または `pre-wrap`）を保証し、行頭の連続空白（2スペース、4スペース等）がHTMLの空白縮約によって潰れるのを完全に防ぐ。
+      - ネストされた箇条書きリスト（`- 親` / `  - 子` / `    - 孫`）や連番リストが等幅フォントと調和して正確に階層表示されること。
+  - **4. OSネイティブメニューチェック状態再帰同期仕様（問題点C）**:
+    - **再帰探索ヘルパー（`find_check_menu_item`）**:
+      - `src-tauri/src/menu.rs` において、`Menu` および `Submenu` の子アイテム一覧（`items()`）を再帰走査し、`MenuItemKind::Submenu` を見つけた場合はその内部を再帰探索して、指定された ID を持つ `CheckMenuItem` を確実に特定する関数を実装する。
+      - これにより、Tauri v2 のメニュー構造において「表示」メニュー等のサブメニュー階層下に配置された `CheckMenuItem`（`toggle_line_numbers` 等）を漏れなく取得可能とする。
+    - **チェック状態同期コマンド改修（`set_line_numbers_menu_checked`）**:
+      - 再帰探索ヘルパーを利用して `toggle_line_numbers` の `CheckMenuItem` を取得し、`check_item.set_checked(checked)` を実行する。
+      - Rust バックエンド単体テストを追加し、Submenu 内の CheckMenuItem に対する再帰検索およびチェック状態更新が確実に動作することを検証・保証する。
+  - **5. 完成基準**:
+    - ソース直接編集モードで中央寄せ最大幅コンテナ（max-width: 900px）が適用され、行番号ガターと本文が一体となって配置されること。
+    - 行番号表示をOFFにしても本文の幅が潰れず、長文ドキュメントでスムーズな縦スクロールが機能すること。
+    - Tab / Shift+Tab キーでエディタのフォーカスが外れず、単一行・複数行のインデント・アンインデントが軽快に操作できること。
+    - ネストされたリスト等の行頭空白が正しくレンダリングされること。
+    - OSネイティブメニューの「表示」>「行番号を表示」のチェック状態が、フロントエンドの行番号表示設定と完全に同期すること。
+    - 自動検証スクリプト（`scripts/verify-source-editor-indent-and-scroll.mjs`）が作成され、総合結合テストスイート（`scripts/verify-all.mjs`）に統合されて `pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 でパスすること。
+
 ## 改訂履歴
 - 2026-09-26: 初版策定
 - 2026-09-27: 新規ファイル作成機能 (`create_file`) のデータフローを追記
@@ -505,6 +550,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-18: 全体総合レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜26、全100タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（全39件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全50個別テスト、IPC 15コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・更新。
 - 2026-10-18: 正式版 v1.8.0 リリースビルド準備・バージョン整合性点検（Phase 27 タスク101）の完了。package.json, tauri.conf.json, Cargo.toml のバージョン番号を 1.8.0 へ同期し、成果物検証スクリプト（scripts/verify-release-bundle.mjs）の動的バージョン解決対応、および scripts/verify-release-config.mjs による整合性検証（Exit Code 0）を確認。全検証コマンド（pnpm test / cargo test / cargo check / cargo clippy: Exit Code 0）のパスを確認。
 - 2026-10-18: 正式版 v1.8.0 リリースビルド実行・成果物検証（Phase 27 タスク102）の完了。`pnpm run build:release`（`pnpm test` 全50テスト合格・`tsc` & `vite build` 成功・Rustリリース最適化コンパイル・NSIS/WiXバンドル生成）を正常完了し、リリースバイナリ（`typori.exe`: 6.36 MB）、NSISインストーラ（`Typori_1.8.0_x64-setup.exe`: 3.41 MB）、WiX MSIパッケージ（`Typori_1.8.0_x64_en-US.msi`: 4.06 MB）の生成と `scripts/verify-release-bundle.mjs` による完全性・SHA-256検証（Exit Code 0）を確認。Phase 27 および開発計画全102タスクの完全完了を達成。
+- 2026-10-18: ソース直接編集モードのインデント・レイアウト最適化および行番号・スクロール不具合完全解消仕様（Phase 28）を策定。中央寄せコンテナ（max-width: 900px）・左右余白・Tabキーインデント（indentWithTab）・行頭空白描画保証（white-space: break-spaces / pre-wrap）、Flexbox幅・縦スクロール健全化（height/maxHeight 100%, overflowY auto, minWidth 0, flexGrow 1）、およびOSネイティブメニューのSubmenu再帰探索（find_check_menu_item）によるチェック状態同期仕様を定義。
 
 
 

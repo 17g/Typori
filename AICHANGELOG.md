@@ -1,3 +1,22 @@
+- 2026-10-18: タスク103「仕様策定・設計: ソース直接編集モードのレイアウト・インデント仕様（中央寄せコンテナ・左右余白・Tabキーインデント）、Flexbox幅・縦スクロール健全化仕様、およびOSネイティブメニューチェック状態再帰同期仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・追記」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）における横幅潰れ・縦スクロール不具合（問題点A & B）、OSネイティブメニュー「表示」内の「行番号を表示」のSubmenuネストによるチェック状態同期不良（問題点C）、および全体中央寄せレイアウト・Tabキーインデント・行頭空白描画の課題（課題1, 2, 3）を根本解消するため、設計仕様および再発防止ガードレールを `for_agent/` 配下の仕様書正本に策定・同期するため。
+  - **Before**:
+    - `for_agent/architecture.md`: Phase 28（ソース直接編集モードのインデント・レイアウト最適化および行番号・スクロール不具合完全解消仕様）が未策定であった。
+    - `for_agent/guardrails.md`: ソース直接編集モードのレイアウト・インデント・縦スクロール健全化およびOSネイティブメニューSubmenuチェック同期に関するガードレール規約（3.30）が未策定であった。
+    - `Plan.md`: タスク103が未完了（`- [ ]`）であった。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - Phase 28 詳細仕様（中央寄せ最大幅コンテナ `max-width: 900px`・ガター一体配置、Flexbox幅健全化 `min-width: 0`, `flex-grow: 1`, `width: 100%`、縦スクロール健全化 `height: 100%`, `max-height: 100%`, `overflow-y: auto`、`indentWithTab` キーマップ登録による Tab / Shift+Tab 操作、行頭空白描画保証 `white-space: break-spaces`、および `menu.rs` における `Submenu` 再帰探索ヘルパー `find_check_menu_item` 仕様）を追記。
+      - 改訂履歴に Phase 28 仕様策定を追記。
+    - `for_agent/guardrails.md`:
+      - 3.30「ソース直接編集モードのレイアウト・インデント・縦スクロールおよびOSネイティブメニューSubmenuチェック同期」を追記。事象・原因・対策を明文化。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全50個別テスト合格、全15IPCコマンド整合、全18ネイティブメニューイベント整合、ショートカット定義競合なし)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite プロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク102「リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)」を完了。
   - **変更理由**: 正式版 v1.8.0 の配布パッケージとして、全機能開発（全26フェーズ、全100タスク）が統合された最新コードベースに基づくリリースビルドを実行し、Windows 実行可能バイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）を生成・検証するため。
   - **Before**:
