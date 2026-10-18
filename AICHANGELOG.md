@@ -1,3 +1,28 @@
+- 2026-10-19: タスク108「品質保証・自動テスト: ソースモードのインデント（Tab操作・行頭空白）、レイアウト（中央寄せ）、行番号ON/OFF時の本文表示、縦スクロール性、およびOSネイティブメニューのチェック状態再帰同期を網羅検証する自動テストスクリプト（scripts/verify-source-editor-indent-and-scroll.mjs）の作成と総合テスト（scripts/verify-all.mjs）への統合、全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）の合格確認」を完了。
+  - **変更理由**: Phase 28 において実装された、ソース直接編集モードのインデント操作（Tab / Shift+Tab）、行頭空白描画保証（`break-spaces`）、中央寄せレイアウト（`max-width: 900px; margin: 0 auto;`）とガター一体化、行番号ON/OFF時の本文幅潰れ解消（`min-width: 0; flex-grow: 1; width: 100%;`）、縦スクロール健全化（`.cm-scroller` の `max-height: 100%; overflow-y: auto;`）、およびRustバックエンドのSubmenu再帰探索（`find_in_menu_tree` / `find_check_menu_item`）によるOSネイティブメニューのチェック状態同期を包括的に自動検証し、リグレッションを防止するため。
+  - **Before**:
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`: 未作成であった。
+    - `scripts/verify-all.mjs`: Phase 28 のテストスクリプトが登録されておらず、全50テストであった。
+    - `Plan.md`: タスク108が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - [Step 1] インデント操作（Tab/Shift+Tab）および行頭空白描画保証（`indentWithTab` / `Prec.highest`、`whiteSpace: "break-spaces"`、ネストリスト/コードブロック空白保持シミュレーション）を検証。
+      - [Step 2] エディタ全体レイアウト・中央寄せ・等幅コンテナ（`maxWidth: "900px"`, `margin: "0 auto"`, ガター一体化、余白フォーカスハンドラ、レスポンシブ幅計算シミュレーション）を検証。
+      - [Step 3] 行番号ON/OFF時の本文表示・幅潰れ解消（`minWidth: 0`, `flexGrow: 1`, `width: "100%"`, `lineNumbers: showLineNumbers`, ON/OFF時の幅計算シミュレーション）を検証。
+      - [Step 4] 縦スクロール性・親要素オーバーフロー健全化（`.cm-scroller` の `maxHeight: "100%"`, `overflowY: "auto"`, 親要素の `flex-1 min-h-0 w-full overflow-hidden`, `getScrollTop`/`setScrollTop` 同期、長文スクロールシミュレーション）を検証。
+      - [Step 5] OSネイティブメニュー Submenu 再帰探索・チェック状態同期（Rust `find_in_menu_tree`/`find_check_menu_item`、IPC コマンド登録・invoke 定義、`App.tsx` の `useEffect` 同期、多階層ネストツリー探索アルゴリズムシミュレーション）を検証。
+    - `scripts/verify-all.mjs`: `testScripts` に `verify-source-editor-indent-and-scroll.mjs` を追加し、全51個別機能テストに拡充。
+    - `for_agent/guardrails.md`: 総合テスト件数を 51件 に更新。
+    - `for_agent/architecture.md`: 総合テスト件数を 51項目 に更新し、改訂履歴にタスク108完了を追記。
+    - 検証結果:
+      - `node scripts/verify-source-editor-indent-and-scroll.mjs`: Exit Code 0 (全5ステップ合格)
+      - `pnpm test`: Exit Code 0 (全51個別機能テスト合格、Tauri IPC 15コマンド整合性合格、OSネイティブメニュー 18イベント整合性合格、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo check`: Exit Code 0
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-source-editor-indent-and-scroll.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク107「エディタ全体レイアウト最適化（課題1）: ソース直接編集モードの中央寄せレイアウト設計（Typoraライクな最大幅コンテナ `max-width: 900px; margin: 0 auto;`、ガター一体型配置、左右自然余白）の実装」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）において、エディタが全幅に広がり視線移動が横長になっていた課題、および単純に `.cm-content` のみに中央揃えを指定すると行番号ガター（`.cm-gutters`）が左端に置き去りになって巨大な空白が生じる「ガター分離問題」を解消し、Typoraライクな中央寄せ・快適な左右自然余白・ガター一体配置を実現するため。
   - **Before**:
