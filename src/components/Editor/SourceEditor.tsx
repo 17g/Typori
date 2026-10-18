@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef } from "react";
+import { useMemo, useCallback, useRef, useEffect } from "react";
 import CodeMirror, { ReactCodeMirrorRef, EditorView, keymap, Prec } from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -64,6 +64,7 @@ export interface SourceEditorProps {
   showLineNumbers?: boolean;
   filePath?: string | null;
   placeholder?: string;
+  initialScrollTop?: number;
 }
 
 export function SourceEditor({
@@ -77,8 +78,21 @@ export function SourceEditor({
   onToggleFocusMode,
   showLineNumbers = true,
   placeholder = "Markdownを入力...",
+  initialScrollTop,
 }: SourceEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  // モード切替時のスクロール位置復元
+  useEffect(() => {
+    if (initialScrollTop !== undefined && initialScrollTop > 0) {
+      requestAnimationFrame(() => {
+        const scroller = editorRef.current?.view?.scrollDOM || document.querySelector(".cm-scroller");
+        if (scroller) {
+          scroller.scrollTop = initialScrollTop;
+        }
+      });
+    }
+  }, [initialScrollTop]);
 
   // コールバックの最新参照を保持（CodeMirror拡張を不要に再構築せず常に最新のハンドラを実行）
   const onSaveRef = useRef(onSave);

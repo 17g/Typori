@@ -364,6 +364,8 @@ export interface EditorRef {
   deleteTable: () => boolean;
   isInTable: () => boolean;
   insertImage: (src: string, alt?: string, title?: string) => boolean;
+  getScrollTop: () => number;
+  setScrollTop: (top: number) => void;
 }
 
 export interface EditorProps {
@@ -379,6 +381,7 @@ export interface EditorProps {
   showLineNumbers?: boolean;
   isRightSidebarOpen?: boolean;
   theme?: "light" | "dark";
+  initialScrollTop?: number;
 }
 
 export const defaultContent = `# ようこそ Typori へ
@@ -454,6 +457,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       showLineNumbers = true,
       isRightSidebarOpen = false,
       theme,
+      initialScrollTop,
     },
     ref
   ) => {
@@ -1231,6 +1235,12 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         deleteTable: deleteTableAction,
         isInTable: checkIsInTable,
         insertImage,
+        getScrollTop: () => containerRef.current?.scrollTop || 0,
+        setScrollTop: (top: number) => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = top;
+          }
+        },
       }),
       [
         loading,
@@ -1252,6 +1262,17 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         insertImage,
       ]
     );
+
+    // モード切替時等のスクロール位置復元
+    useEffect(() => {
+      if (initialScrollTop !== undefined && initialScrollTop > 0 && containerRef.current) {
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = initialScrollTop;
+          }
+        });
+      }
+    }, [initialScrollTop]);
 
     useEffect(() => {
       if (loading) return;

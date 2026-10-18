@@ -328,6 +328,7 @@
   1. `.cm-scroller` と `.cm-content` のレイアウト設計において、ガターと本文を分離させず、Typoraライクに一体化した等幅・快適パディング（`padding: 24px 32px` 等）のスタイルを定義すること。
   2. `markdown({ codeLanguages: languages })` を設定し、`@codemirror/language-data` による主要言語（JS/TS/Python/Rust/HTML/CSS/JSON/YAML等）の動的パーサーと GFM 構文拡張を有効化すること。
   3. `onExitSourceMode` および `handleToggleSourceMode` で必ず `isSourceModeRef.current = next` を同期更新し、WYSIWYG 切替時の未保存判定・生ソース完全保護を徹底すること。
+  4. 切替前にアクティブエディタのスクロール位置（`.cm-scroller` または `.typori-editor-root .overflow-y-auto`）を `editorScrollTopRef` に退避し、切替先エディタの `initialScrollTop` プロップ経由で `requestAnimationFrame` により復元して画面の不自然な跳躍を防止すること。
 
 ---
 

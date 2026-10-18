@@ -1,3 +1,36 @@
+- 2026-10-18: タスク88「モード切替 & コンテンツ完全同期の堅牢化: App.tsx の handleToggleSourceMode、onExitSourceMode、handleSelectFile における isSourceModeRef 同期漏れ解消、WYSIWYG切替時の未保存判定・生ソース完全保護、およびエディタ間でのカーソル・スクロール位置の破棄防止」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）と WYSIWYG モード（Milkdown / ProseMirror）の相互切り替えにおいて、`onExitSourceMode` での `isSourceModeRef` 同期漏れによるレースコンディションや、未編集ドキュメント切替時の Milkdown による自動シリアライズ上書き（生ソースの破壊）を防止し、さらにモード切替時にエディタのスクロール位置がトップへ跳躍する UX 上の課題を解消するため。
+  - **Before**:
+    - `src/App.tsx`:
+      - `SourceEditor` の `onExitSourceMode` にインライン関数 `() => setIsSourceMode(false)` が渡されており、`isSourceModeRef.current = false` の同期的更新が漏れていたため、切替直後に発火するファイル選択（`handleSelectFile`）や保存（`handleSave`）で stale な Ref 参照による誤動作が生じるリスクがあった。
+      - `handleToggleSourceMode` の `setIsSourceMode((prev) => ...)` 内で Ref 更新を行っており、React の非同期状態更新スケジュール時に一時的な不整合が発生し得た。また、モード切替時に `tabsRef.current` / `setTabs` へのコンテンツ同期が行われていなかった。
+      - WYSIWYG からソース直接編集モードへの切替時、未編集状態（`!hasUserInteracted` かつ `!isDirty`）であっても `editorRef.current.getMarkdown()` を取得して `fileContentRef.current` を上書きしていたため、ディスク上の元ファイル固有の書式（インラインコメントや特殊インデント等）が Milkdown のシリアライズ結果で変質する恐れがあった。
+      - エディタモード切替時にスクロール位置が保持されず、モードを切り替えるたびにドキュメントの先頭へスクロールがリセットされていた。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorRef` に `getScrollTop` / `setScrollTop` が定義されておらず、`EditorProps` に `initialScrollTop` が存在しなかった。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `SourceEditorProps` に `initialScrollTop` が存在せず、マウント時のスクロール位置復元機構がなかった。
+    - `Plan.md`: タスク88が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/App.tsx`:
+      - `handleToggleSourceMode` を同期的な `isSourceModeRef.current = next` 更新に改修し、切替前のスクロール位置（`.cm-scroller` または `.typori-editor-root .overflow-y-auto`）を `editorScrollTopRef` に退避。WYSIWYG 切替時はユーザーが実際に能動編集した場合のみ `getMarkdown()` を取得し、未編集時はディスク由来の生ソース（`savedContentRef` / `fileContentRef`）を 100% 忠実に保護。
+      - 専用コールバック `handleExitSourceMode` を実装し、`isSourceModeRef.current = false` を即時同期。`SourceEditor` の `onExitSourceMode` に接続。
+      - `handleSelectFile`, `handleSelectTab`, `handleCloseTab` で `editorScrollTopRef.current = 0` を初期化し、ファイル切替時は常にトップから清潔に開くよう制御。
+      - `SourceEditor` および `TyporiEditor` の両方に `initialScrollTop={editorScrollTopRef.current}` を伝達。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorRef` に `getScrollTop: () => number` および `setScrollTop: (top: number) => void` を追加。
+      - `EditorProps` に `initialScrollTop?: number` を追加し、マウント時に `requestAnimationFrame` でスクロール位置を自動復元。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `SourceEditorProps` に `initialScrollTop?: number` を追加し、マウント時に `requestAnimationFrame` で `.cm-scroller` のスクロール位置を自動復元。
+    - `Plan.md`:
+      - タスク88を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全41個別テスト、全15IPCコマンド、全17メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test`: Exit Code 0 (全39件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/App.tsx`, `src/components/Editor/Editor.tsx`, `src/components/Editor/SourceEditor.tsx`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-18: タスク87「レイアウト・スタイル修正: SourceEditor.tsx の flexbox 高さ構造（flex-1 h-full 重複の解消・.cm-scroller の overflow 最適化）、および .cm-content と .cm-gutters のマージン・パディング統合（中央寄せによるガター分離の解消、Typoraライクな美しい等幅エディタレイアウトの確立）」を完了。
   - **変更理由**: ソース直接編集モードにおいて、`.cm-content` の中央寄せ（`margin: 0 auto; max-width: 960px;`）に起因して行番号ガター（`.cm-gutters`）がエディタ左端に固定されたまま本文と分離し、巨大な余白が生じていた問題を解消し、ガターと本文が自然に一体化したTyporaライクな等幅執筆レイアウトを確立するため。また、エディタ本体ラッパーの `flex-1 h-full` 重複を解消して不要なオーバーフローやスクロールバー二重化を防ぐため。
   - **Before**:

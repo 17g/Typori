@@ -386,27 +386,104 @@ function App() {
   const handleToggleLineNumbersRef = useRef(handleToggleLineNumbers);
   handleToggleLineNumbersRef.current = handleToggleLineNumbers;
 
+  // スクロール位置の退避・復元用Ref（モード切替時の視覚的跳躍を防止）
+  const editorScrollTopRef = useRef<number>(0);
+
+  const captureCurrentScrollTop = useCallback(() => {
+    if (isSourceModeRef.current) {
+      const scroller = document.querySelector(".cm-scroller") as HTMLElement | null;
+      if (scroller) {
+        editorScrollTopRef.current = scroller.scrollTop;
+      }
+    } else {
+      const container = document.querySelector(".typori-editor-root .overflow-y-auto") as HTMLElement | null;
+      if (container) {
+        editorScrollTopRef.current = container.scrollTop;
+      }
+    }
+  }, []);
+
   const handleToggleSourceMode = useCallback(() => {
-    setIsSourceMode((prev) => {
-      const next = !prev;
-      isSourceModeRef.current = next;
-      if (!prev && editorRef.current) {
+    captureCurrentScrollTop();
+    const next = !isSourceModeRef.current;
+    isSourceModeRef.current = next;
+    setIsSourceMode(next);
+
+    if (next) {
+      // WYSIWYG -> ソース直接編集モード
+      // ユーザーによる編集が行われている場合のみ Milkdown のシリアライズ結果を取得
+      // 未編集の場合はディスクから読み込んだ生ソース（savedContentRef / fileContentRef）を100%保護
+      let markdownToUse = fileContentRef.current ?? "";
+      if (
+        editorRef.current &&
+        ((typeof editorRef.current.hasUserInteracted === "function" && editorRef.current.hasUserInteracted()) ||
+          (fileContentRef.current !== null &&
+           savedContentRef.current !== null &&
+           isContentDirty(fileContentRef.current, savedContentRef.current)))
+      ) {
         try {
           const md = editorRef.current.getMarkdown();
           if (md !== undefined && md !== null) {
-            const normalized = normalizeLineEndings(md);
-            fileContentRef.current = normalized;
-            setFileContent(normalized);
+            markdownToUse = normalizeLineEndings(md);
           }
         } catch (e) {
           console.warn("Could not get markdown from editorRef:", e);
         }
       }
-      return next;
-    });
-  }, []);
+      fileContentRef.current = markdownToUse;
+      setFileContent(markdownToUse);
+
+      const currentActiveId = activeTabIdRef.current;
+      const currentSelectedPath = selectedPathRef.current;
+      setTabs((prev) => {
+        const nextTabs = prev.map((t) =>
+          t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
+            ? { ...t, content: markdownToUse, isDirty: isContentDirty(markdownToUse, t.savedContent) }
+            : t
+        );
+        tabsRef.current = nextTabs;
+        return nextTabs;
+      });
+    } else {
+      // ソース直接編集モード -> WYSIWYG
+      const currentContent = fileContentRef.current ?? "";
+      const currentActiveId = activeTabIdRef.current;
+      const currentSelectedPath = selectedPathRef.current;
+      setTabs((prev) => {
+        const nextTabs = prev.map((t) =>
+          t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
+            ? { ...t, content: currentContent, isDirty: isContentDirty(currentContent, t.savedContent) }
+            : t
+        );
+        tabsRef.current = nextTabs;
+        return nextTabs;
+      });
+    }
+  }, [captureCurrentScrollTop]);
   const handleToggleSourceModeRef = useRef(handleToggleSourceMode);
   handleToggleSourceModeRef.current = handleToggleSourceMode;
+
+  const handleExitSourceMode = useCallback(() => {
+    if (!isSourceModeRef.current) return;
+    captureCurrentScrollTop();
+    isSourceModeRef.current = false;
+    setIsSourceMode(false);
+
+    const currentContent = fileContentRef.current ?? "";
+    const currentActiveId = activeTabIdRef.current;
+    const currentSelectedPath = selectedPathRef.current;
+    setTabs((prev) => {
+      const nextTabs = prev.map((t) =>
+        t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
+          ? { ...t, content: currentContent, isDirty: isContentDirty(currentContent, t.savedContent) }
+          : t
+      );
+      tabsRef.current = nextTabs;
+      return nextTabs;
+    });
+  }, [captureCurrentScrollTop]);
+  const handleExitSourceModeRef = useRef(handleExitSourceMode);
+  handleExitSourceModeRef.current = handleExitSourceMode;
 
   // タブ機能の有効/無効切り替え
   const handleToggleTabsEnabled = useCallback(() => {
@@ -577,6 +654,7 @@ function App() {
   const handleSelectTab = useCallback(
     (tabId: string) => {
       if (tabId === activeTabIdRef.current) return;
+      editorScrollTopRef.current = 0;
 
       // 現在のエディタの変更内容を取得し、切り替え前のタブに保存
       let currentContent = fileContentRef.current;
@@ -643,6 +721,7 @@ function App() {
   // タブを閉じる
   const handleCloseTab = useCallback(
     (tabId: string) => {
+      editorScrollTopRef.current = 0;
       const currentActiveId = activeTabIdRef.current;
       let currentContent = fileContentRef.current;
       if (tabId === currentActiveId && !isSourceModeRef.current && editorRef.current) {
@@ -1141,6 +1220,7 @@ function App() {
   // ファイル選択時
   const handleSelectFile = useCallback(async (entry: FileEntry) => {
     if (entry.is_dir) return;
+    editorScrollTopRef.current = 0;
 
     // 現在のエディタの最新内容を取得
     let currentContent = fileContentRef.current;
@@ -2055,12 +2135,13 @@ function App() {
                 theme={resolvedTheme}
                 onChange={handleContentChange}
                 onSave={handleSave}
-                onExitSourceMode={() => setIsSourceMode(false)}
+                onExitSourceMode={handleExitSourceMode}
                 onToggleSourceMode={handleToggleSourceMode}
                 isFocusMode={isFocusMode}
                 onToggleFocusMode={handleToggleFocusMode}
                 showLineNumbers={isLineNumbersEnabled}
                 filePath={selectedPath}
+                initialScrollTop={editorScrollTopRef.current}
               />
             </Suspense>
           ) : (
@@ -2078,6 +2159,7 @@ function App() {
               showLineNumbers={isLineNumbersEnabled}
               isRightSidebarOpen={isRightSidebarOpen}
               theme={resolvedTheme}
+              initialScrollTop={editorScrollTopRef.current}
             />
           )}
         </div>
