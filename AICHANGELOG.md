@@ -1,3 +1,20 @@
+- 2026-10-19: 全体総合レビュー（/review）およびテスト版リリースパッケージビルド（`pnpm run build:release`）の完了。
+  - **変更理由**: Phase 30「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化」完了後の全体コード・仕様書・テストスイートの総合点検（/review）を実施し、回帰バグのないこと、および最新の修正成果を反映した動作確認用テスト版バイナリ・インストーラ（NSIS / MSI）を生成・検証するため。
+  - **Before**:
+    - リリース成果物（`typori.exe`, NSIS `.exe`, WiX `.msi`）が Phase 30 修正前の旧ビルドのままであった。
+  - **After**:
+    - 全体仕様整合性確認: `for_agent/architecture.md` および `for_agent/guardrails.md` の全要件（Phase 1〜30、全115タスク）と実装コードを突合し、エッジケースおよび整合性を確認。
+    - 全自動検証スイート実行:
+      - `pnpm test`: Exit Code 0 (全52個別機能テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+    - テスト版リリースパッケージビルド（`pnpm run build:release`）および成果物検証（`scripts/verify-release-bundle.mjs`）:
+      - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.36 MB / SHA-256: `93029a4512bea75343cf0a83895912e60c0198d6bc4ea9997a4de061961af5cd`)
+      - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_1.8.1_x64-setup.exe` (3.41 MB / SHA-256: `3fa1f99745e8f55230e8f6dd6d4276d34ce1deb946aba53dc207878217f1b961`)
+      - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_1.8.1_x64_en-US.msi` (4.06 MB / SHA-256: `2d27cb1bf2fb103eb51599bc3b77553dc8dbc2c322035011534f538d40a83336`)
+  - **影響範囲**: `AICHANGELOG.md`, `src-tauri/target/release/`。
+
 - 2026-10-19: タスク115「実証的自動テスト構築・総合品質保証: 単なる文字列一致検査を排除し、実際の CSS スタイルプロパティ（Flexbox 横並び・`width: 100%` 排除・スクロール設定）、Markdown AST のパース＆シリアライズによるネストインデント保持、および直接編集モード切り替え時の生ソース保護を実証的に検証するテストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）の作成と `scripts/verify-all.mjs` への統合、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格確認」を完了。
   - **変更理由**: Phase 30「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化」における実装成果（問題点1: ガター横並び・width100%排除、問題点2: CodeMirror 6標準仮想スクロール・maxHeight排除、問題点3: ネストリストインデント保持・未編集生ソース100%保護）を、単なるコード文字列一致検査にとどまらず、実際の CSS プロパティ、Markdown AST パース＆シリアライズ、およびステートマシン実動シミュレーションにより実証的に検証・担保するため。
   - **Before**:
