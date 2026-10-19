@@ -1,3 +1,27 @@
+- 2026-10-19: タスク112「エディタスタイル・レイアウト抜本修正（問題点1）: SourceEditor.tsx の customTheme において .cm-content の width: 100% を完全撤廃、.cm-scroller に display: flex !important; flex-direction: row !important; を明示して行番号ガター（.cm-gutters）と本文（.cm-content）の確実な横並び・一体化配置を確立」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）において、行番号ガター（`.cm-gutters`）の下に本文（`.cm-content`）が縦落ちしてレイアウトが縦積みに崩壊する問題（問題点1）を抜本的に解消するため。根本原因であった `.cm-content` の `width: 100%` を完全撤廃し、`.cm-scroller` に横並び Flexbox を明示することで、行番号ガターと本文の確実な横並び・一体化配置を確立する。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `.cm-scroller`: `display: flex`, `flexDirection: row` などの横並び明示がなく、CodeMirror 6 のデフォルト配置に依存していた。
+      - `.cm-content`: `width: "100%"` が指定されていたため、`.cm-gutters`（幅約50px）と合算してコンテナ幅を超過し、本文がガターの下に縦落ちしていた。
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - `.cm-content` に `width: "100%"` が含まれることを検査していた。
+    - `Plan.md`: タスク112が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `.cm-scroller` に `display: "flex !important"`, `flexDirection: "row !important"`, `flexWrap: "nowrap !important"`, `alignItems: "flex-start !important"` を明示し、ガターと本文の確実な横並びを強制。
+      - `.cm-content` から `width: "100%"` を完全撤廃し、`flexShrink: 1` を追加して自然な等幅 Flexbox 計算に委ねる構成へ是正。
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - `.cm-content` からの `width: "100%"` 排除、`flexShrink: 1` の存在、および `.cm-scroller` の横並び flex 指定を検証するアサーションへ更新。
+    - `for_agent/architecture.md`: 改訂履歴にタスク112完了を追記。
+    - `Plan.md`: タスク112を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全51個別機能テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `scripts/verify-source-editor-indent-and-scroll.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク111「仕様策定・原因特定・設計: 行番号ガター縦落ち（`.cm-content` の `width: 100%` による Flexbox 折り返し）、過剰スタイルによる縦スクロール不能、および Milkdown マウント時シリアライズによる生ソース（インデント）破壊の根本原因分析と再発防止仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・反映」を完了。
   - **変更理由**: Phase 30「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化」の開始にあたり、発生している3つの重大な不具合（問題点1: 行番号ガター縦落ち、問題点2: 過剰スタイルによる縦スクロール不能、問題点3: Milkdownマウント時シリアライズによる生ソースインデント破壊）の技術的根本原因を徹底究明し、再発を防止するための抜本的設計方針、実装手順、および完成基準を仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に策定・反映するため。
   - **Before**:

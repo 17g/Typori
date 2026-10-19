@@ -166,7 +166,7 @@ async function runVerification() {
   // ==========================================================================
   console.log("\n--- [Step 3] 行番号ON/OFF時の本文表示・Flex幅潰れ解消の検証 ---");
 
-  // 3.1 .cm-content の Flexbox 幅縮小耐性と伸長設定
+  // 3.1 .cm-content の Flexbox 幅縮小耐性と伸長設定（Phase 30 仕様: width: 100% 撤廃と flexShrink: 1、flex 横並び）
   assert.ok(
     sourceEditorContent.includes("minWidth: 0"),
     ".cm-content に minWidth: 0 が指定され、Flexbox の最小幅制約による幅潰れを防止していること"
@@ -176,8 +176,17 @@ async function runVerification() {
     ".cm-content に flexGrow: 1 が指定され、残余幅を完全に占有すること"
   );
   assert.ok(
-    sourceEditorContent.includes('width: "100%"'),
-    ".cm-content に width: '100%' が指定されていること"
+    sourceEditorContent.includes("flexShrink: 1"),
+    ".cm-content に flexShrink: 1 が指定されていること"
+  );
+  assert.ok(
+    !sourceEditorContent.includes('width: "100%"'),
+    ".cm-content からガター縦落ち原因である width: '100%' が完全撤廃されていること"
+  );
+  assert.ok(
+    sourceEditorContent.includes('display: "flex !important"') &&
+    sourceEditorContent.includes('flexDirection: "row !important"'),
+    ".cm-scroller に display: flex !important; flexDirection: row !important; が設定されていること"
   );
 
   // 3.2 basicSetupOptions における行番号設定の動的連動
@@ -210,7 +219,7 @@ async function runVerification() {
     assert.equal(textRenderWidthWithoutLineNumbers, 836, "行番号OFF時にも本文が潰れず最大表示されること");
   }
 
-  console.log("✓ minWidth: 0, flexGrow: 1, width: 100% による行番号ON/OFF時の本文表示・幅潰れ解消の検証に合格");
+  console.log("✓ minWidth: 0, flexGrow: 1, flexShrink: 1, flex 横並びによる行番号ON/OFF時の本文表示・幅潰れ解消の検証に合格");
 
   // ==========================================================================
   // [Step 4] 縦スクロール性・親要素オーバーフロー健全化の検証 (問題点B)
