@@ -450,6 +450,7 @@
 1. **コマンド実行前の思考プロセス (CoT)**:
    - ホストOS（Windows）とシェル（PowerShell）を常に意識すること。
    - POSIX 固有コマンド（`rm -rf`, `cat`, `ls`, `mkdir -p` 等）を直接実行しないこと。
+   - **作業ディレクトリ (Cwd) の確認**: Tauri プロジェクトにおいて `cargo` コマンド（`cargo check`, `cargo test`, `cargo clippy` 等）を実行する際は、`Cwd` に必ず `<root>/src-tauri` を指定すること（ルート直下には `Cargo.toml` が存在しないため）。フロントエンドの `pnpm` コマンドはプロジェクトルート（`<root>`）で実行すること。
 2. **シェルリダイレクト（`>` / `>>`）の厳禁**:
    - PowerShell の `>` は UTF-16LE で出力され文字化けの原因となるため禁止。ファイルの新規作成・編集は組み込みツール（`write_to_file`, `replace_file_content`）を使用すること。
 3. **インラインワンライナーの禁止（Script-First 原則）**:
