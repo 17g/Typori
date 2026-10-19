@@ -1,3 +1,27 @@
+- 2026-10-19: タスク115「実証的自動テスト構築・総合品質保証: 単なる文字列一致検査を排除し、実際の CSS スタイルプロパティ（Flexbox 横並び・`width: 100%` 排除・スクロール設定）、Markdown AST のパース＆シリアライズによるネストインデント保持、および直接編集モード切り替え時の生ソース保護を実証的に検証するテストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）の作成と `scripts/verify-all.mjs` への統合、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格確認」を完了。
+  - **変更理由**: Phase 30「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化」における実装成果（問題点1: ガター横並び・width100%排除、問題点2: CodeMirror 6標準仮想スクロール・maxHeight排除、問題点3: ネストリストインデント保持・未編集生ソース100%保護）を、単なるコード文字列一致検査にとどまらず、実際の CSS プロパティ、Markdown AST パース＆シリアライズ、およびステートマシン実動シミュレーションにより実証的に検証・担保するため。
+  - **Before**:
+    - `scripts/verify-source-editor-layout-and-indent.mjs`: 実証的自動テストスクリプトが存在しなかった。
+    - `scripts/verify-all.mjs`: Step 1 のテストスクリプト数が 51 件であり、Phase 30 の実証的テストが未統合であった。
+    - `Plan.md`: タスク115が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-source-editor-layout-and-indent.mjs`:
+      - Part 1: CSS スタイルプロパティの実証的検証（`.cm-scroller` の `display: flex !important`, `flexDirection: row !important`, `flexWrap: nowrap !important`、CodeMirror 6 標準仮想スクロール `height: 100%; overflow: auto;`、`maxHeight` 排除、および `.cm-content` からの `width: 100%` 完全排除と `minWidth: 0`, `flexGrow: 1`, `flexShrink: 1`、Flexbox 幾何計算シミュレーション）。
+      - Part 2: Markdown AST パース＆シリアライズによるネストインデント保持の実証的検証（`unified` + `remark-parse` + `remark-stringify`、`listItemIndent: "one"`、多階層箇条書き・番号付きリストの 2スペース/4スペースインデント保持、AST ツリー階層保持）。
+      - Part 3: 直接編集モード切り替え時の生ソース 100% 完全保護の実証的検証（`App.tsx` の `isInitialMountSync`、`rawSavedContent` 厳格保護、複雑なMarkdownサンプルを用いたマウント・モード切替時の 0 文字欠損シミュレーション）。
+      - Part 4: CodeMirror 6 `indentWithTab` および行頭空白保持（`whiteSpace: "break-spaces"`）の実証的検証。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-source-editor-layout-and-indent.mjs` を追加し、全 52 件の個別機能検証テストへ拡充・全パスを確認。
+    - `for_agent/architecture.md`: 改訂履歴にタスク115完了を追記。
+    - `Plan.md`: タスク115を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-editor-layout-and-indent.mjs`: Exit Code 0 (全4パート完全合格)
+      - `pnpm test`: Exit Code 0 (全52個別機能テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `scripts/verify-source-editor-layout-and-indent.mjs`, `scripts/verify-all.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク114「生ソースインデント保護・描画修正（問題点3）: 未編集（クリーン）ファイルにおける Milkdown マウント時シリアライズによる生ソース自動上書きを禁止（生ソースを 100% 保護）、Editor.tsx の Markdown シリアライザにおけるネストリストのインデント保持改修、および SourceEditor.tsx における Tab / Shift+Tab（indentWithTab）と行頭空白描画の完全保証」を完了。
   - **変更理由**: 未編集（クリーン）なファイルを開いた際に、Milkdown のマウント完了リスナー（`listenerCtx.mounted`）が発火して `handleContentChange` に初期シリアライズ結果が通知され、ディスクから読み込んだ生の Markdown テキスト（2スペース/4スペースのネストリストインデント等）がメモリ上で自動上書きされて生ソースのインデント・記法が不可逆的に破壊されていた不具合（問題点3）を抜本的に解消するため。未編集ファイルに対するマウント時シリアライズによる自動上書きを禁止し、ディスクから読み込んだ生ソースを 100% 保持するとともに、Milkdown シリアライザでネストリストのインデント保持設定（`listItemIndent: "one" as const`）を明示し、直接編集モードでの Tab/Shift+Tab 操作と行頭空白描画を完全保証する。
   - **Before**:
