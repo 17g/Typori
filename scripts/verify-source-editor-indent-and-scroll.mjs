@@ -226,19 +226,22 @@ async function runVerification() {
   // ==========================================================================
   console.log("\n--- [Step 4] 縦スクロール性・親要素オーバーフロー健全化の検証 ---");
 
-  // 4.1 .cm-scroller の縦スクロール高さ制約
+  // 4.1 .cm-scroller の縦スクロール健全化（CodeMirror 6 標準仮想スクロール構成）
   assert.ok(
     sourceEditorContent.includes('height: "100%"'),
     ".cm-scroller に height: '100%' が指定されていること"
   );
   assert.ok(
-    sourceEditorContent.includes('maxHeight: "100%"'),
-    ".cm-scroller に maxHeight: '100%' が指定され、親要素を突き抜けないこと"
+    !sourceEditorContent.includes('maxHeight: "100%"'),
+    ".cm-scroller から仮想スクロール測定を阻害する過剰な maxHeight: '100%' が完全排除されていること"
   );
   assert.ok(
-    sourceEditorContent.includes('overflow: "auto"') ||
-    sourceEditorContent.includes('overflowY: "auto"'),
-    ".cm-scroller に overflow: 'auto' / overflowY: 'auto' が指定されていること"
+    !sourceEditorContent.includes('minHeight: "100%"'),
+    ".cm-scroller から過剰な minHeight: '100%' が完全排除されていること"
+  );
+  assert.ok(
+    sourceEditorContent.includes('overflow: "auto"'),
+    ".cm-scroller に CodeMirror 6 標準の overflow: 'auto' が指定されていること"
   );
   assert.ok(
     sourceEditorContent.includes('boxSizing: "border-box"'),
@@ -288,7 +291,7 @@ async function runVerification() {
     assert.equal(mockScrollDOM.scrollTop, 0, "最上部スクロールで 0 に戻ること");
   }
 
-  console.log("✓ .cm-scroller 高さ制約（maxHeight 100%, overflowY auto）、親隔離、最下部余白の検証に合格");
+  console.log("✓ .cm-scroller 仮想スクロール標準構成（height 100%, overflow auto, maxHeight排除）、親隔離、最下部余白の検証に合格");
 
   // ==========================================================================
   // [Step 5] OSネイティブメニュー Submenu 再帰探索・チェック同期の検証 (問題点C)

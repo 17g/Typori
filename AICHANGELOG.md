@@ -1,3 +1,26 @@
+- 2026-10-19: タスク113「縦スクロール性健全化（問題点2）: SourceEditor.tsx の .cm-scroller から maxHeight: 100% などの過剰プロパティを排除し、CodeMirror 6 標準の仮想スクロール（height: 100%; overflow: auto;）構成へ是正、マウスホイールおよびスクロールバーによる滑らかな縦スクロールを復旧」を完了。
+  - **変更理由**: ソース直接編集モード（CodeMirror 6）において、`.cm-scroller` に `maxHeight: 100%`、`minHeight: 100%`、重複した `overflowY: auto` などの過剰なスタイルが適用されていたことにより、CodeMirror 6 の内部仮想スクロール測定（`view.measure()` / `scrollDOM`）と干渉し、長文ドキュメントにおいてマウスホイールやスクロールバーによる縦スクロールが正常に機能しなくなっていた不具合（問題点2）を解消するため。過剰プロパティを完全排除し、CodeMirror 6 標準の仮想スクロール構成（`height: 100%; overflow: auto; box-sizing: border-box;`）へ是正する。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `.cm-scroller` に `maxHeight: "100%"`, `minHeight: "100%"`, `overflowY: "auto"` が設定されており、仮想スクロール測定と競合・干渉していた。
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - `.cm-scroller` に `maxHeight: "100%"` が含まれることを検査していた。
+    - `Plan.md`: タスク113が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - `.cm-scroller` から `maxHeight: "100%"`, `minHeight: "100%"`, `overflowY: "auto"` を完全撤廃し、CodeMirror 6 標準の `height: "100%"`, `overflow: "auto"`, `boxSizing: "border-box"` 構成に是正。
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - Step 4.1 のアサーションを更新し、`maxHeight: "100%"` および `minHeight: "100%"` の完全排除、および標準 `height: "100%"`, `overflow: "auto"` の適用を検証。
+    - `for_agent/architecture.md`: 改訂履歴にタスク113完了を追記。
+    - `Plan.md`: タスク113を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-editor-indent-and-scroll.mjs`: Exit Code 0 (全5ステップ合格)
+      - `pnpm test`: Exit Code 0 (全51個別機能テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `scripts/verify-source-editor-indent-and-scroll.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク112「エディタスタイル・レイアウト抜本修正（問題点1）: SourceEditor.tsx の customTheme において .cm-content の width: 100% を完全撤廃、.cm-scroller に display: flex !important; flex-direction: row !important; を明示して行番号ガター（.cm-gutters）と本文（.cm-content）の確実な横並び・一体化配置を確立」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）において、行番号ガター（`.cm-gutters`）の下に本文（`.cm-content`）が縦落ちしてレイアウトが縦積みに崩壊する問題（問題点1）を抜本的に解消するため。根本原因であった `.cm-content` の `width: 100%` を完全撤廃し、`.cm-scroller` に横並び Flexbox を明示することで、行番号ガターと本文の確実な横並び・一体化配置を確立する。
   - **Before**:

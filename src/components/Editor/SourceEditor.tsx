@@ -400,13 +400,10 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           flexWrap: "nowrap !important",
           alignItems: "flex-start !important",
           height: "100%",
-          maxHeight: "100%",
           overflow: "auto",
-          overflowY: "auto",
           boxSizing: "border-box",
           lineHeight: "1.7",
           paddingBottom: "120px",
-          minHeight: "100%",
         },
         ".cm-content": {
           padding: "24px 32px",
