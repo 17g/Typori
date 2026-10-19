@@ -615,8 +615,6 @@ function App() {
   const handleContentChange = useCallback(
     (markdown: string, meta?: { isUserInteraction?: boolean }) => {
       const normalized = normalizeLineEndings(markdown);
-      fileContentRef.current = normalized;
-      setFileContent(normalized);
 
       const currentActiveId = activeTabIdRef.current;
       const currentSelectedPath = selectedPathRef.current;
@@ -639,6 +637,13 @@ function App() {
             isContentDirty(fileContentRef.current, savedContentRef.current) &&
             editorRef.current?.hasUserInteracted?.()
           );
+
+      // 未編集ファイルに対するマウント時シリアライズによる生ソース自動上書きを未然に防止
+      const isInitialMountSync = meta && meta.isUserInteraction === false && !hasUnsavedChanges;
+      if (!isInitialMountSync) {
+        fileContentRef.current = normalized;
+        setFileContent(normalized);
+      }
 
       if (meta && meta.isUserInteraction === false) {
         // 未保存変更が存在するタブの場合、savedContent の上書きおよび isDirty リセットを抑止し保護
@@ -663,7 +668,26 @@ function App() {
           return;
         }
 
-        // クリーンな状態のタブの場合のみ、初回シリアライズ差異をベースラインとして同期
+        // 未編集（クリーン）なファイルの場合：生ソース 100% 完全保護（Raw Markdown Preservation）
+        // ディスクから読み込んだ元の生テキスト（savedContent / rawContent）を破壊しないよう、
+        // Milkdown マウント時シリアライズによる自動上書きを禁止し、生ソースを厳格に保持する。
+        const rawSavedContent = activeTab?.savedContent ?? savedContentRef.current;
+        if (rawSavedContent !== null && rawSavedContent !== undefined) {
+          fileContentRef.current = rawSavedContent;
+          setFileContent(rawSavedContent);
+          setTabs((prev) => {
+            const nextTabs = prev.map((t) =>
+              t.id === currentActiveId || (currentSelectedPath && t.path === currentSelectedPath)
+                ? { ...t, content: rawSavedContent, savedContent: rawSavedContent, isDirty: false }
+                : t
+            );
+            tabsRef.current = nextTabs;
+            return nextTabs;
+          });
+          return;
+        }
+
+        // フォールバック: 保存済みベースラインが存在しない場合のみ同期
         savedContentRef.current = normalized;
         setSavedContent(normalized);
         setTabs((prev) => {

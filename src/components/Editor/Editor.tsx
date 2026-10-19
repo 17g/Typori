@@ -884,6 +884,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
               bullet: "-" as const,
               bulletOther: "*" as const,
               bulletOrdered: "." as const,
+              listItemIndent: "one" as const,
               incrementListMarker: true,
               resourceLink: true,
               rule: "-" as const,

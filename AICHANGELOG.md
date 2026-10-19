@@ -1,3 +1,29 @@
+- 2026-10-19: タスク114「生ソースインデント保護・描画修正（問題点3）: 未編集（クリーン）ファイルにおける Milkdown マウント時シリアライズによる生ソース自動上書きを禁止（生ソースを 100% 保護）、Editor.tsx の Markdown シリアライザにおけるネストリストのインデント保持改修、および SourceEditor.tsx における Tab / Shift+Tab（indentWithTab）と行頭空白描画の完全保証」を完了。
+  - **変更理由**: 未編集（クリーン）なファイルを開いた際に、Milkdown のマウント完了リスナー（`listenerCtx.mounted`）が発火して `handleContentChange` に初期シリアライズ結果が通知され、ディスクから読み込んだ生の Markdown テキスト（2スペース/4スペースのネストリストインデント等）がメモリ上で自動上書きされて生ソースのインデント・記法が不可逆的に破壊されていた不具合（問題点3）を抜本的に解消するため。未編集ファイルに対するマウント時シリアライズによる自動上書きを禁止し、ディスクから読み込んだ生ソースを 100% 保持するとともに、Milkdown シリアライザでネストリストのインデント保持設定（`listItemIndent: "one" as const`）を明示し、直接編集モードでの Tab/Shift+Tab 操作と行頭空白描画を完全保証する。
+  - **Before**:
+    - `src/App.tsx`:
+      - `handleContentChange` の先頭で `fileContentRef.current = normalized; setFileContent(normalized);` が無差別に実行され、未編集クリーンファイルであっても Milkdown の初回シリアライズ出力で上書きされていた。
+      - `meta && meta.isUserInteraction === false` のクリーンファイル処理において、`savedContentRef.current = normalized;` および `t.content = normalized, t.savedContent = normalized` と上書きされ、ディスク上の生ソースが破壊されていた。
+    - `src/components/Editor/Editor.tsx`:
+      - `remarkStringifyOptionsCtx` において `listItemIndent` が明示されておらず、ネストリストのインデント設定がデフォルト挙動に依存していた。
+    - `Plan.md`: タスク114が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/App.tsx`:
+      - `handleContentChange` において `isInitialMountSync`（`meta && meta.isUserInteraction === false && !hasUnsavedChanges`）を判定し、先頭での `fileContentRef` / `fileContent` 上書きを未然に防止。
+      - `meta.isUserInteraction === false` かつクリーンファイルの場合、ディスクから読み込んだ生ソース（`rawSavedContent = activeTab?.savedContent ?? savedContentRef.current`）を厳格に保持し、`fileContentRef.current = rawSavedContent; setFileContent(rawSavedContent);` および `tabs` の `content / savedContent` を生ソースのまま 100% 完全保護（Raw Markdown Preservation）。
+    - `src/components/Editor/Editor.tsx`:
+      - `remarkStringifyOptionsCtx` に `listItemIndent: "one" as const` を明示設定し、箇条書きおよび番号付きネストリストのインデント保持（2スペース/4スペース等）を改修。
+    - `src/components/Editor/SourceEditor.tsx`:
+      - Tab / Shift+Tab によるインデント・アンインデント操作（`indentWithTab` / `Prec.highest`）および行頭連続空白の描画保持（`.cm-content` / `.cm-line` の `whiteSpace: "break-spaces"`）が完全に有効であることを確認・保証。
+    - `for_agent/architecture.md`: 改訂履歴にタスク114完了を追記。
+    - `Plan.md`: タスク114を `- [x]` に更新。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全51個別機能テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/App.tsx`, `src/components/Editor/Editor.tsx`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク113「縦スクロール性健全化（問題点2）: SourceEditor.tsx の .cm-scroller から maxHeight: 100% などの過剰プロパティを排除し、CodeMirror 6 標準の仮想スクロール（height: 100%; overflow: auto;）構成へ是正、マウスホイールおよびスクロールバーによる滑らかな縦スクロールを復旧」を完了。
   - **変更理由**: ソース直接編集モード（CodeMirror 6）において、`.cm-scroller` に `maxHeight: 100%`、`minHeight: 100%`、重複した `overflowY: auto` などの過剰なスタイルが適用されていたことにより、CodeMirror 6 の内部仮想スクロール測定（`view.measure()` / `scrollDOM`）と干渉し、長文ドキュメントにおいてマウスホイールやスクロールバーによる縦スクロールが正常に機能しなくなっていた不具合（問題点2）を解消するため。過剰プロパティを完全排除し、CodeMirror 6 標準の仮想スクロール構成（`height: 100%; overflow: auto; box-sizing: border-box;`）へ是正する。
   - **Before**:
