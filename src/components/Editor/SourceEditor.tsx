@@ -583,7 +583,7 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           onChange={handleChange}
           placeholder={placeholder}
           basicSetup={basicSetupOptions}
-          className="h-full text-sm max-w-[900px] mx-auto"
+          className="h-full w-full text-sm"
         />
       </div>
     </div>

@@ -1,3 +1,31 @@
+- 2026-10-19: タスク118「エディタ修正 (問題2): SourceEditor.tsx のレイアウトを抜本的に再設計し、二重 max-width: 900px を解消、CodeMirror 6 標準のガター横並び（.cm-gutters と .cm-content）および .cm-scroller の完全な縦スクロール（マウスホイール・ドラッグスクロール）を復旧」を完了。
+  - **変更理由**: ソース直接編集モードにおいて、CodeMirror コンポーネント外側ラッパーの `max-w-[900px] mx-auto` と内側 `.cm-editor` の `maxWidth: "900px", margin: "0 auto"` が二重に適用されていたことにより、画面幅一杯のフレックスコンテナの中で CodeMirror 6 内部の仮想スクロール測定（`view.measure()` / `scrollDOM`）と干渉し、行番号ガターの崩れやマウスホイールによる縦スクロール不能を引き起こしていた問題（問題2）を根本的に解消するため。
+  - **Before**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - CodeMirror コンポーネントに `className="h-full text-sm max-w-[900px] mx-auto"` が設定されており、外側ラッパーと内側 `.cm-editor` で二重に `max-width: 900px` と `margin: 0 auto` が適用されていた。
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - CodeMirror コンポーネントに `max-w-[900px] mx-auto` が存在することをアサーションしていた（Phase 28 旧仕様）。
+    - `Plan.md`: タスク118が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/SourceEditor.tsx`:
+      - CodeMirror コンポーネントの `className` から不要な `max-w-[900px] mx-auto` を撤廃し、画面幅一杯の柔軟なコンテナである `className="h-full w-full text-sm"` に変更。
+      - 中央寄せおよび最大幅管理を CodeMirror 6 本体の `.cm-editor`（`maxWidth: "900px", margin: "0 auto", height: "100%"`）に一元集約。
+      - `.cm-scroller` の横並び Flexbox 設計（`display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: flex-start !important;`）と CodeMirror 6 ネイティブの仮想スクロール設計（`height: 100%; overflow: auto;`）を堅持し、ガター（`.cm-gutters`）と本文（`.cm-content`）の横並び一体化とマウスホイール・ドラッグによる滑らかな縦スクロールを完全復旧。
+    - `scripts/verify-source-editor-indent-and-scroll.mjs`:
+      - Phase 31 仕様に基づき、CodeMirror 外側ラッパーの二重 `max-width` 撤廃（`w-full`）および内側集約を検証するアサーションへ更新。
+    - `for_agent/architecture.md`:
+      - 改訂履歴にタスク117およびタスク118完了を追記。
+    - `Plan.md`:
+      - タスク118を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-editor-indent-and-scroll.mjs`: Exit Code 0 (全5ステップ合格)
+      - `node scripts/verify-source-editor-layout-and-indent.mjs`: Exit Code 0 (全5パート合格)
+      - `pnpm test`: Exit Code 0 (全52個別テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo check`: Exit Code 0 (src-tauri)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+  - **影響範囲**: `src/components/Editor/SourceEditor.tsx`, `scripts/verify-source-editor-indent-and-scroll.mjs`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク117「エディタ修正 (問題1): Editor.tsx の handleKeyDown において e.ctrlKey || e.metaKey || e.altKey を含むキー押下での markUserInteracted 発火を厳格に抑止し、Ctrl + / でのモード切替時に未編集ファイルの生ソース（インデント等）が 100% 確実に保護されるように改修」を完了。
   - **変更理由**: ファイルを開いて未編集のまま `Ctrl + /` を押してソース直接編集モードに切り替えた際、`Editor.tsx` の `handleKeyDown` において修飾キー判定（`e.ctrlKey || e.metaKey || e.altKey`）が漏れていたため、モード切替ショートカットの押下がユーザー能動編集操作と誤認され `markUserInteracted()` が発火、`hasUserInteractedRef.current = true` となっていた。これにより、`App.tsx` の `handleToggleSourceMode` が「ユーザー編集済み」と誤判定し、ディスクから読み込んだ生ソースを破棄して Milkdown シリアライザ出力（インデント左揃え破壊テキスト）で強制上書きしていた不具合（問題1）を根本的に解消するため。
   - **Before**:

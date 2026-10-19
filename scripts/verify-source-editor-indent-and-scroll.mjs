@@ -119,10 +119,15 @@ async function runVerification() {
     "customTheme の ルート (&) に margin: '0 auto' が設定されていること"
   );
 
-  // 2.2 CodeMirror コンポーネントの Tailwind クラス設定
+  // 2.2 CodeMirror コンポーネントの Tailwind クラス設定（Phase 31: 二重 max-width 排除・w-full 化）
   assert.ok(
-    sourceEditorContent.includes('className="h-full text-sm max-w-[900px] mx-auto"'),
-    "CodeMirror コンポーネントに max-w-[900px] mx-auto が設定されていること"
+    sourceEditorContent.includes('className="h-full w-full text-sm"') ||
+    sourceEditorContent.includes('className="h-full text-sm w-full"'),
+    "CodeMirror コンポーネントの外側ラッパーから二重 max-w-[900px] が撤廃され、w-full が設定されていること"
+  );
+  assert.ok(
+    !sourceEditorContent.includes('max-w-[900px] mx-auto"'),
+    "外側ラッパーから二重 max-w-[900px] mx-auto が解消されていること"
   );
 
   // 2.3 ガター（.cm-gutters）と本文（.cm-content）の一体化配置（分離排除）
