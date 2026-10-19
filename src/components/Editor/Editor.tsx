@@ -1434,8 +1434,20 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
 
     // ショートカットキーハンドラー
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // ナビゲーションキーや単なる修飾キー単体以外のキーストロークはユーザー能動編集操作とみなす
-      const isModifierOnly = ["Control", "Shift", "Alt", "Meta", "CapsLock", "Tab"].includes(e.key);
+      // 修飾キー付きショートカット（Ctrl+/, Ctrl+S, Ctrl+C 等）や修飾キー単体、ナビゲーションキーでの
+      // markUserInteracted 誤爆を完全に防止する。
+      // 通常文字入力（e.key.length === 1 かつ修飾キーなし）、Enter、Backspace、Delete 等の能動編集操作のみに限定。
+      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+      const isModifierOnly = [
+        "Control",
+        "Shift",
+        "Alt",
+        "Meta",
+        "CapsLock",
+        "Fn",
+        "NumLock",
+        "ScrollLock",
+      ].includes(e.key);
       const isNavigation = [
         "ArrowUp",
         "ArrowDown",
@@ -1447,8 +1459,17 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
         "PageDown",
         "Escape",
       ].includes(e.key);
-      if (!isModifierOnly && !isNavigation) {
-        markUserInteracted();
+
+      if (!hasModifier && !isModifierOnly && !isNavigation) {
+        const isEditingKey =
+          e.key.length === 1 ||
+          e.key === "Enter" ||
+          e.key === "Backspace" ||
+          e.key === "Delete" ||
+          e.key === "Tab";
+        if (isEditingKey) {
+          markUserInteracted();
+        }
       }
 
       // Ctrl+K / Cmd+K: リンク挿入・編集

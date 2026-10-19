@@ -179,3 +179,12 @@
 - [x] 113. 縦スクロール性健全化（問題点2）: `SourceEditor.tsx` の `.cm-scroller` から `maxHeight: 100%` などの過剰プロパティを排除し、CodeMirror 6 標準の仮想スクロール（`height: 100%; overflow: auto;`）構成へ是正、マウスホイールおよびスクロールバーによる滑らかな縦スクロールを復旧
 - [x] 114. 生ソースインデント保護・描画修正（問題点3）: 未編集（クリーン）ファイルにおける Milkdown マウント時シリアライズによる生ソース自動上書きを禁止（生ソースを 100% 保護）、`Editor.tsx` の Markdown シリアライザにおけるネストリストのインデント保持改修、および `SourceEditor.tsx` における Tab / Shift+Tab（`indentWithTab`）と行頭空白描画の完全保証
 - [x] 115. 実証的自動テスト構築・総合品質保証: 単なる文字列一致検査を排除し、実際の CSS スタイルプロパティ（Flexbox 横並び・`width: 100%` 排除・スクロール設定）、Markdown AST のパース＆シリアライズによるネストインデント保持、および直接編集モード切り替え時の生ソース保護を実証的に検証するテストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）の作成と `scripts/verify-all.mjs` への統合、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格確認
+
+## Phase 31: ソース直接編集モードのショートカット誤爆完全防止・スクロール＆ガターレイアウト完全復旧・v1.8.2 テスト版ビルド
+- [x] 116. 仕様策定・根本原因分析: `Editor.tsx` の `handleKeyDown` における修飾キー付きショートカット（`Ctrl + /` 等）での `markUserInteracted` 誤爆防止仕様、および `SourceEditor.tsx` の二重中央寄せ排除と CodeMirror 6 ネイティブガター・仮想スクロール完全復旧仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・反映
+- [x] 117. エディタ修正 (問題1): `Editor.tsx` の `handleKeyDown` において `e.ctrlKey || e.metaKey || e.altKey` を含むキー押下での `markUserInteracted` 発火を厳格に抑止し、`Ctrl + /` でのモード切替時に未編集ファイルの生ソース（インデント等）が 100% 確実に保護されるように改修
+
+- [ ] 118. エディタ修正 (問題2): `SourceEditor.tsx` のレイアウトを抜本的に再設計し、二重 `max-width: 900px` を解消、CodeMirror 6 標準のガター横並び（`.cm-gutters` と `.cm-content`）および `.cm-scroller` の完全な縦スクロール（マウスホイール・ドラッグスクロール）を復旧
+- [ ] 119. バージョン整合性・ビルド設定点検: 設定ファイル（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）のバージョンを `1.8.2` に一括更新し、検証スクリプト追従と設定整合性を確認
+- [ ] 120. 品質保証・自動テスト・テスト版 v1.8.2 リリースビルド: 実機での `Ctrl + /` 押下シミュレーション・ガター横並び・スクロール性・全機能整合性を網羅検証するテストの整備、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格、および `pnpm run build:release` による v1.8.2 テスト版インストーラ・バイナリの生成と成果物完全性検証
+

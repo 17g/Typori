@@ -500,6 +500,31 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     - 長文編集時に CodeMirror 6 標準の仮想スクロールが健全に機能し、マウスホイールおよびスクロールバーによる滑らかな縦スクロールが動作すること。
     - 未編集のファイルを開いてソース直接編集モードに切り替えても、元の生ソースのインデント・空行・書式が1文字の欠損もなく100%完全に保護されること。
     - 実証的自動テストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）が `scripts/verify-all.mjs` に統合され、`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 で通過すること。
+- ソース直接編集モードのショートカット誤爆完全防止・スクロール＆ガターレイアウト完全復旧・v1.8.2 テスト版ビルド仕様 (Phase 31):
+  - **背景・根本原因分析**:
+    1. **ショートカット押下による未保存誤判定と生ソース破壊（インデント欠落）**:
+       - `Editor.tsx` の `handleKeyDown` において、`isModifierOnly` 判定が単独の修飾キー（`e.key === "Control"` 等）のみを対象としていたため、`Ctrl + /` のように修飾キーと通常キーが同時に押されたショートカット操作時に `markUserInteracted()` が誤発火していた。
+       - これにより未編集ファイルであっても `hasUserInteracted` が `true` と記録され、モード切り替え時（`handleToggleSourceMode`）にディスク上の生ソース（インデント付き）を破棄し、Milkdown のシリアライザ出力（インデントが消去された左揃えテキスト）で強制上書きされる不具合が発生していた。
+    2. **CodeMirror 6 の二重中央寄せとスクロール干渉によるガター縦落ち・スクロール不能**:
+       - `SourceEditor.tsx` において、外側ラッパー `className="max-w-[900px] mx-auto"` と、内側 `.cm-editor` の `maxWidth: "900px", margin: "0 auto"` が二重に指定され、さらに `.cm-scroller` に対する過剰なスタイル指定（重複した `overflow` や不要な `!important`）が CodeMirror 6 内部の仮想スクロール測定（`view.measure()` / `scrollDOM`）と干渉し、行番号ガターの崩れやマウスホイールによる縦スクロール不能を引き起こしていた。
+    3. **テスト版バイナリのバージョン混同**:
+       - バージョン番号が `1.8.1` のままであったため、既存のインストール済みアプリと新規ビルドされたテスト版インストーラ・バイナリの区別が困難であった。
+  - **1. ショートカット誤爆完全防止仕様 (`Editor.tsx`)**:
+    - `handleKeyDown` において、修飾キー（`e.ctrlKey || e.metaKey || e.altKey`）を伴うキー入力では、明示的に許可された特定入力以外、一律 `markUserInteracted()` を発火させない。
+    - 単独の通常文字入力、Enter、Backspace、Delete 等の能動的なコンテンツ改変キーストロークのみで `markUserInteracted()` を発火させる。
+    - これにより、`Ctrl + /` での直接編集モード切り替え時に `hasUserInteracted` が確実に `false` を維持し、ディスクから読み込まれた生 Markdown（ネストインデント、改行、記法）を 100% 保持したまま直接編集モードを表示する。
+  - **2. CodeMirror 6 ガター横並び・縦スクロール完全復旧仕様 (`SourceEditor.tsx`)**:
+    - 外側ラッパーの不要な `max-w-[900px] mx-auto` を撤廃し、画面幅一杯（`w-full h-full`）の柔軟なコンテナとする。
+    - 中央寄せは CodeMirror 6 本体の `.cm-editor`（`maxWidth: "900px", margin: "0 auto", height: "100%"`）に集約し、等幅レイアウトの一貫性を確保する。
+    - `.cm-scroller` は CodeMirror 6 ネイティブの仮想スクロール設計（`height: 100%; overflow: auto;`）を遵守し、行番号ガター（`.cm-gutters`）と本文（`.cm-content`）の自然な横並び配置と滑らかなマウスホイール・スクロールバー操作を 100% 保証する。
+  - **3. バージョン整合性・テスト版 v1.8.2 リリースビルド**:
+    - `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` のバージョンを `1.8.2` に更新。
+    - `pnpm run build:release` により、v1.8.2 の実行バイナリ（`typori.exe`）およびインストーラ（NSIS / MSI）を生成・検証する。
+  - **4. 完成基準**:
+    - `Ctrl + /` でモードを切り替えても、生ソースのインデント（2スペース・4スペース等）が一切変形・欠損しないこと。
+    - ソース直接編集モードにおいて行番号ガターと本文が常に正しく横並びで表示され、縦スクロール（マウスホイール、ドラッグ）が滑らかに機能すること。
+    - 全自動検証スイート（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）が Exit Code 0 でパスすること。
+    - v1.8.2 のリリース成果物が生成され、完全性検証に合格すること。
 
 ## 改訂履歴
 - 2026-09-26: 初版策定
@@ -597,4 +622,6 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-19: ソース直接編集モード 縦スクロール性健全化（Phase 30 タスク113）の実装および検証完了。`SourceEditor.tsx` の `customTheme` において `.cm-scroller` から CodeMirror 6 の仮想スクロール（`view.measure()` / `scrollDOM`）の高さ測定と干渉していた過剰プロパティ（`maxHeight: "100%"`, `minHeight: "100%"`, 重複した `overflowY: "auto"`）を完全排除し、CodeMirror 6 標準の仮想スクロール構成（`height: "100%"`, `overflow: "auto"`, `boxSizing: "border-box"`）へ是正。長文ドキュメントにおけるマウスホイールおよびスクロールバーによる滑らかな縦スクロールを復旧。検証スクリプト（`scripts/verify-source-editor-indent-and-scroll.mjs`）の Step 4.1 アサーションを更新し、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認。
 - 2026-10-19: 生ソースインデント保護・描画修正（問題点3、Phase 30 タスク114）の実装および検証完了。未編集（クリーン）ファイルにおける Milkdown マウント時シリアライズによる `fileContentRef` / `savedContentRef` の自動上書きを禁止（生ソースを 100% 完全保護）、`Editor.tsx` の `remarkStringifyOptionsCtx` において `listItemIndent: "one" as const` を明示設定してネストリストのインデント（2スペース/4スペース等）保持を改修、および `SourceEditor.tsx` における `indentWithTab`（`Prec.highest`）と行頭空白描画（`whiteSpace: "break-spaces"`）を完全保証。全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認。
 - 2026-10-19: ソース直接編集モード レイアウト・インデント実証的検証 & 生ソース100%保護 自動テストスイート構築および総合品質保証（Phase 30 タスク115）の実装および全検証完了。実際の CSS スタイルプロパティ（Flexbox 横並び `flex-direction: row !important`、`nowrap`、`width: 100%` 完全排除、CodeMirror 6 標準仮想スクロール `height: 100%; overflow: auto;`、`maxHeight` 排除）、Markdown AST パース＆シリアライズによる多階層ネストインデント（2スペース/4スペース）保持、および未編集ファイルの直接編集モード切替時における生ソース100%完全保護（Raw Markdown Preservation）を実証的に検証するテストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）を作成。総合結合テストスイート（`scripts/verify-all.mjs`: 全52個別テスト、IPC 15+1コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）へ統合し、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認して Phase 30 および開発計画全115タスクの完全完了を達成。
+- 2026-10-19: ソース直接編集モードのショートカット誤爆完全防止・スクロール＆ガターレイアウト完全復旧・v1.8.2 テスト版ビルド仕様策定・根本原因分析（Phase 31 タスク116）を完了。`Editor.tsx` の `handleKeyDown` における修飾キー付きショートカット（`Ctrl + /` 等）での `markUserInteracted` 誤爆防止仕様、および `SourceEditor.tsx` の二重中央寄せ排除と CodeMirror 6 ネイティブガター・仮想スクロール完全復旧仕様を `for_agent/architecture.md` および `for_agent/guardrails.md` に策定・反映。
+
 

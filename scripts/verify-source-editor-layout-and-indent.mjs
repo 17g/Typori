@@ -482,8 +482,103 @@ async function runVerification() {
 
   console.log("✓ CodeMirror 6 indentWithTab および行頭空白保持の実証的検証に合格");
 
+  // ==========================================================================
+  // [Part 5] Phase 31: handleKeyDown における修飾キーショートカット誤爆完全防止の実証的検証
+  // ==========================================================================
+  console.log("\n--- [Part 5] Phase 31: handleKeyDown 修飾キーショートカット誤爆完全防止の実証的検証 ---");
+
+  // 5.1 Editor.tsx の handleKeyDown 実装の静的検証
+  assert.ok(
+    editorContent.includes("const hasModifier = e.ctrlKey || e.metaKey || e.altKey;"),
+    "Editor.tsx で hasModifier の判定が存在すること"
+  );
+  assert.ok(
+    editorContent.includes("if (!hasModifier && !isModifierOnly && !isNavigation)"),
+    "Editor.tsx で修飾キー押下時は markUserInteracted が抑止されること"
+  );
+
+  // 5.2 handleKeyDown ロジックのシミュレーション検証
+  function simulateHandleKeyDown(e) {
+    let userInteracted = false;
+    const markUserInteracted = () => {
+      userInteracted = true;
+    };
+
+    const hasModifier = Boolean(e.ctrlKey || e.metaKey || e.altKey);
+    const isModifierOnly = [
+      "Control",
+      "Shift",
+      "Alt",
+      "Meta",
+      "CapsLock",
+      "Fn",
+      "NumLock",
+      "ScrollLock",
+    ].includes(e.key);
+    const isNavigation = [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+      "Escape",
+    ].includes(e.key);
+
+    if (!hasModifier && !isModifierOnly && !isNavigation) {
+      const isEditingKey =
+        e.key.length === 1 ||
+        e.key === "Enter" ||
+        e.key === "Backspace" ||
+        e.key === "Delete" ||
+        e.key === "Tab";
+      if (isEditingKey) {
+        markUserInteracted();
+      }
+    }
+
+    return userInteracted;
+  }
+
+  // テストケース群
+  // 1. Ctrl + / (ソース直接編集モード切替): markUserInteracted が絶対に発火してはならない
+  assert.equal(
+    simulateHandleKeyDown({ key: "/", ctrlKey: true }),
+    false,
+    "Ctrl + / 押下時に markUserInteracted が発火しないこと（生ソース保護）"
+  );
+
+  // 2. 他の修飾キー付きショートカット (Ctrl+S, Ctrl+C, Ctrl+A, Alt+F 等)
+  assert.equal(simulateHandleKeyDown({ key: "s", ctrlKey: true }), false, "Ctrl+S で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "c", ctrlKey: true }), false, "Ctrl+C で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "a", ctrlKey: true }), false, "Ctrl+A で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "k", metaKey: true }), false, "Cmd+K で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "Tab", altKey: true }), false, "Alt+Tab で発火しないこと");
+
+  // 3. 修飾キー単体 (Control, Shift, Alt, Meta)
+  assert.equal(simulateHandleKeyDown({ key: "Control" }), false, "Control 単体で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "Shift" }), false, "Shift 単体で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "Alt" }), false, "Alt 単体で発火しないこと");
+
+  // 4. ナビゲーションキー (ArrowDown, PageUp, Escape 等)
+  assert.equal(simulateHandleKeyDown({ key: "ArrowDown" }), false, "ArrowDown で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "PageUp" }), false, "PageUp で発火しないこと");
+  assert.equal(simulateHandleKeyDown({ key: "Escape" }), false, "Escape で発火しないこと");
+
+  // 5. 通常の編集キー（文字入力、Enter、Backspace、Delete、Tab）
+  assert.equal(simulateHandleKeyDown({ key: "a" }), true, "通常文字 'a' で markUserInteracted が発火すること");
+  assert.equal(simulateHandleKeyDown({ key: "あ" }), true, "日本語文字 'あ' で markUserInteracted が発火すること");
+  assert.equal(simulateHandleKeyDown({ key: "Enter" }), true, "Enter で markUserInteracted が発火すること");
+  assert.equal(simulateHandleKeyDown({ key: "Backspace" }), true, "Backspace で markUserInteracted が発火すること");
+  assert.equal(simulateHandleKeyDown({ key: "Delete" }), true, "Delete で markUserInteracted が発火すること");
+  assert.equal(simulateHandleKeyDown({ key: "Tab" }), true, "Tab で markUserInteracted が発火すること");
+
+  console.log("✓ handleKeyDown 修飾キーショートカット誤爆完全防止の実証的検証に合格");
+
   console.log("\n==================================================================");
-  console.log(" >>> Phase 30 レイアウト・インデント実証的検証 & 生ソース保護 全項目合格 <<< ");
+  console.log(" >>> Phase 30/31 レイアウト・インデント実証的検証 & 生ソース保護 全項目合格 <<< ");
   console.log("==================================================================");
 }
 

@@ -1,3 +1,40 @@
+- 2026-10-19: タスク117「エディタ修正 (問題1): Editor.tsx の handleKeyDown において e.ctrlKey || e.metaKey || e.altKey を含むキー押下での markUserInteracted 発火を厳格に抑止し、Ctrl + / でのモード切替時に未編集ファイルの生ソース（インデント等）が 100% 確実に保護されるように改修」を完了。
+  - **変更理由**: ファイルを開いて未編集のまま `Ctrl + /` を押してソース直接編集モードに切り替えた際、`Editor.tsx` の `handleKeyDown` において修飾キー判定（`e.ctrlKey || e.metaKey || e.altKey`）が漏れていたため、モード切替ショートカットの押下がユーザー能動編集操作と誤認され `markUserInteracted()` が発火、`hasUserInteractedRef.current = true` となっていた。これにより、`App.tsx` の `handleToggleSourceMode` が「ユーザー編集済み」と誤判定し、ディスクから読み込んだ生ソースを破棄して Milkdown シリアライザ出力（インデント左揃え破壊テキスト）で強制上書きしていた不具合（問題1）を根本的に解消するため。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx`:
+      - `handleKeyDown` において、`isModifierOnly` 判定が単独修飾キー（`e.key === "Control"` 等）のみで、`e.ctrlKey || e.metaKey || e.altKey` が押されている場合のガードが抜けていた。
+      - `Ctrl + /` 押下時に `e.key === "/"` が文字入力と判定され、無条件で `markUserInteracted()` が発火していた。
+    - `scripts/verify-source-editor-layout-and-indent.mjs`:
+      - `handleKeyDown` における修飾キー付きショートカット（`Ctrl + /` 等）での誤爆抑止を検証するテストが含まれていなかった。
+    - `Plan.md`: タスク117が未完了（`- [ ]`）であった。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `handleKeyDown` に `const hasModifier = e.ctrlKey || e.metaKey || e.altKey;` を追加し、修飾キー付きキーストローク（`Ctrl + /`, `Ctrl + S`, `Ctrl + C` 等）での `markUserInteracted()` 呼び出しを一律禁止。
+      - `markUserInteracted()` の呼び出し条件を、修飾キーなしの通常文字入力（`e.key.length === 1`）および Enter, Backspace, Delete, Tab 等の純粋な本文編集キーストロークのみに厳格限定。
+    - `scripts/verify-source-editor-layout-and-indent.mjs`:
+      - `[Part 5] Phase 31: handleKeyDown における修飾キーショートカット誤爆完全防止の実証的検証` を新設。`Editor.tsx` の静的実装検査およびキーストロークシミュレーション（`Ctrl + /`, `Ctrl+S`, `Ctrl+C`, `Cmd+K`, `Alt+Tab`, ナビゲーションキー、通常文字キー）により、`Ctrl + /` で `markUserInteracted` が一切発火しないことを実証。
+    - `Plan.md`:
+      - タスク117を `- [x]` に更新。
+    - 検証結果:
+      - `node scripts/verify-source-editor-layout-and-indent.mjs`: Exit Code 0 (全5パート完全合格)
+      - `pnpm test`: Exit Code 0 (全52個別テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `scripts/verify-source-editor-layout-and-indent.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
+- 2026-10-19: タスク116「仕様策定・根本原因分析: Editor.tsx の handleKeyDown における修飾キー付きショートカット（Ctrl + / 等）での markUserInteracted 誤爆防止仕様、および SourceEditor.tsx の二重中央寄せ排除と CodeMirror 6 ネイティブガター・仮想スクロール完全復旧仕様を for_agent/（architecture.md, guardrails.md）に策定・反映」を完了。
+  - **変更理由**: ユーザー報告に基づき、ファイルを開いて未編集のまま `Ctrl + /` で直接編集モードに切り替えた際にインデントが左揃えに破壊される現象、および直接編集モードで行番号ガターの下に本文が縦落ちしてスクロールが効かなくなる問題の根本原因を特定し、再発防止策と詳細設計を仕様書・ガードレールに明文化するため。
+  - **Before**:
+    - `for_agent/architecture.md`: Phase 31 の仕様セクションが存在しなかった。
+    - `for_agent/guardrails.md`: 修飾キーショートカットによる `hasUserInteracted` 誤爆防止および二重中央寄せ防止に関する項目（3.33）が存在しなかった。
+    - `Plan.md`: Phase 31（タスク116〜120）が存在しなかった。
+  - **After**:
+    - `for_agent/architecture.md`: Phase 31 仕様セクション（問題点1: 修飾キーショートカット誤爆防止、問題点2: CodeMirror 6 ネイティブガター・縦スクロール復旧、問題点3: テスト版 v1.8.2 バージョン整合性・リリースビルド）を新設・改訂履歴追記。
+    - `for_agent/guardrails.md`: セクション 3.33「修飾キー付きショートカット押下による未保存（`hasUserInteracted`）誤爆と二重中央寄せレイアウト干渉の防止」を新設。
+    - `Plan.md`: Phase 31（タスク116〜120）を策定、タスク116を `- [x]` に更新。
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: 全体総合レビュー（/review）およびテスト版リリースパッケージビルド（`pnpm run build:release`）の完了。
   - **変更理由**: Phase 30「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化」完了後の全体コード・仕様書・テストスイートの総合点検（/review）を実施し、回帰バグのないこと、および最新の修正成果を反映した動作確認用テスト版バイナリ・インストーラ（NSIS / MSI）を生成・検証するため。
   - **Before**:

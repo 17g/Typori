@@ -430,6 +430,17 @@
   2. `.cm-scroller` は CodeMirror 6 標準の `height: 100%; overflow: auto; box-sizing: border-box;` に統一し、過剰な `max-height` を指定しないこと。
   3. 未編集のクリーンなファイルにおいては、Milkdown マウント時シリアライズによる生ソースの上書きを一切行わず、ディスクから読み込んだテキストを 100% 保持すること。また Markdown シリアライザ（`remarkStringifyOptionsCtx`）でネストリストのインデント保持を徹底すること。
 
+### 3.33. 修飾キー付きショートカット押下による未保存（`hasUserInteracted`）誤爆と二重中央寄せレイアウト干渉の防止
+- **事象・ミス**:
+  1. ファイルを開いて未編集のまま `Ctrl + /` を押してソース直接編集モードに切り替えた瞬間、生ソースのインデント（2スペース・4スペース等）がすべて左揃えに破壊される。
+  2. ソース直接編集モードにおいて、CodeMirror 外側ラッパーと内側 `.cm-editor` の二重 `max-width` 指定によりレイアウトが歪み、縦スクロール不能やガター縦落ちが再発する。
+- **原因**:
+  1. `Editor.tsx` の `handleKeyDown` において、`Ctrl + /` などのショートカットキー押下時に修飾キー判定が漏れており、単なるショートカット操作を「ユーザーによるコンテンツ改変（`hasUserInteracted = true`）」と誤認していたため。
+  2. 外側コンテナと内側コンテナ双方に幅制約・マージンが二重に適用され、CodeMirror 6 の仮想スクロールコンテナが親の境界を正しく認識できなくなっていたため。
+- **対策**:
+  1. `Editor.tsx` の `handleKeyDown` では、`e.ctrlKey || e.metaKey || e.altKey` を含むキー押下での `markUserInteracted()` 呼び出しを一律禁止し、通常文字入力や改変キー（Enter, Backspace 等）のみに限定すること。
+  2. `SourceEditor.tsx` の外側ラッパーは画面幅一杯（`w-full h-full`）とし、中央寄せ最大幅は `.cm-editor` のみで一元管理すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）
