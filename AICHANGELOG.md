@@ -1,3 +1,29 @@
+- 2026-10-19: タスク111「仕様策定・原因特定・設計: 行番号ガター縦落ち（`.cm-content` の `width: 100%` による Flexbox 折り返し）、過剰スタイルによる縦スクロール不能、および Milkdown マウント時シリアライズによる生ソース（インデント）破壊の根本原因分析と再発防止仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・反映」を完了。
+  - **変更理由**: Phase 30「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化」の開始にあたり、発生している3つの重大な不具合（問題点1: 行番号ガター縦落ち、問題点2: 過剰スタイルによる縦スクロール不能、問題点3: Milkdownマウント時シリアライズによる生ソースインデント破壊）の技術的根本原因を徹底究明し、再発を防止するための抜本的設計方針、実装手順、および完成基準を仕様書（`for_agent/architecture.md`）およびガードレール（`for_agent/guardrails.md`）に策定・反映するため。
+  - **Before**:
+    - `for_agent/architecture.md`: Phase 30 の仕様（行番号ガター縦落ち解消、スクロール健全化、生ソースインデント100%保護、実証的自動テスト設計）が未定義であった。
+    - `for_agent/guardrails.md`: ソース直接編集モードの行番号縦落ち・スクロール不能・生ソースインデント破壊に関するガードレール項目が未整備であった。
+    - `Plan.md`: タスク111が未完了（`- [ ]`）であった。
+  - **After**:
+    - `for_agent/architecture.md`:
+      - 「ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化仕様 (Phase 30)」を追記。
+      - 問題点1（ガター縦落ち）の根本原因分析と抜本的対策設計（`.cm-content` の `width: 100%` 完全撤廃、`.cm-scroller` の `display: flex !important; flex-direction: row !important;` 明示による横並び一体化）を策定。
+      - 問題点2（縦スクロール不能）の根本原因分析と抜本的対策設計（過剰な `max-height: 100%` 排除、CodeMirror 6 標準の `height: 100%; overflow: auto;` 仮想スクロール是正）を策定。
+      - 問題点3（生ソースインデント破壊）の根本原因分析と抜本的対策設計（未編集ファイルでのマウント時シリアライズによる `fileContentRef` / `savedContentRef` 自動上書き禁止、ディスク生ソース100%保護、ネストリストインデント保持）を策定。
+      - 実証的自動テスト（`verify-source-editor-layout-and-indent.mjs`）の設計と完成基準を定義。
+      - 改訂履歴にタスク111完了を追記。
+    - `for_agent/guardrails.md`:
+      - 「3.32. ソース直接編集モードの行番号ガター縦落ち・スクロール不能および生ソースインデント破壊の防止」を新設。事象・原因・対策を明文化。
+    - `Plan.md`:
+      - タスク111を `- [x]` に更新。
+    - 検証結果:
+      - `cargo check`: Exit Code 0 (dev profile)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `pnpm test`: Exit Code 0 (全51個別テスト合格、全15IPCコマンド、全18メニューイベント、ショートカット定義合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+  - **影響範囲**: `for_agent/architecture.md`, `for_agent/guardrails.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク110「リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)」を完了。
   - **変更理由**: 正式版 v1.8.1 の配布パッケージとして、Phase 28 までの全機能開発（全28フェーズ、全108タスク）および v1.8.1 バージョン同期が反映された最新コードベースに基づくリリースビルドを実行し、Windows 実行可能バイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）を生成・検証するため。
   - **Before**:

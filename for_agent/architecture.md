@@ -468,6 +468,39 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     - OSネイティブメニューの「表示」>「行番号を表示」のチェック状態が、フロントエンドの行番号表示設定と完全に同期すること。
     - 自動検証スクリプト（`scripts/verify-source-editor-indent-and-scroll.mjs`）が作成され、総合結合テストスイート（`scripts/verify-all.mjs`）に統合されて `pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 でパスすること。
 
+- ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化仕様 (Phase 30):
+  - **背景・目的**:
+    ソース直接編集モード（CodeMirror 6）において、行番号ガター（`.cm-gutters`）と本文（`.cm-content`）が縦積みに崩壊する現象（ガター縦落ち）、長文ドキュメントにおいて縦スクロールが正常に動作しない現象、および未編集のMarkdownファイルを開いた際にMilkdownのマウント時シリアライズによって生ソースのインデントや記法が不可逆的に破壊される重大な問題を抜本的に解消する。
+  - **1. 問題点1: 行番号ガター縦落ちの根本原因分析と抜本的対策**:
+    - **根本原因**:
+      CodeMirror 6 において `.cm-scroller` は `.cm-gutters` と `.cm-content` を横並び（row）で内包する Flexbox コンテナとして設計されている。しかし Phase 28 において幅潰れ防止として `.cm-content` に `width: 100%` を付与したことにより、`.cm-gutters`（幅約50px）と `.cm-content`（幅100%）の合計幅がスクロールコンテナ幅を超過。コンテナの flex 計算によって `.cm-content` が `.cm-gutters` の下部に押し出されて縦落ち（縦積み崩壊）が発生していた。
+    - **抜本的対策設計**:
+      - `SourceEditor.tsx` の `customTheme` において、`.cm-content` から `width: 100%` を完全に撤廃する。
+      - `.cm-scroller` に対し `display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: flex-start !important;` を明示する。
+      - `.cm-content` は `min-width: 0; flex-grow: 1; flex-shrink: 1;` として CodeMirror 6 の自然な等幅 Flexbox 計算に委ね、行番号ガター（`.cm-gutters`）と本文（`.cm-content`）の確実な横並び・一体化配置を確立する。
+  - **2. 問題点2: 過剰スタイルによる縦スクロール不能の根本原因分析と抜本的対策**:
+    - **根本原因**:
+      `.cm-scroller` に対し `max-height: 100%`, `min-height: 100%`, `overflow: auto`, `overflow-y: auto` などの過剰かつ競合する制約を重ねて指定したことにより、CodeMirror 6 の内部仮想スクロール（`view.measure()` / `scrollDOM`）の高さ測定 pass と干渉し、スクロールバーのドラッグやマウスホイールによる長文縦スクロールが正常に機能しなくなっていた。
+    - **抜本的対策設計**:
+      - `.cm-scroller` から `max-height: 100%` などの過剰プロパティを完全排除し、CodeMirror 6 標準の仮想スクロール（`height: 100%; overflow: auto; box-sizing: border-box;`）構成へ是正する。
+      - 親要素（`.flex-1 min-h-0`）との高さ連動を健全化し、長文ドキュメントにおいてマウスホイール・スクロールバーによる滑らかな縦スクロールを完全に復旧する。
+  - **3. 問題点3: Milkdown マウント時シリアライズによる生ソース（インデント）破壊の根本原因分析と抜本的対策**:
+    - **根本原因**:
+      1. `Editor.tsx` の `listenerCtx.mounted` において、無編集のクリーンなファイルであっても Milkdown の `serializer`（`mdast-util-to-markdown`）を実行し、その結果を `onChange(initialSerialized, { isUserInteraction: false })` で通知していた。
+      2. `App.tsx` の `handleContentChange` において、クリーンな状態のタブの場合に `fileContentRef.current` および `savedContentRef.current` を `initialSerialized` で無条件に上書きしていた。これにより、ディスクから読み込まれた生 Markdown（2スペース/4スペースのネストリストインデントや整形済みテキスト）が、ユーザーが一切編集していないにもかかわらず Milkdown のシリアライザ出力によってメモリ上で不可逆的に変形・上書きされていた。
+      3. さらに `Editor.tsx` の `remarkStringifyOptionsCtx` において、ネストされた箇条書きリスト（`- 親\n  - 子`）や連番リストのインデント設定（`listItemIndent: "one"` / `tabWidth`）がデフォルト挙動に依存しており、シリアライズ時にインデント幅が変動する原因となっていた。
+    - **抜本的対策設計**:
+      - **生ソース 100% 完全保護（Raw Markdown Preservation）**: 未編集（クリーン）なファイルにおいて、Milkdown マウント時シリアライズによる `fileContentRef.current` および `savedContentRef.current` の自動上書きを禁止。ディスクから読み込んだ生の生Markdownテキストを基準値として厳格に保持し、未編集のまま直接編集モードに切り替えた場合や保存した場合に、元のインデント・改行・記法が1文字たりとも損なわれないことを保証する。
+      - **ネストリストのインデント保持**: `Editor.tsx` の Markdown シリアライザ（`remarkStringifyOptionsCtx`）において、ネストされたリスト項目のインデントを正確に維持する設定・ハンドラーを是正する。
+      - **Tab / Shift+Tab キー操作と行頭空白描画の完全保証**: `SourceEditor.tsx` において `indentWithTab`（`Prec.highest`）による Tab / Shift+Tab 操作、および `white-space: break-spaces` による連続空白の描画保持を堅持する。
+  - **4. 実証的自動テスト構築・総合品質保証**:
+    - 単なるソースコードの文字列一致検査（`includes` 等）にとどまらず、実際の CSS プロパティ（`display: flex`, `flex-direction: row`, `width: 100%` 排除, `height: 100%`, `overflow: auto`）、Markdown AST のパース＆シリアライズによるネストインデント保持、および直接編集モード切り替え時の生ソース保護を実証的に検証するテストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）を作成し、`scripts/verify-all.mjs` に統合する。
+  - **5. 完成基準**:
+    - ソース直接編集モードにおいて行番号ガター（`.cm-gutters`）と本文（`.cm-content`）が確実に横並び（row）で一体配置され、縦落ちが完全に解消されること。
+    - 長文編集時に CodeMirror 6 標準の仮想スクロールが健全に機能し、マウスホイールおよびスクロールバーによる滑らかな縦スクロールが動作すること。
+    - 未編集のファイルを開いてソース直接編集モードに切り替えても、元の生ソースのインデント・空行・書式が1文字の欠損もなく100%完全に保護されること。
+    - 実証的自動テストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）が `scripts/verify-all.mjs` に統合され、`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy` がすべて Exit Code 0 で通過すること。
+
 ## 改訂履歴
 - 2026-09-26: 初版策定
 - 2026-09-27: 新規ファイル作成機能 (`create_file`) のデータフローを追記
@@ -559,6 +592,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-19: 全体総合レビュー（/review）を実施。for_agent/ 内の仕様書要件と全実装コード（Phase 1〜28、全108タスク）の突き合わせ、仕様整合性確認、バックエンド単体テスト（全40件 passed）、Clippy静的解析（警告0件）、フロントエンドTypeScript型検査・プロダクションビルド（Exit Code 0）、および総合結合テストスイート（全51個別テスト、IPC 15コマンド、ネイティブメニュー 18イベント、ショートカット定義整合性）の全自動検証パス（Exit Code 0）を確認し、仕様・品質整合性を確認・確定。
 - 2026-10-19: 正式版 v1.8.1 リリースビルド準備・バージョン整合性点検（Phase 29 タスク109）の完了。package.json, tauri.conf.json, Cargo.toml のバージョン番号を 1.8.1 へ同期し、成果物検証スクリプトの動的バージョン解決および scripts/verify-release-config.mjs による整合性検証（Exit Code 0）を確認。全検証コマンド（pnpm test / cargo test / cargo check / cargo clippy: Exit Code 0）のパスを確認。
 - 2026-10-19: 正式版 v1.8.1 リリースビルド実行・成果物検証（Phase 29 タスク110）の完了。`pnpm run build:release`（`pnpm test` 全51テスト合格・`tsc` & `vite build` 成功・Rustリリース最適化コンパイル・NSIS/WiXバンドル生成）を正常完了し、リリースバイナリ（`typori.exe`: 6.36 MB）、NSISインストーラ（`Typori_1.8.1_x64-setup.exe`: 3.41 MB）、WiX MSIパッケージ（`Typori_1.8.1_x64_en-US.msi`: 4.06 MB）の生成と `scripts/verify-release-bundle.mjs` による完全性・SHA-256検証（Exit Code 0）を確認。Phase 29 および開発計画全110タスクの完全完了を達成。
+- 2026-10-19: ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化仕様（Phase 30 タスク111）を策定。行番号ガター縦落ち（.cm-content の width: 100% による Flexbox 折り返し）、過剰スタイルによる縦スクロール不能、および Milkdown マウント時シリアライズによる生ソース（インデント）破壊の根本原因分析と再発防止仕様を定義。
 
 
 

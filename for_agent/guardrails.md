@@ -416,6 +416,20 @@
   2. メニュー走査やデータツリー探索などのロジックは、Tauri のランタイムハンドルに依存しない純粋なジェネリック再帰探索ヘルパー（例: `find_in_menu_tree`）としてコアロジックを抽出し、モックデータ構造を用いて単体テストを安全かつ高速に検証すること。
   3. 実機でのメニュー整合性やIPCコマンド検証は、既存の `scripts/verify-native-menu.mjs` および総合結合テストスイート（`pnpm test` / `scripts/verify-all.mjs`）で網羅検証すること。
 
+### 3.32. ソース直接編集モードの行番号ガター縦落ち・スクロール不能および生ソースインデント破壊の防止
+- **事象・ミス**:
+  1. ソース直接編集モードにおいて、行番号ガター（`.cm-gutters`）の下に本文（`.cm-content`）が縦落ちして表示され、エディタレイアウトが縦積みに崩壊する。
+  2. 長文ドキュメントを開いた際、マウスホイールやスクロールバーによる縦スクロールが効かなくなる。
+  3. インデント付きのネストリスト（`- 親\n  - 子` 等）を含むファイルを開いただけで、未編集にもかかわらず生ソースのインデントが崩れたり、モード切り替えでフォーマットが勝手に変形する。
+- **原因**:
+  1. `.cm-content` に `width: 100%` を指定したため、`.cm-gutters` の幅（約50px）と合計してコンテナ幅（100%）を超過し、Flexbox の折り返し・縦落ちが発生していた。
+  2. `.cm-scroller` に `max-height: 100%` や複数の競合する overflow 指定（`overflow: auto`, `overflow-y: auto`）を適用したため、CodeMirror 6 の内部仮想スクロール測定（`view.measure()` / `scrollDOM`）と干渉しスクロール機能が停止していた。
+  3. Milkdown のマウント完了イベント（`listenerCtx.mounted`）において、初回シリアライズ結果で `fileContentRef` および `savedContentRef` を無差別に上書きしていたため、ディスク上の生ソースが破壊されていた。
+- **対策**:
+  1. `.cm-content` から `width: 100%` を完全撤廃し、`.cm-scroller` に `display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: flex-start !important;` を明示して横並びを強制すること。
+  2. `.cm-scroller` は CodeMirror 6 標準の `height: 100%; overflow: auto; box-sizing: border-box;` に統一し、過剰な `max-height` を指定しないこと。
+  3. 未編集のクリーンなファイルにおいては、Milkdown マウント時シリアライズによる生ソースの上書きを一切行わず、ディスクから読み込んだテキストを 100% 保持すること。また Markdown シリアライザ（`remarkStringifyOptionsCtx`）でネストリストのインデント保持を徹底すること。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

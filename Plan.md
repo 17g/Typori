@@ -173,5 +173,13 @@
 - [x] 109. バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.1 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)
 - [x] 110. リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)
 
+## Phase 30: ソース直接編集モードの行番号縦積み崩壊・スクロール不能の完全解消および生ソースインデント・レイアウトの抜本的健全化
+- [x] 111. 仕様策定・原因特定・設計: 行番号ガター縦落ち（`.cm-content` の `width: 100%` による Flexbox 折り返し）、過剰スタイルによる縦スクロール不能、および Milkdown マウント時シリアライズによる生ソース（インデント）破壊の根本原因分析と再発防止仕様を `for_agent/`（`architecture.md`, `guardrails.md`）に策定・反映
+- [ ] 112. エディタスタイル・レイアウト抜本修正（問題点1）: `SourceEditor.tsx` の customTheme において `.cm-content` の `width: 100%` を完全撤廃、`.cm-scroller` に `display: flex !important; flex-direction: row !important;` を明示して行番号ガター（`.cm-gutters`）と本文（`.cm-content`）の確実な横並び・一体化配置を確立
+- [ ] 113. 縦スクロール性健全化（問題点2）: `SourceEditor.tsx` の `.cm-scroller` から `maxHeight: 100%` などの過剰プロパティを排除し、CodeMirror 6 標準の仮想スクロール（`height: 100%; overflow: auto;`）構成へ是正、マウスホイールおよびスクロールバーによる滑らかな縦スクロールを復旧
+- [ ] 114. 生ソースインデント保護・描画修正（問題点3）: 未編集（クリーン）ファイルにおける Milkdown マウント時シリアライズによる生ソース自動上書きを禁止（生ソースを 100% 保護）、`Editor.tsx` の Markdown シリアライザにおけるネストリストのインデント保持改修、および `SourceEditor.tsx` における Tab / Shift+Tab（`indentWithTab`）と行頭空白描画の完全保証
+- [ ] 115. 実証的自動テスト構築・総合品質保証: 単なる文字列一致検査を排除し、実際の CSS スタイルプロパティ（Flexbox 横並び・`width: 100%` 排除・スクロール設定）、Markdown AST のパース＆シリアライズによるネストインデント保持、および直接編集モード切り替え時の生ソース保護を実証的に検証するテストスクリプト（`scripts/verify-source-editor-layout-and-indent.mjs`）の作成と `scripts/verify-all.mjs` への統合、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格確認
+
+
 
 
