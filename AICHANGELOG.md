@@ -1,3 +1,23 @@
+- 2026-10-19: タスク110「リリースビルド実行・成果物検証: `pnpm run build:release` によるリリースバイナリ (`typori.exe`) およびインストーラ（NSIS `.exe` / WiX `.msi`）の生成と完全性確認 (`node scripts/verify-release-bundle.mjs`)」を完了。
+  - **変更理由**: 正式版 v1.8.1 の配布パッケージとして、Phase 28 までの全機能開発（全28フェーズ、全108タスク）および v1.8.1 バージョン同期が反映された最新コードベースに基づくリリースビルドを実行し、Windows 実行可能バイナリ（`typori.exe`）およびインストーラパッケージ（NSIS `.exe` / WiX `.msi`）を生成・検証するため。
+  - **Before**:
+    - リリース成果物が過去のビルド（v1.8.0）のままであった。
+    - `Plan.md`: タスク110が未完了（`- [ ]`）であった。
+  - **After**:
+    - `pnpm run build:release` を実行:
+      1. `pnpm test` (総合結合テスト全51件、全15コマンド、全18メニューイベント、ショートカット定義競合なし) 合格
+      2. `tsc` & `vite build` によるプロダクションバンドル生成
+      3. Rust リリースプロファイル最適化コンパイル（`opt-level = 3`, `lto = true`, `strip = true`）完了
+      4. WiX ツールセット（candle & light）による MSI パッケージ生成
+      5. NSIS（makensis）によるセットアップインストーラ生成
+    - `node scripts/verify-release-bundle.mjs` による完全性検証:
+      - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.36 MB / SHA-256: `733facd04f817797183f653cacf7d3d636579ad6ed41dfcb7d652572b7070aac`)
+      - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_1.8.1_x64-setup.exe` (3.41 MB / SHA-256: `e3d68a231cc8f1d1c42c285ed27accb974a624abc4d0b21ba889bd8cc79184c8`)
+      - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_1.8.1_x64_en-US.msi` (4.06 MB / SHA-256: `57fc7d7e997e053ea8b3a12a5364da568917e12afd0b9a52f91aaa3aeadc7c40`)
+    - `Plan.md`: タスク110を `- [x]` に更新（全110タスク完了）。
+    - `for_agent/architecture.md`: 改訂履歴にタスク110完了を追記。
+  - **影響範囲**: `Plan.md`, `for_agent/architecture.md`, `AICHANGELOG.md`, `src-tauri/target/release/`。
+
 - 2026-10-19: タスク109「バージョン整合性・ビルド設定点検: 各種設定ファイル（package.json / tauri.conf.json / Cargo.toml）のバージョンを 1.8.1 へ同期、検証スクリプト追従、および設定整合性確認 (`node scripts/verify-release-config.mjs`)」を完了。
   - **変更理由**: 正式版 v1.8.1 リリースビルドの生成準備として、フロントエンド（`package.json`）、Tauri設定（`src-tauri/tauri.conf.json`）、バックエンド（`src-tauri/Cargo.toml`）のバージョン番号を `1.8.1` へ一括同期し、成果物検証スクリプトとの整合性を維持し、リリース設定の完全な一貫性を保証するため。
   - **Before**:
