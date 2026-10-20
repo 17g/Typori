@@ -1,3 +1,31 @@
+- 2026-10-20: タスク120「品質保証・自動テスト・テスト版 v1.8.2 リリースビルド: 実機での `Ctrl + /` 押下シミュレーション・ガター横並び・スクロール性・全機能整合性を網羅検証するテストの整備、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格、および `pnpm run build:release` による v1.8.2 テスト版インストーラ・バイナリの生成と成果物完全性検証」を完了。
+  - **変更理由**: Phase 31 で実装されたショートカット誤爆完全防止およびスクロール＆ガターレイアウト完全復旧について、自動検証テスト（`scripts/verify-phase31-fixes.mjs`）を作成し、全体総合結合テスト（`scripts/verify-all.mjs`）に統合して全機能整合性を客観的に担保するとともに、テスト版 v1.8.2 のリリースバイナリおよびインストーラパッケージ（NSIS / MSI）を生成・検証するため。
+  - **Before**:
+    - `scripts/verify-phase31-fixes.mjs`: Phase 31 の修正内容（修飾キー付きショートカットでの `hasUserInteracted` 誤爆防止、二重 `max-width` 排除、CodeMirror 6 仮想スクロール健全性）を網羅検証するテストが存在しなかった。
+    - `scripts/verify-all.mjs`: 個別テスト数が 52件であり、Phase 31 の検証スクリプトが含まれていなかった。
+    - `for_agent/guardrails.md`: 必須検証コマンドの説明が 51件のままであった。
+    - リリース成果物: 旧ビルド（v1.8.1）の成果物であった。
+    - `Plan.md`: タスク120が未完了（`- [ ]`）であった。
+  - **After**:
+    - `scripts/verify-phase31-fixes.mjs`: 新規作成。
+      - Part 1: `Editor.tsx` の `handleKeyDown` 静的コード検証およびキーストロークシミュレーション（`Ctrl + /`, `Ctrl + S`, `Ctrl + C`, `Cmd + K`, `Alt + Tab`, ナビゲーションキー等で `markUserInteracted` が発火しないこと、通常編集キーでは正しく発火することの実証）。
+      - Part 2: `SourceEditor.tsx` のレイアウト検証（外側ラッパーの二重 `max-width` 排除、CodeMirror ルートでの `maxWidth: "900px"` / `margin: "0 auto"` 中央寄せ、`.cm-scroller` の横並び Flexbox `display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;` と CodeMirror 6 標準仮想スクロール `height: 100%; overflow: auto;`、`maxHeight` 排除、`.cm-content` の `width: 100%` 排除と `whiteSpace: "break-spaces"` 行頭インデント保護）。
+      - Part 3: v1.8.2 バージョン整合性検証（`package.json`, `tauri.conf.json`, `Cargo.toml`）。
+    - `scripts/verify-all.mjs`: `testScripts` に `verify-phase31-fixes.mjs` を追加し、全 53 件の個別機能検証テストスイートとして統合。
+    - `for_agent/guardrails.md`: 必須検証コマンド説明を全 53 個別テストに更新。
+    - `for_agent/architecture.md`: 改訂履歴にタスク120完了およびテスト版 v1.8.2 リリースビルド完了を追記。
+    - 全検証コマンド実行・合格:
+      - `pnpm test`: Exit Code 0 (全53個別テスト、IPC 15コマンド、メニュー 18イベント、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+    - `pnpm run build:release` 実行および `node scripts/verify-release-bundle.mjs` による成果物完全性検証:
+      - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.36 MB / SHA-256: `62a9a797c30a0fb48cd91d865a809f29ab073aea8ce5c669d92359d0e29079bb`)
+      - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_1.8.2_x64-setup.exe` (3.41 MB / SHA-256: `de200272309c63ccb6eefb800882ac6054d8ca01af407384ad5a795ce54ad4e6`)
+      - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_1.8.2_x64_en-US.msi` (4.06 MB / SHA-256: `86c7d9d8c2f5a8191638f7d91b8daec9bae89f33f38cd9e1a4764d9ae08126cc`)
+    - `Plan.md`: タスク120を `- [x]` に更新（全120タスク完了）。
+  - **影響範囲**: `scripts/verify-phase31-fixes.mjs`, `scripts/verify-all.mjs`, `for_agent/guardrails.md`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`, `src-tauri/target/release/`。
+
 - 2026-10-20: タスク119「バージョン整合性・ビルド設定点検: 設定ファイル（package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml）のバージョンを 1.8.2 に一括更新し、検証スクリプト追従と設定整合性を確認」を完了。
   - **変更理由**: ソース直接編集モードのショートカット誤爆完全防止およびスクロール＆ガターレイアウト完全復旧（Phase 31）を反映したテスト版 v1.8.2 リリースビルドの生成準備として、フロントエンド（`package.json`）、Tauri設定（`src-tauri/tauri.conf.json`）、バックエンド（`src-tauri/Cargo.toml`）のバージョン番号を一括して `1.8.2` へ更新し、Cargo.lock を同期し、リリース設定およびバージョン整合性を保証するため。
   - **Before**:
