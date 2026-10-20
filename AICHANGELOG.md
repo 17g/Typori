@@ -1,3 +1,20 @@
+- 2026-10-20: ソース直接編集モードにおける20行超ファイルの行番号ガター伸長保証（`style.minHeight` 上書き防止 & `overflow: hidden` クリップ排除）および v1.8.2 リリースパッケージ再生成を完了。
+  - **変更理由**: ソース直接編集モードで20行以上のファイルを開いた際に行番号が最大約20までしか表示されない現象について原因を調査した結果、以下の2点のメカニズムを特定したため：
+    1. **旧ビルド（CSP により `style-mod` がブロックされていた状態）での原因**: CodeMirror 6（`@codemirror/view` の `GutterView`）は全行を一度に描画するのではなく `view.viewportLineBlocks`（可視領域＋バッファ `VP.Margin / 2 = 500px`）のみを描画する。旧ビルドでは `.cm-gutters` の下に `.cm-content` が縦積みになりスクロールも不能だったため、`.cm-content` が画面外下方に押し出されて `visibleBottom = 0` となり、初期バッファ `500px`（`500px ÷ 約24px/行 ≒ 20行`）分の行番号しか生成されていなかった。
+    2. **外部静的 CSS（`src/index.css`）における `min-height: 100% !important` によるクリップ原因**: CodeMirror 6 の `baseTheme` は `.cm-gutters` に `height: 100%`（1画面分のスクローラ高さ＝約500px＝**約20行分**）を設定し、20行を超える文書では `GutterView` がインラインスタイル `this.dom.style.minHeight = (this.view.contentHeight / this.view.scaleY) + "px"` を動的に付与して文書全体の高さまで `.cm-gutters` を伸長させる。しかし `src/index.css` で `.cm-gutters` に `min-height: 100% !important;` および `.cm-gutter` に `overflow: hidden !important;` を指定していたため、`!important` がインライン `style.minHeight` を上書き無効化し、`.cm-gutters` の高さが1画面分（約500px＝20行分）に固定され、21行目以降の行番号が `overflow: hidden` でクリップされていた。
+  - **Before**:
+    - `src/index.css`: `.cm-gutters` に `min-height: 100% !important;`、`.cm-gutter` に `min-height: 100% !important; overflow: hidden !important;` が設定されていた。
+    - `src/components/Editor/SourceEditor.tsx`: `customTheme` の `.cm-gutters` / `.cm-gutter` に `height: "auto"` が明示されていなかった。
+  - **After**:
+    - `src/index.css`: `.cm-gutters` および `.cm-gutter` を `height: auto !important; min-height: 100%;`（`min-height` は非 `!important`）に変更し、`.cm-gutter` から `overflow: hidden !important` を撤廃。CodeMirror の動的インライン `style.minHeight`（`contentHeight`）を 100% 生かし、何百行・何千行のファイルでも末尾まで全行番号が確実に表示されるよう修正。
+    - `src/components/Editor/SourceEditor.tsx`: `customTheme` の `.cm-gutters` および `.cm-gutter` に `height: "auto"` を追加。
+    - `scripts/verify-phase31-fixes.mjs`: `.cm-gutters` に `min-height: 100% !important` が存在しないこと、`.cm-gutter` に `overflow: hidden !important` が存在しないこと、および `height: auto !important; min-height: 100%;` が設定されていることの自動検証アサーションを追加。
+    - リリースビルド再生成 & 検証（`pnpm run build:release` & `node scripts/verify-release-bundle.mjs`）:
+      - 実行バイナリ: `src-tauri/target/release/typori.exe` (6.36 MB / SHA-256: `ea2f0c1477d87da40611a80a53e787f15ef3e8ead03ee0f14519e69ad256f679`)
+      - NSIS インストーラ: `src-tauri/target/release/bundle/nsis/Typori_1.8.2_x64-setup.exe` (3.41 MB / SHA-256: `525c0e74dc5a42a5cee7be0fe7d48e1cd32259db4f5c63852d02e8d8328f010d`)
+      - WiX MSI パッケージ: `src-tauri/target/release/bundle/msi/Typori_1.8.2_x64_en-US.msi` (4.06 MB / SHA-256: `6c4fad578d6456d78015d2df905a110efbabe420697eecb2fa5728a5957e7b6b`)
+  - **影響範囲**: `src/index.css`, `src/components/Editor/SourceEditor.tsx`, `scripts/verify-phase31-fixes.mjs`, `AICHANGELOG.md`, `src-tauri/target/release/`。
+
 - 2026-10-20: 全体総合レビュー（/review）およびタスク121「真因特定・CSP修正・外部静的CSS構築: ソース直接編集モードのインデント消失・スクロール不能・行番号縦積み崩壊の真因（Tauri v2 CSP による CodeMirror style-mod 動的 <style> ブロック）の解明と抜本的解消」を完了。
   - **変更理由**: ユーザーより提供された実機スクリーンショット（01-1〜01-3, 03-1〜03-2）とパッケージビルド挙動の徹底検証の結果、これまでの修正（Phase 28, 30, 31）が実機 Tauri WebView2 上で反映されていなかった単一かつ決定的な真因を突き止めたため：
     1. **真因1（CodeMirror 6 スタイル全面消失）**: `index.html` 内にインライン `<style>` タグが存在する状態で Tauri v2 がビルドを行うと、Tauri は自動的にインライン要素の SHA-256 ハッシュ（`'sha256-...'`）を `tauri.conf.json` の CSP `style-src` に注入する。W3C CSP Level 2/3 仕様により、`style-src` 内にハッシュまたは nonce が1つでも存在すると `'unsafe-inline'` はブラウザ（Chromium / WebView2）によって完全に無視される。一方、CodeMirror 6（`@codemirror/view` が使用する `style-mod`）は基本レイアウト CSS（`.cm-editor`, `.cm-scroller`, `.cm-gutters`, `.cm-content`, `.cm-line`）および `EditorView.theme()` をすべて実行時に `document.createElement("style")` で生成して `document.head` に動的注入するため、ハッシュを持たない `style-mod` の `<style>` タグが WebView2 にすべてブロックされていた。結果として CodeMirror 6 が完全に無スタイル（素の `<div>`）で描画され、① `.cm-line` が `white-space: normal` となって行頭の連続スペース（インデント）がすべてブラウザに縮約消去され左揃えになる（01-2）、② `.cm-scroller` が `display: block` となって `.cm-gutters`（行番号1〜25）の下に `.cm-content`（本文）が縦積みで表示される（03-2）、③ `.cm-scroller` が `height: auto; overflow: visible` となって親の `overflow-hidden` で切り詰められスクロールが一切できなくなる（01-2, 03-2）という全事象が同時に発生していた。

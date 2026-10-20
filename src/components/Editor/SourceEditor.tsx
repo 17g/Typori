@@ -425,6 +425,10 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
           borderRightWidth: "1px",
           borderRightStyle: "solid",
           userSelect: "none",
+          height: "auto",
+        },
+        ".cm-gutter": {
+          height: "auto",
         },
         ".cm-lineNumbers .cm-gutterElement": {
           padding: "0 8px 0 12px",

@@ -482,3 +482,9 @@
    - **対策**: 今後再発させないための実装ルール・検証手順
 2. **テストスクリプトの整備**:
    再発防止ルールを策定したら、可能な限り `scripts/verify-*.mjs` に自動検証を追加し、`scripts/verify-all.mjs` に組み込むこと。
+3. **CodeMirror 6 ガター行番号が約20行目までしか表示されない現象の防止**:
+   - **事象**: 20行以上のファイルをソース直接編集モードで開いた際、行番号が最大でも20付近までしか表示されない。
+   - **原因**:
+     1) 旧ビルド（CSP により `style-mod` がブロックされていた状態）では、`.cm-gutters` の下に `.cm-content` が縦積みになりスクロールも不能だったため、`.cm-content` が画面下へ押し出されて `visibleBottom = 0` となり、CodeMirror の仮想ビューポート（`viewportLineBlocks`）が初期バッファ `VP.Margin / 2 = 500px`（`500px ÷ 約24px/行 ≒ 20行`）分の行番号しか生成しなかった。
+     2) また、外部 CSS（`src/index.css`）で `.cm-gutters` に `min-height: 100% !important;` を指定すると、CodeMirror の `GutterView` が文書全体の高さに合わせて動的に付与するインラインスタイル `this.dom.style.minHeight = (this.view.contentHeight / this.view.scaleY) + "px"`（非 `!important`）が `!important` によって上書き無効化され、`.cm-gutters` の高さが `baseTheme` の `height: 100%`（1画面分＝約500px＝**20行分**）に固定されてしまい、`.cm-gutter` の `overflow: hidden` によって21行目以降の行番号がすべてクリップされる。
+   - **対策**: `.cm-gutters` および `.cm-gutter` には `height: auto !important; min-height: 100%;`（`min-height` には `!important` を付けない）を指定し、`.cm-gutter` に `overflow: hidden !important` を指定しないこと。これにより CodeMirror のインライン `style.minHeight`（`contentHeight`）が正常に優先され、何百行・何千行のファイルでも末尾まで全ての行番号が表示される。

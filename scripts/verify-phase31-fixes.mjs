@@ -213,8 +213,16 @@ assert.match(
 );
 assert.match(
   indexCssContent,
-  /\.cm-gutters\s*\{[\s\S]*?flex-shrink:\s*0\s*!important;/,
-  "src/index.css に .cm-gutters の flex-shrink: 0 静的保証が存在すること"
+  /\.cm-gutters\s*\{[\s\S]*?flex-shrink:\s*0\s*!important;[\s\S]*?height:\s*auto\s*!important;[\s\S]*?min-height:\s*100%;/,
+  "src/index.css に .cm-gutters の flex-shrink: 0, height: auto !important, min-height: 100% (インライン minHeight を阻害しない非!important) 保証が存在すること"
+);
+assert.ok(
+  !/\.cm-gutters\s*\{[^}]*min-height:\s*100%\s*!important/.test(indexCssContent),
+  ".cm-gutters に CodeMirror の動的 style.minHeight (contentHeight) を上書きして20行目以降の行番号を見切れさせる min-height: 100% !important が存在しないこと"
+);
+assert.ok(
+  !/\.cm-gutter\s*\{[^}]*overflow:\s*hidden\s*!important/.test(indexCssContent),
+  ".cm-gutter に20行目以降の行番号をクリップする overflow: hidden !important が存在しないこと"
 );
 assert.match(
   indexCssContent,
