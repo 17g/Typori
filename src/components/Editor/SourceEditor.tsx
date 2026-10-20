@@ -4,7 +4,7 @@ import { EditorSelection } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags as t } from "@lezer/highlight";
+import { tags as t, classHighlighter } from "@lezer/highlight";
 import { indentWithTab } from "@codemirror/commands";
 import { clearInlineFormatting } from "../../utils/format";
 
@@ -451,7 +451,10 @@ export const SourceEditor = forwardRef<SourceEditorRef, SourceEditorProps>(
   }, [theme]);
 
   const highlightExtension = useMemo(() => {
-    return syntaxHighlighting(theme === "dark" ? typoriDarkHighlightStyle : typoriLightHighlightStyle);
+    return [
+      syntaxHighlighting(classHighlighter),
+      syntaxHighlighting(theme === "dark" ? typoriDarkHighlightStyle : typoriLightHighlightStyle),
+    ];
   }, [theme]);
 
   const markdownExtension = useMemo(() => {

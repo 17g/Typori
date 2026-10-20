@@ -923,7 +923,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
                     const serializer = innerCtx.get(serializerCtx);
                     if (editorView && serializer) {
                       const initialSerialized = normalizeLineEndings(serializer(editorView.state.doc));
-                      prevContentRef.current = initialSerialized;
+                      // 未編集（!hasUserInteractedRef.current && !isDirty）の間は prevContentRef.current の
+                      // 生ソース（initialValue）を絶対に上書きせず100%保護する
                       onChangeRef.current?.(initialSerialized, { isUserInteraction: false });
                     }
                   }
@@ -934,8 +935,10 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
             });
             ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
               const normalized = normalizeLineEndings(markdown);
-              prevContentRef.current = normalized;
               const isUser = hasUserInteractedRef.current;
+              if (isUser || isDirty) {
+                prevContentRef.current = normalized;
+              }
               onChangeRef.current?.(normalized, { isUserInteraction: isUser });
             });
             ctx.get(listenerCtx).selectionUpdated((ctx) => {

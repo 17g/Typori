@@ -188,3 +188,5 @@
 - [x] 119. バージョン整合性・ビルド設定点検: 設定ファイル（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）のバージョンを `1.8.2` に一括更新し、検証スクリプト追従と設定整合性を確認
 - [x] 120. 品質保証・自動テスト・テスト版 v1.8.2 リリースビルド: 実機での `Ctrl + /` 押下シミュレーション・ガター横並び・スクロール性・全機能整合性を網羅検証するテストの整備、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格、および `pnpm run build:release` による v1.8.2 テスト版インストーラ・バイナリの生成と成果物完全性検証
 
+## Phase 32: ソース直接編集モードのインデント消失・スクロール不能・行番号縦積み崩壊の真因（Tauri CSP style-mod ブロック）解明と抜本的解消
+- [x] 121. 真因特定・CSP修正・外部静的CSS構築: Tauri v2 の自動 CSP ハッシュ注入による `'unsafe-inline'` 無効化（CodeMirror 6 `style-mod` の動的 `<style>` ブロック）を解消するため `src-tauri/tauri.conf.json` に `"dangerousDisableAssetCspModification": true` を設定し、`src/index.css` に CodeMirror 6 静的レイアウト・スクロール・インデント保護（`white-space: break-spaces !important`）・シンタックスハイライト（`.tok-*`）CSS を実装、`SourceEditor.tsx` に `classHighlighter` を統合、`Editor.tsx` の未編集時 `prevContentRef` 生ソース保護を強化、自動検証テストおよびリリースビルドを更新

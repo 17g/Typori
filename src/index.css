@@ -484,5 +484,321 @@
   opacity: 1 !important;
 }
 
+/* ==========================================================================
+   Source Direct Editing Mode (CodeMirror 6) Static & Fallback Layout Styles
+   --------------------------------------------------------------------------
+   Tauri v2 の CSP ハッシュ・nonce 制御等によりランタイム <style> (style-mod)
+   が万が一制限された環境下でも、外部スタイルシート (index.css) によって
+   1. ガター (.cm-gutters) と本文 (.cm-content) の確実な横並び (flex-direction: row)
+   2. 縦スクロール (.cm-scroller height: 100%, overflow: auto) の完全動作
+   3. 行頭インデント空白 (white-space: break-spaces) の 100% 保持
+   4. シンタックスハイライト (.tok-*) とテーマ配色
+   を恒久的に保証する。
+   ========================================================================== */
+
+.cm-theme,
+.cm-theme-light,
+.cm-theme-dark {
+  height: 100% !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.cm-editor {
+  position: relative !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  width: 100% !important;
+  max-width: 900px !important;
+  margin: 0 auto !important;
+  min-height: 0 !important;
+  font-size: 14px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  background-color: #ffffff;
+  color: #27272a;
+}
+
+.dark .cm-editor {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+
+.cm-editor.cm-focused {
+  outline: none !important;
+}
+
+.cm-scroller {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: flex-start !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  line-height: 1.7 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  position: relative !important;
+  z-index: 0 !important;
+  box-sizing: border-box !important;
+  padding-bottom: 120px !important;
+  overflow-anchor: none;
+}
+
+.cm-gutters {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  min-height: 100% !important;
+  box-sizing: border-box !important;
+  z-index: 200 !important;
+  position: sticky !important;
+  left: 0 !important;
+  user-select: none !important;
+  background-color: #ffffff;
+  border-right: 1px solid #f4f4f5;
+  color: #a1a1aa;
+}
+
+.dark .cm-gutters {
+  background-color: #18181b;
+  border-right-color: #27272a;
+  color: #71717a;
+}
+
+.cm-gutter {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cm-gutterElement {
+  box-sizing: border-box !important;
+}
+
+.cm-lineNumbers .cm-gutterElement {
+  padding: 0 8px 0 12px !important;
+  min-width: 36px !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+.cm-content {
+  margin: 0 !important;
+  padding: 24px 32px !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  min-height: 100% !important;
+  flex-grow: 1 !important;
+  flex-shrink: 1 !important;
+  display: block !important;
+  outline: none !important;
+  white-space: pre-wrap !important;
+  white-space: break-spaces !important;
+  word-Break: break-word !important;
+  overflow-wrap: anywhere !important;
+  tab-size: 2 !important;
+  caret-color: #18181b;
+}
+
+.dark .cm-content {
+  caret-color: #f4f4f5;
+}
+
+.cm-lineWrapping {
+  white-space: pre-wrap !important;
+  white-space: break-spaces !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  flex-shrink: 1 !important;
+}
+
+.cm-line {
+  display: block !important;
+  padding: 0 2px 0 6px !important;
+  white-space: pre-wrap !important;
+  white-space: break-spaces !important;
+  tab-size: 2 !important;
+}
+
+.cm-activeLine {
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+.dark .cm-activeLine {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.cm-activeLineGutter {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+  color: #6366f1 !important;
+  font-weight: 600 !important;
+}
+
+.dark .cm-activeLineGutter {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #818cf8 !important;
+  font-weight: 600 !important;
+}
+
+.cm-layer {
+  user-select: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  contain: size style;
+}
+
+.cm-layer > * {
+  position: absolute;
+}
+
+.cm-cursorLayer {
+  pointer-events: none;
+}
+
+.cm-cursor,
+.cm-dropCursor {
+  border-left: 1.5px solid #18181b;
+  margin-left: -0.6px;
+  pointer-events: none;
+}
+
+.dark .cm-cursor,
+.dark .cm-dropCursor {
+  border-left-color: #f4f4f5;
+}
+
+.cm-selectionBackground {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.dark .cm-selectionBackground {
+  background: rgba(99, 102, 241, 0.28);
+}
+
+.cm-selectionMatch {
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+.dark .cm-selectionMatch {
+  background-color: rgba(99, 102, 241, 0.3);
+}
+
+/* CodeMirror classHighlighter (.tok-*) 静的シンタックスハイライトスタイル */
+.cm-editor .tok-heading {
+  color: #09090b;
+  font-weight: 700;
+}
+.dark .cm-editor .tok-heading {
+  color: #fafafa;
+  font-weight: 700;
+}
+.cm-editor .tok-strong {
+  font-weight: 700;
+}
+.cm-editor .tok-emphasis {
+  font-style: italic;
+}
+.cm-editor .tok-strikethrough {
+  text-decoration: line-through;
+}
+.cm-editor .tok-link {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+.dark .cm-editor .tok-link {
+  color: #818cf8;
+  text-decoration: underline;
+}
+.cm-editor .tok-url {
+  color: #6366f1;
+}
+.dark .cm-editor .tok-url {
+  color: #a5b4fc;
+}
+.cm-editor .tok-monospace {
+  color: #0284c7;
+}
+.dark .cm-editor .tok-monospace {
+  color: #38bdf8;
+}
+.cm-editor .tok-keyword,
+.cm-editor .tok-operatorKeyword,
+.cm-editor .tok-modifier {
+  color: #7c3aed;
+}
+.dark .cm-editor .tok-keyword,
+.dark .cm-editor .tok-operatorKeyword,
+.dark .cm-editor .tok-modifier {
+  color: #a78bfa;
+}
+.cm-editor .tok-string,
+.cm-editor .tok-string2 {
+  color: #059669;
+}
+.dark .cm-editor .tok-string,
+.dark .cm-editor .tok-string2 {
+  color: #34d399;
+}
+.cm-editor .tok-comment {
+  color: #71717a;
+  font-style: italic;
+}
+.dark .cm-editor .tok-comment {
+  color: #a1a1aa;
+  font-style: italic;
+}
+.cm-editor .tok-number,
+.cm-editor .tok-bool,
+.cm-editor .tok-atom {
+  color: #ea580c;
+}
+.dark .cm-editor .tok-number,
+.dark .cm-editor .tok-bool,
+.dark .cm-editor .tok-atom {
+  color: #fb923c;
+}
+.cm-editor .tok-variableName {
+  color: #27272a;
+}
+.dark .cm-editor .tok-variableName {
+  color: #f4f4f5;
+}
+.cm-editor .tok-propertyName {
+  color: #2563eb;
+}
+.dark .cm-editor .tok-propertyName {
+  color: #60a5fa;
+}
+.cm-editor .tok-typeName,
+.cm-editor .tok-className,
+.cm-editor .tok-namespace {
+  color: #0891b2;
+}
+.dark .cm-editor .tok-typeName,
+.dark .cm-editor .tok-className,
+.dark .cm-editor .tok-namespace {
+  color: #22d3ee;
+}
+.cm-editor .tok-punctuation,
+.cm-editor .tok-meta {
+  color: #71717a;
+}
+.dark .cm-editor .tok-punctuation,
+.dark .cm-editor .tok-meta {
+  color: #a1a1aa;
+}
+
+
 
 

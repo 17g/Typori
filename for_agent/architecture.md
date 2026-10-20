@@ -526,6 +526,29 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     - 全自動検証スイート（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）が Exit Code 0 でパスすること。
     - v1.8.2 のリリース成果物が生成され、完全性検証に合格すること。
 
+- ソース直接編集モードのインデント消失・スクロール不能・行番号ガター縦積み崩壊の真因解明と完全解消仕様 (Phase 32 / 総合レビュー):
+  - **真因の特定 (Root Cause Analysis)**:
+    - **1. Tauri v2 の自動 CSP ハッシュ/nonce 注入による CodeMirror `style-mod` 動的 `<style>` タグの全面ブロック**:
+      - `index.html` には起動高速化（ゼロフラッシュ）用のインライン `<style>` タグが存在し、`src-tauri/tauri.conf.json` には `style-src 'self' 'unsafe-inline' data:;` を含む CSP が設定されていた。
+      - Tauri v2 はビルド・バンドル時に `index.html` 内のインライン `<style>` タグの SHA-256 ハッシュ（`'sha256-...'`）または nonce を自動計算し、CSP の `style-src` ディレクティブへ自動注入する仕様を持つ（`dangerousDisableAssetCspModification` が未設定の場合）。
+      - W3C CSP Level 2/3 仕様および Chromium (WebView2) の実装では、**`style-src` 内に1つでもハッシュ（`'sha256-...'`）または `'nonce-...'` が存在すると、`'unsafe-inline'` は完全に無視（無効化）される**。
+      - 一方、CodeMirror 6（`@codemirror/view` + `style-mod`）はすべての基本レイアウト CSS および `EditorView.theme()`・`HighlightStyle` のスタイルを、実行時に `document.createElement("style")` で生成したインライン `<style>` タグとして `document.head` に動的注入する。
+      - その結果、実機（Tauri WebView2）環境では `style-mod` が生成した `<style>` タグが CSP 違反としてすべてブラウザにブロックされ、CodeMirror 6 に CSS が一切適用されない状態（素の `<div>` 状態）に陥っていた。これが以下の全事象の単一かつ決定的な真因であった：
+        - **インデントがすべて左揃えに消える現象 (`01-2`)**: `style-mod` の CSS がブロックされたため、`.cm-content` および `.cm-line` が HTML 標準の `white-space: normal` にフォールバックし、行頭の連続半角スペース（`  - バックエンドに...`）がブラウザの空白縮約規則によってすべて消去され左揃えで描画されていた。
+        - **行番号の後に本文が縦積み表示される現象 (`03-2`)**: `style-mod` の `.cm-scroller { display: flex !important; }` がブロックされたため、`.cm-scroller` が標準の `display: block` となり、子要素の `<div class="cm-gutters">`（行番号 1〜25）の下に `<div class="cm-content">`（本文）が縦積みのブロック要素として描画されていた。
+        - **縦スクロールが一切できない現象 (`01-2`, `03-2`)**: `style-mod` の `.cm-editor { height: 100%; }` および `.cm-scroller { height: 100%; overflow-x: auto; }` がブロックされたため、`.cm-scroller` がコンテンツ全長に伸びきり、親ラッパーの `overflow-hidden` で切り詰められてスクロール不能となっていた。
+    - **2. 未編集時の `Editor.tsx` 内部 `prevContentRef` 上書きリスク**:
+      - `Editor.tsx` の `listenerCtx.mounted` および `markdownUpdated` において、ユーザー未操作（`!hasUserInteractedRef.current`）であっても `prevContentRef.current` を Milkdown のシリアライズ結果で更新していたため、万一 `editorRef.current.getMarkdown()` が呼ばれた際に生ソースではなくシリアライズ結果（空パラグラフの `<br />` 等を含む）が返却されるリスクがあった。
+  - **抜本的解決策 (Defense-in-Depth Architecture)**:
+    1. **Tauri v2 CSP ハッシュ自動注入の無効化 (`src-tauri/tauri.conf.json`)**:
+       - `app.security` に `"dangerousDisableAssetCspModification": true` を設定し、Tauri ビルド時の `sha256-...` / `nonce-...` 自動注入を無効化。これにより `style-src 'self' 'unsafe-inline' data:;` の `'unsafe-inline'` が WebView2 で確実に機能し、CodeMirror 6 (`style-mod`) のランタイム `<style>` 注入を 100% 許可する。
+    2. **外部静的 CSS (`src/index.css`) による CodeMirror 6 完全フォールバック保証**:
+       - ランタイム `<style>` 注入の成否に一切依存しない二重の安全網として、Vite により外部 CSS ファイルとしてバンドルされる `src/index.css` に CodeMirror 6 の全必須レイアウト規則（`.cm-editor`, `.cm-scroller` の `display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; height: 100% !important; overflow-y: auto !important;`, `.cm-gutters` の `flex-shrink: 0 !important;`, `.cm-content` / `.cm-line` の `white-space: break-spaces !important; tab-size: 2 !important;`）および `@lezer/highlight` の `classHighlighter`（`.tok-*` クラス）向けシンタックスハイライト規則を静的に定義する。
+    3. **`SourceEditor.tsx` における `classHighlighter` 併用**:
+       - `syntaxHighlighting(classHighlighter)` と `HighlightStyle` を併用し、静的 CSS クラス（`.tok-*`）と `style-mod` 動的クラスの両面でシンタックスハイライトを保証する。
+    4. **`Editor.tsx` における未編集時の `prevContentRef` 完全保護**:
+       - `hasUserInteractedRef.current === false && !isDirty` の間は `prevContentRef.current` を初期生テキスト（`initialValue`）のまま厳格に保持し、Milkdown の初回シリアライズ結果で上書きしない。
+
 ## 改訂履歴
 - 2026-09-26: 初版策定
 - 2026-09-27: 新規ファイル作成機能 (`create_file`) のデータフローを追記
@@ -627,6 +650,4 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-19: エディタ修正（問題2、Phase 31 タスク118）の実装および検証完了。`SourceEditor.tsx` の CodeMirror コンポーネント外側ラッパーから二重 `max-w-[900px] mx-auto` を撤廃し、画面幅一杯（`w-full h-full`）の柔軟なコンテナに変更。中央寄せを内側 `.cm-editor`（`maxWidth: 900px, margin: 0 auto`）に集約し、CodeMirror 6 標準のガター横並び（`.cm-gutters` と `.cm-content`）および `.cm-scroller` の完全な縦スクロール（マウスホイール・ドラッグスクロール）を復旧。検証スクリプト（`scripts/verify-source-editor-indent-and-scroll.mjs`）のアサーションを追従・更新し、総合テスト（`pnpm test`: 全52件合格）および全検証コマンド（`pnpm run build` / `cargo test`: Exit Code 0）のパスを確認。
 - 2026-10-20: バージョン整合性・ビルド設定点検（Phase 31 タスク119）の完了。package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml のバージョン番号を 1.8.2 に一括更新し、Cargo.lock を同期。scripts/verify-release-config.mjs による設定整合性検証（Exit Code 0）および全検証コマンド（pnpm test 全52件パス / pnpm run build 成功 / cargo test 40件全パス / cargo clippy 警告0件）の合格を確認。
 - 2026-10-20: 品質保証・自動テスト・テスト版 v1.8.2 リリースビルド（Phase 31 タスク120）の完了。実機での `Ctrl + /` 押下シミュレーション・二重 max-width 排除・ガター横並び・スクロール性・全機能整合性を網羅検証する自動テストスクリプト（`scripts/verify-phase31-fixes.mjs`）を作成し、全体総合結合テスト（`scripts/verify-all.mjs`: 全53個別テスト）に統合。全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認。`pnpm run build:release` によるテスト版 v1.8.2 リリースバイナリ（`typori.exe`: 6.36 MB）、NSISインストーラ（`Typori_1.8.2_x64-setup.exe`: 3.41 MB）、WiX MSIパッケージ（`Typori_1.8.2_x64_en-US.msi`: 4.06 MB）の生成と `scripts/verify-release-bundle.mjs` による成果物完全性・SHA-256検証（Exit Code 0）を完了し、開発計画全120タスクの完全完了を達成。
-
-
-
+- 2026-10-20: 全体総合レビュー（/review）およびソース直接編集モードのインデント消失・スクロール不能・行番号ガター縦積み崩壊の真因解明と抜本的解消（Phase 32）を完了。Tauri v2 の自動 CSP ハッシュ注入が WebView2 で `'unsafe-inline'` を無効化し CodeMirror 6 (`style-mod`) の動的 `<style>` タグを全面ブロックしていた真因を特定・解消（`tauri.conf.json` への `dangerousDisableAssetCspModification: true` 設定、`src/index.css` への CodeMirror 6 静的レイアウト・`.tok-*` ハイライト CSS 定義、`SourceEditor.tsx` での `classHighlighter` 併用、`Editor.tsx` の未編集時 `prevContentRef` 生ソース保護）。`scripts/verify-phase31-fixes.mjs` を拡充し、全自動検証コマンド（`pnpm test` 全53件 / `pnpm run build` / `cargo test` 全40件 / `cargo clippy`）の合格を確認。

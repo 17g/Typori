@@ -441,6 +441,22 @@
   1. `Editor.tsx` の `handleKeyDown` では、`e.ctrlKey || e.metaKey || e.altKey` を含むキー押下での `markUserInteracted()` 呼び出しを一律禁止し、通常文字入力や改変キー（Enter, Backspace 等）のみに限定すること。
   2. `SourceEditor.tsx` の外側ラッパーは画面幅一杯（`w-full h-full`）とし、中央寄せ最大幅は `.cm-editor` のみで一元管理すること。
 
+### 3.34. Tauri v2 の CSP ハッシュ自動注入による `'unsafe-inline'` 無効化と CodeMirror 6 (`style-mod`) スタイル全面消失の防止
+- **事象・ミス**:
+  1. ソースコード上では `SourceEditor.tsx` の `EditorView.theme()` に `display: flex !important; flex-direction: row !important;` や `whiteSpace: "break-spaces"`、`height: "100%"`、`overflow: "auto"` を正しく記述しているにもかかわらず、実際の Tauri アプリ上では以下の現象が同時に発生する：
+     - ソース直接編集モードに切り替えると、ネストされた箇条書き等の行頭インデント（2スペース等）がすべて消えて左揃えになる。
+     - マウスホイールやスクロールバーによる縦スクロールが一切できない。
+     - 行番号表示を有効にすると、まず行番号（1〜25等）が縦一列に表示され、その下（行番号の後）にソース本文が縦積みで表示される。
+     - フォントが等幅にならず、シンタックスハイライトも一切適用されない。
+- **原因**:
+  1. `index.html` 内にインライン `<style>` または `<script>` が存在する状態で Tauri v2 がアセットを処理すると、Tauri は自動的にインライン要素の SHA-256 ハッシュ（`'sha256-...'`）や nonce を計算し、`tauri.conf.json` の `security.csp` 内の `style-src` / `script-src` に自動注入する。
+  2. W3C CSP Level 2/3 仕様により、**`style-src` にハッシュまたは nonce が1つでも含まれると、同じディレクティブ内の `'unsafe-inline'` はブラウザ（Chromium / WebView2）によって完全に無視される**。
+  3. CodeMirror 6（`@codemirror/view` が使用する `style-mod` ライブラリ）は、基本レイアウト CSS（`.cm-editor`, `.cm-scroller`, `.cm-gutters`, `.cm-content`, `.cm-line`）およびカスタムテーマをすべて実行時に `document.createElement("style")` で生成して `document.head` に動的挿入するため、ハッシュを持たない `style-mod` の `<style>` タグが WebView2 の CSP によってすべてブロックされる。
+  4. その結果、CodeMirror の全要素がスタイルなしの素の `<div>`（`display: block`, `white-space: normal`, `height: auto`）として描画され、「インデント空白縮約」「行番号と本文の縦積み」「スクロール不能」が同時に引き起こされていた。
+- **対策**:
+  1. `src-tauri/tauri.conf.json` の `app.security` に必ず `"dangerousDisableAssetCspModification": true` を設定し、Tauri による CSP ハッシュ/nonce の自動注入を抑止して `style-src 'self' 'unsafe-inline'` を有効に保つこと。
+  2. 万一 `style-mod` の動的スタイル注入が阻害された場合でもレイアウト・スクロール・インデント・ハイライトが絶対に崩壊しないよう、外部 CSS ファイル（`src/index.css`）に CodeMirror 6 の必須構造スタイル（`.cm-editor`, `.cm-scroller`, `.cm-gutters`, `.cm-content`, `.cm-line` の Flexbox 横並び・縦スクロール・`white-space: break-spaces !important`）および `@lezer/highlight` の `classHighlighter`（`.tok-*`）用スタイルを静的に定義しておくこと。
+
 ---
 
 ## 4. OS・シェル非依存実行ガイドライン（Windows環境での作業規則）

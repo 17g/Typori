@@ -185,11 +185,66 @@ assert.ok(
 console.log("✓ .cm-content の幅潰れ防止・行頭空白保護（whiteSpace: break-spaces）が正常です");
 
 
-// [Part 3] バージョン整合性検証 (v1.8.2)
-console.log("\n--- [Part 3] v1.8.2 バージョン整合性検証 ---");
+// [Part 3] Tauri v2 CSP による style-mod ブロック解除 & 外部静的CSS 二重保護検証
+console.log("\n--- [Part 3] Tauri v2 CSP style-mod ブロック解除 & 外部静的CSS (src/index.css) 二重保護検証 ---");
+
+const tauriConfPath = path.resolve(projectRoot, "src-tauri/tauri.conf.json");
+const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
+assert.equal(
+  tauriConf.app?.security?.dangerousDisableAssetCspModification,
+  true,
+  "tauri.conf.json の app.security.dangerousDisableAssetCspModification が true であり、Tauri v2 の sha256/nonce 自動注入による 'unsafe-inline' 無効化（CodeMirror style-mod ブロック）が防止されていること"
+);
+console.log("✓ tauri.conf.json: dangerousDisableAssetCspModification: true により style-mod の動的 <style> ブロックを完全防止");
+
+const indexCssPath = path.resolve(projectRoot, "src/index.css");
+assert.ok(fs.existsSync(indexCssPath), "src/index.css が存在すること");
+const indexCssContent = fs.readFileSync(indexCssPath, "utf-8").replace(/\r\n/g, "\n");
+
+assert.match(
+  indexCssContent,
+  /\.cm-editor\s*\{[\s\S]*?display:\s*flex\s*!important;[\s\S]*?flex-direction:\s*column\s*!important;[\s\S]*?height:\s*100%\s*!important;/,
+  "src/index.css に .cm-editor の静的高さ・Flexレイアウト保証が存在すること"
+);
+assert.match(
+  indexCssContent,
+  /\.cm-scroller\s*\{[\s\S]*?display:\s*flex\s*!important;[\s\S]*?flex-direction:\s*row\s*!important;[\s\S]*?flex-wrap:\s*nowrap\s*!important;[\s\S]*?overflow-y:\s*auto\s*!important;/,
+  "src/index.css に .cm-scroller の横並び (flex-direction: row !important; flex-wrap: nowrap !important) と縦スクロール (overflow-y: auto !important) の静的CSS保証が存在すること"
+);
+assert.match(
+  indexCssContent,
+  /\.cm-gutters\s*\{[\s\S]*?flex-shrink:\s*0\s*!important;/,
+  "src/index.css に .cm-gutters の flex-shrink: 0 静的保証が存在すること"
+);
+assert.match(
+  indexCssContent,
+  /\.cm-content\s*\{[\s\S]*?min-width:\s*0\s*!important;[\s\S]*?flex-grow:\s*1\s*!important;[\s\S]*?white-space:\s*break-spaces\s*!important;/,
+  "src/index.css に .cm-content の min-width: 0, flex-grow: 1, white-space: break-spaces !important 静的保証が存在すること"
+);
+assert.match(
+  indexCssContent,
+  /\.cm-line\s*\{[\s\S]*?white-space:\s*break-spaces\s*!important;/,
+  "src/index.css に .cm-line の white-space: break-spaces !important（行頭スペース・インデント完全保持）静的保証が存在すること"
+);
+assert.ok(
+  indexCssContent.includes(".tok-heading") && indexCssContent.includes(".tok-keyword"),
+  "src/index.css に classHighlighter (.tok-*) 用の静的シンタックスハイライト規則が存在すること"
+);
+assert.ok(
+  sourceEditorContent.includes("classHighlighter") && sourceEditorContent.includes("syntaxHighlighting(classHighlighter)"),
+  "SourceEditor.tsx で classHighlighter が併用されていること"
+);
+assert.ok(
+  !editorContent.includes("prevContentRef.current = initialSerialized;"),
+  "Editor.tsx の mounted フックで未編集時に prevContentRef.current が initialSerialized で上書きされないこと"
+);
+console.log("✓ src/index.css 外部静的CSS保証、classHighlighter 併用、および Editor.tsx の prevContentRef 生ソース保護を確認");
+
+
+// [Part 4] バージョン整合性検証 (v1.8.2)
+console.log("\n--- [Part 4] v1.8.2 バージョン整合性検証 ---");
 
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(projectRoot, "package.json"), "utf-8"));
-const tauriConf = JSON.parse(fs.readFileSync(path.resolve(projectRoot, "src-tauri/tauri.conf.json"), "utf-8"));
 const cargoToml = fs.readFileSync(path.resolve(projectRoot, "src-tauri/Cargo.toml"), "utf-8");
 
 assert.equal(packageJson.version, "1.8.2", "package.json のバージョンが 1.8.2 であること");
