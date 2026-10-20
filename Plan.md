@@ -185,6 +185,6 @@
 - [x] 117. エディタ修正 (問題1): `Editor.tsx` の `handleKeyDown` において `e.ctrlKey || e.metaKey || e.altKey` を含むキー押下での `markUserInteracted` 発火を厳格に抑止し、`Ctrl + /` でのモード切替時に未編集ファイルの生ソース（インデント等）が 100% 確実に保護されるように改修
 
 - [x] 118. エディタ修正 (問題2): `SourceEditor.tsx` のレイアウトを抜本的に再設計し、二重 `max-width: 900px` を解消、CodeMirror 6 標準のガター横並び（`.cm-gutters` と `.cm-content`）および `.cm-scroller` の完全な縦スクロール（マウスホイール・ドラッグスクロール）を復旧
-- [ ] 119. バージョン整合性・ビルド設定点検: 設定ファイル（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）のバージョンを `1.8.2` に一括更新し、検証スクリプト追従と設定整合性を確認
+- [x] 119. バージョン整合性・ビルド設定点検: 設定ファイル（`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`）のバージョンを `1.8.2` に一括更新し、検証スクリプト追従と設定整合性を確認
 - [ ] 120. 品質保証・自動テスト・テスト版 v1.8.2 リリースビルド: 実機での `Ctrl + /` 押下シミュレーション・ガター横並び・スクロール性・全機能整合性を網羅検証するテストの整備、全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`）の合格、および `pnpm run build:release` による v1.8.2 テスト版インストーラ・バイナリの生成と成果物完全性検証
 

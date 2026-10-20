@@ -1,3 +1,26 @@
+- 2026-10-20: タスク119「バージョン整合性・ビルド設定点検: 設定ファイル（package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml）のバージョンを 1.8.2 に一括更新し、検証スクリプト追従と設定整合性を確認」を完了。
+  - **変更理由**: ソース直接編集モードのショートカット誤爆完全防止およびスクロール＆ガターレイアウト完全復旧（Phase 31）を反映したテスト版 v1.8.2 リリースビルドの生成準備として、フロントエンド（`package.json`）、Tauri設定（`src-tauri/tauri.conf.json`）、バックエンド（`src-tauri/Cargo.toml`）のバージョン番号を一括して `1.8.2` へ更新し、Cargo.lock を同期し、リリース設定およびバージョン整合性を保証するため。
+  - **Before**:
+    - `package.json`: `"version": "1.8.1"`
+    - `src-tauri/tauri.conf.json`: `"version": "1.8.1"`
+    - `src-tauri/Cargo.toml`: `version = "1.8.1"`
+    - `src-tauri/Cargo.lock`: `version = "1.8.1"`
+    - `Plan.md`: タスク119が未完了（`- [ ]`）
+  - **After**:
+    - `package.json`: `"version": "1.8.2"`
+    - `src-tauri/tauri.conf.json`: `"version": "1.8.2"`
+    - `src-tauri/Cargo.toml`: `version = "1.8.2"`
+    - `src-tauri/Cargo.lock`: `version = "1.8.2"`
+    - `Plan.md`: タスク119を `- [x]` に更新
+    - 検証結果:
+      - `node scripts/verify-release-config.mjs`: Exit Code 0 (バージョン整合性・バンドル設定・アイコンアセット5件・Cargo最適化プロファイル 全項目合格)
+      - `cargo check`: Exit Code 0 (typori v1.8.2 コンパイル成功)
+      - `cargo test`: Exit Code 0 (全40件 passed)
+      - `cargo clippy -- -D warnings`: Exit Code 0 (警告0件)
+      - `pnpm test`: Exit Code 0 (全52個別テスト、IPCコマンド整合性15件、メニューイベント整合性18件、ショートカット定義競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+  - **影響範囲**: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `for_agent/architecture.md`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-19: タスク118「エディタ修正 (問題2): SourceEditor.tsx のレイアウトを抜本的に再設計し、二重 max-width: 900px を解消、CodeMirror 6 標準のガター横並び（.cm-gutters と .cm-content）および .cm-scroller の完全な縦スクロール（マウスホイール・ドラッグスクロール）を復旧」を完了。
   - **変更理由**: ソース直接編集モードにおいて、CodeMirror コンポーネント外側ラッパーの `max-w-[900px] mx-auto` と内側 `.cm-editor` の `maxWidth: "900px", margin: "0 auto"` が二重に適用されていたことにより、画面幅一杯のフレックスコンテナの中で CodeMirror 6 内部の仮想スクロール測定（`view.measure()` / `scrollDOM`）と干渉し、行番号ガターの崩れやマウスホイールによる縦スクロール不能を引き起こしていた問題（問題2）を根本的に解消するため。
   - **Before**:

@@ -625,5 +625,7 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-19: ソース直接編集モードのショートカット誤爆完全防止・スクロール＆ガターレイアウト完全復旧・v1.8.2 テスト版ビルド仕様策定・根本原因分析（Phase 31 タスク116）を完了。`Editor.tsx` の `handleKeyDown` における修飾キー付きショートカット（`Ctrl + /` 等）での `markUserInteracted` 誤爆防止仕様、および `SourceEditor.tsx` の二重中央寄せ排除と CodeMirror 6 ネイティブガター・仮想スクロール完全復旧仕様を `for_agent/architecture.md` および `for_agent/guardrails.md` に策定・反映。
 - 2026-10-19: エディタ修正（問題1、Phase 31 タスク117）の実装および検証完了。`Editor.tsx` の `handleKeyDown` において `e.ctrlKey || e.metaKey || e.altKey` を含むキー押下での `markUserInteracted` 発火を厳格に抑止し、`Ctrl + /` によるモード切替時に未編集ファイルの生ソース（インデント等）が 100% 確実に保護されるように改修。
 - 2026-10-19: エディタ修正（問題2、Phase 31 タスク118）の実装および検証完了。`SourceEditor.tsx` の CodeMirror コンポーネント外側ラッパーから二重 `max-w-[900px] mx-auto` を撤廃し、画面幅一杯（`w-full h-full`）の柔軟なコンテナに変更。中央寄せを内側 `.cm-editor`（`maxWidth: 900px, margin: 0 auto`）に集約し、CodeMirror 6 標準のガター横並び（`.cm-gutters` と `.cm-content`）および `.cm-scroller` の完全な縦スクロール（マウスホイール・ドラッグスクロール）を復旧。検証スクリプト（`scripts/verify-source-editor-indent-and-scroll.mjs`）のアサーションを追従・更新し、総合テスト（`pnpm test`: 全52件合格）および全検証コマンド（`pnpm run build` / `cargo test`: Exit Code 0）のパスを確認。
+- 2026-10-20: バージョン整合性・ビルド設定点検（Phase 31 タスク119）の完了。package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml のバージョン番号を 1.8.2 に一括更新し、Cargo.lock を同期。scripts/verify-release-config.mjs による設定整合性検証（Exit Code 0）および全検証コマンド（pnpm test 全52件パス / pnpm run build 成功 / cargo test 40件全パス / cargo clippy 警告0件）の合格を確認。
+
 
 
