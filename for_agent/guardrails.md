@@ -164,7 +164,7 @@
 - **原因**:
   - Tauri プロジェクトでは Rust バックエンドの構成ファイル `Cargo.toml` が `<root>/src-tauri` に配置されているため。
 - **対策**:
-  1. `cargo check`, `cargo test`, `cargo clippy` などの Cargo コマンドを実行する際は、必ず `Cwd: <root>/src-tauri` を明示的に指定すること。
+  1. `run_command` には作業ディレクトリ引数（Cwd）が存在せず常にプロジェクトルートで実行されるため、`cargo check`, `cargo test`, `cargo clippy` などの Cargo コマンドを実行する際は、必ず `--manifest-path src-tauri/Cargo.toml` を指定すること（例: `cargo test --manifest-path src-tauri/Cargo.toml`）。
 
 ### 3.13. タブ切り替え時のエディタ再マウントによる未保存ステータス（isDirty / savedContent）誤リセット防止
 - **事象・ミス**:
@@ -496,3 +496,8 @@
    - **事象**: WYSIWYG モードで書式クリア（`Ctrl + Shift + B`）を実行すると、書式クリアとともに行頭に `>`（引用ブロック）が追加される。
    - **原因**: `@milkdown/preset-commonmark` の `blockquoteKeymap` がデフォルトで `Mod-Shift-b`（`Ctrl + Shift + B`）に `WrapInBlockquote` コマンドをバインドしており、React のバブリング `onKeyDown` より先に ProseMirror 内部で発火するため。
    - **対策**: `Editor.tsx` の Milkdown `.config()` で `blockquoteKeymap.ctx` をオーバーライドして `Mod-Shift-b` を解除（`Mod-Shift-q` に変更）し、さらに `onKeyDownCapture` で `Ctrl + Shift + B` を先行捕捉して `e.preventDefault(); e.stopPropagation();` を実行すること。また WYSIWYG での部分 Mark 解除時は、選択範囲前後の隣接空白の Mark も除去してシリアライズ時の CommonMark/GFM デリミタ flanking 崩壊を防ぐこと。
+
+6. **WYSIWYG モードにおける書式クリア時の delimiter flanking 崩壊防止と隣接境界空白 Mark の除去 (Phase 33 Task 125)**:
+   - **事象**: `~~this is test~~` や `**this is test**` 等の装飾テキストの中間（`is` 等）を選択して書式クリアを実行すると、Markdown シリアライズ時に `~~this ~~is~~ test~~` のようにデリミタ直前・直後に空白が入る記法が出力され、再パース時に装飾が反転・崩壊する。
+   - **原因**: `tr.removeMark(from, to)` だけでは、選択範囲境界に接する空白（`" "`）に付与されていた Mark がそのまま残り、閉じデリミタ直前や開きデリミタ直後のスペースとなって CommonMark/GFM の delimiter flanking 規則違反（開きデリミタ直後の空白禁止・閉じデリミタ直前の空白禁止）を引き起こすため。また `@milkdown/preset-gfm` の `strikethroughInputRule` の正規表現がチルダ1文字でも反応するバグがあったため。
+   - **対策**: `clearWysiwygFormatting` において、選択範囲直前・直後の隣接空白が同じ Mark を持っている場合はその境界空白の Mark も合わせて除去（`removeStart`/`removeEnd` を境界空白まで拡張）すること。また、テキストノード内にリテラルな Markdown 記法が存在する場合は `clearInlineFormatting`（`src/utils/format.ts`）にフォールバックすること。さらに `@milkdown/preset-gfm` の `strikethroughInputRule` を厳密な `(~~)(.+?)\1`（`strictStrikethroughInputRule`）に置換すること。
