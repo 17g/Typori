@@ -770,7 +770,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       filePath,
       workspaceDir,
       onChange,
-      onToggleSourceMode,
+      onToggleSourceMode: _onToggleSourceMode,
       isFocusMode = false,
       onToggleFocusMode,
       showLineNumbers = true,
@@ -1815,9 +1815,6 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           onInsertTable={() => insertTable(3, 3)}
           onInsertImage={() => fileInputRef.current?.click()}
           onClearFormatting={clearFormattingAction}
-          onToggleSourceMode={onToggleSourceMode}
-          isFocusMode={isFocusMode}
-          onToggleFocusMode={onToggleFocusMode}
           isRightSidebarOpen={isRightSidebarOpen}
           isScrolled={isScrolled}
           visible={!isScrolled}

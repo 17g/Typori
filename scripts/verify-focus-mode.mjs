@@ -105,15 +105,14 @@ async function verifyFocusMode() {
   assert.ok(editorContent.includes('e.key === "F8"'), "Editor.tsx must handle F8 in keydown");
   console.log("✓ Editor.tsx integration verified.");
 
-  // 5. Verify EditorToolbar.tsx integration
-  console.log("5. Verifying EditorToolbar.tsx implementation...");
+  // 5. Verify EditorToolbar.tsx integration (Phase 33: 重複ボタン削除の確認)
+  console.log("5. Verifying EditorToolbar.tsx implementation (no duplicate focus button)...");
   const toolbarPath = path.resolve("src/components/Editor/EditorToolbar.tsx");
   const toolbarContent = fs.readFileSync(toolbarPath, "utf-8");
 
-  assert.ok(toolbarContent.includes("isFocusMode"), "EditorToolbar.tsx must accept isFocusMode");
-  assert.ok(toolbarContent.includes("onToggleFocusMode"), "EditorToolbar.tsx must accept onToggleFocusMode");
-  assert.ok(toolbarContent.includes("(F8)"), "EditorToolbar.tsx must show F8 tooltip on focus button");
-  console.log("✓ EditorToolbar.tsx integration verified.");
+  assert.ok(!toolbarContent.includes("onToggleFocusMode"), "EditorToolbar.tsx must NOT contain duplicate onToggleFocusMode button");
+  assert.ok(!toolbarContent.includes("フォーカスモード"), "EditorToolbar.tsx must NOT contain duplicate focus mode button");
+  console.log("✓ EditorToolbar.tsx verified (duplicate focus button successfully removed).");
 
   // 6. Verify SourceEditor.tsx integration
   console.log("6. Verifying SourceEditor.tsx implementation...");

@@ -1,3 +1,34 @@
+- 2026-10-24: タスク126「エディタ内ツールバー重複ボタン削除 (不具合3): src/components/Editor/EditorToolbar.tsx から、ウィンドウ上部ヘッダーと重複している「フォーカスモードに切り替え」ボタンおよび「ソース直接編集モードに切り替え」ボタンを削除し、関連テスト（verify-focus-mode.mjs, verify-source-toggle.mjs 等）のアサーションを最新UI仕様に同期」を完了。
+  - **変更理由**:
+    1. ウィンドウ上部ヘッダー（ファイル名の右側）に「フォーカスモードに切り替え」ボタンおよび「ソース直接編集モードに切り替え」ボタンが配置されているにもかかわらず、エディタ内部のフロートツールバー（`EditorToolbar.tsx`）にも同一のボタンが配置されており、機能とUIが二重に重複していた。
+    2. Typoriの基本設計理念である「思考を邪魔しない、美しい執筆空間」に基づき、エディタ内部のクイックアクションパレットは本文の装飾・挿入（画像、表、リンク、引用、書式クリア、Undo、Redo）に専念させ、モード切替などのドキュメント全体に関わる操作はヘッダーバーおよびショートカット・OSネイティブメニューに一元化するため。
+  - **Before**:
+    - `src/components/Editor/EditorToolbar.tsx`:
+      - `EditorToolbarProps` に `onToggleSourceMode`, `isFocusMode`, `onToggleFocusMode` が定義されていた。
+      - ツールバー先頭に「フォーカスモードに切り替え (F8)」ボタンおよび「ソース直接編集モードに切り替え (Ctrl+/ )」ボタンが配置されていた。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorToolbar` に対して `onToggleSourceMode`, `isFocusMode`, `onToggleFocusMode` を渡していた。
+    - `scripts/verify-focus-mode.mjs` / `scripts/verify-source-toggle.mjs`:
+      - `EditorToolbar.tsx` に各ボタンやプロパティが存在することを要求するアサーションとなっていた。
+  - **After**:
+    - `src/components/Editor/EditorToolbar.tsx`:
+      - `EditorToolbarProps` から `onToggleSourceMode`, `isFocusMode`, `onToggleFocusMode` を削除。
+      - ツールバーからフォーカスモードボタンおよびソース直接編集モードボタンを完全に削除し、挿入・装飾アクション（画像、表、リンク、引用、書式クリア、Undo、Redo）に専念。
+    - `src/components/Editor/Editor.tsx`:
+      - `EditorToolbar` への重複プロパティ（`onToggleSourceMode`, `isFocusMode`, `onToggleFocusMode`）の受け渡しを削除。
+      - `EditorProps` の `onToggleSourceMode` を `onToggleSourceMode: _onToggleSourceMode` とし、TypeScriptの未使用変数警告（TS6133）を解消。
+    - `scripts/verify-focus-mode.mjs`:
+      - `EditorToolbar.tsx` に重複したフォーカスモードボタンが存在しないこと（削除されていること）を検証するアサーションに更新。
+    - `scripts/verify-source-toggle.mjs`:
+      - `EditorToolbar.tsx` に重複したソース直接編集モードボタンが存在しないこと（削除されていること）を検証するアサーションに更新。
+    - 検証結果:
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `pnpm test`: Exit Code 0 (全53個別機能テスト、IPC 15コマンド、メニュー 18イベント、ショートカット定義競合なし すべて合格)
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (全44件 passed)
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: Exit Code 0 (警告0件)
+    - `Plan.md`: タスク126を `- [x]` に更新。
+  - **影響範囲**: `src/components/Editor/EditorToolbar.tsx`, `src/components/Editor/Editor.tsx`, `scripts/verify-focus-mode.mjs`, `scripts/verify-source-toggle.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-24: タスク125「書式クリア全インライン記法（太字・斜体・打消し線・コード・リンク・複合装飾）の部分解除完全対応 (不具合2-B): Editor.tsx の clearWysiwygFormatting を改修し、選択範囲の全インライン Mark（strong, emphasis, strike_through, inlineCode, link 等）解除時に選択境界前後の隣接空白 Mark も適切に除去して Markdown シリアライズ時の flanking 崩壊（~~this ~~is~~ test~~ による装飾逆転等）を防止。さらにリテラル Markdown 記法に対する clearInlineFormatting（src/utils/format.ts）フォールバック連携および strikethroughInputRule の ~~...~~ 厳密化を実装し、WYSIWYG/ソース両モードで始まりと終わりのある全インライン記法の部分クリアが完全に機能することを検証」を完了。
   - **変更理由**:
     1. WYSIWYG モードにおいて、インライン装飾テキスト（例: `~~this is test~~` や `**this is test**` 等）の一部（例: `is`）を選択して書式クリア（`Ctrl + Shift + B`）を実行した際、単に `tr.removeMark(from, to)` のみを呼び出すと、選択範囲直前（`"this "`）および直後（`" test"`）の半角空白に Mark が残留し、Milkdown による Markdown シリアライズ時に `~~this ~~is~~ test~~` のように閉じデリミタ直前・開きデリミタ直後に空白が含まれる記法が出力され、CommonMark / GFM の delimiter flanking 規則違反となって再パース時に前後の装飾が壊れたり反転する問題があった。

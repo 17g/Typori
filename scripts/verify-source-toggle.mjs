@@ -195,12 +195,13 @@ async function verifySourceToggleShortcut() {
 
   const editorToolbarPath = path.resolve("src/components/Editor/EditorToolbar.tsx");
   const editorToolbarContent = fs.readFileSync(editorToolbarPath, "utf8");
-  assert.ok(editorToolbarContent.includes("onToggleSourceMode"), "EditorToolbar.tsx must support onToggleSourceMode prop");
+  assert.ok(!editorToolbarContent.includes("onToggleSourceMode"), "EditorToolbar.tsx must NOT contain duplicate onToggleSourceMode button");
+  assert.ok(!editorToolbarContent.includes("ソース直接編集モードに切り替え"), "EditorToolbar.tsx must NOT contain duplicate source mode button");
 
   const editorPath = path.resolve("src/components/Editor/Editor.tsx");
   const editorContent = fs.readFileSync(editorPath, "utf8");
-  assert.ok(editorContent.includes("onToggleSourceMode"), "Editor.tsx must forward onToggleSourceMode prop");
-  console.log("✓ Static integration checks passed for App.tsx, SourceEditor.tsx, EditorToolbar.tsx, Editor.tsx");
+  assert.ok(editorContent.includes("onToggleSourceMode"), "Editor.tsx must accept onToggleSourceMode prop");
+  console.log("✓ Static integration checks passed for App.tsx, SourceEditor.tsx, EditorToolbar.tsx (no duplicate button), Editor.tsx");
 
   console.log("\nAll Source Direct Editing Mode Toggle Shortcut (Ctrl + /) checks passed successfully!");
 }
