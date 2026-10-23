@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useEffect, useRef, useState, useCallback } from "react";
 import { defaultValueCtx, Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { commonmark, linkSchema, blockquoteSchema, imageSchema, blockquoteKeymap } from "@milkdown/kit/preset/commonmark";
-import { gfm, columnResizingPlugin, createTable } from "@milkdown/kit/preset/gfm";
+import { gfm, columnResizingPlugin, createTable, strikethroughSchema, strikethroughInputRule } from "@milkdown/kit/preset/gfm";
+import { markRule } from "@milkdown/kit/prose";
 import {
   isInTable,
   addRowBefore,
@@ -19,12 +20,13 @@ import { trailing } from "@milkdown/kit/plugin/trailing";
 import { wrapIn, lift } from "@milkdown/kit/prose/commands";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, EditorView } from "@milkdown/kit/prose/view";
-import { $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
+import { $inputRule, $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
 import { normalizeLineEndings, isLargeContent } from "../../utils/text";
 import { isSafeExternalUrl } from "../../utils/url";
+import { clearInlineFormatting } from "../../utils/format";
 import { loadStoredShortcutConfig } from "../../hooks/useShortcutSettings";
 import { isShortcutEvent, areKeysEqual } from "../ShortcutSettingsModal/utils";
 import LinkTooltip from "./LinkTooltip";
@@ -64,6 +66,18 @@ export const focusModePlugin = $prose(() => {
       },
     },
   });
+});
+
+/**
+ * CommonMark / GFM 厳密準拠の打ち消し線 InputRule
+ * デフォルトの /(?<![\w:/])(~{1,2})(.+?)\1(?![\w|/])$/ では 1 文字目の ~ でバックトラック一致して
+ * <del>~text</del>~ や単一チルダ誤爆が生じるため、厳格に (~~)(.+?)\1 に制限する
+ */
+export const strictStrikethroughInputRule = $inputRule((ctx) => {
+  return markRule(
+    /(?<![\w:/])(~~)(.+?)\1(?!\w|\/)$/,
+    strikethroughSchema.type(ctx)
+  );
 });
 
 export interface TargetBlockInfo {
@@ -540,6 +554,103 @@ export function clearWysiwygFormatting(view: EditorView | any): boolean {
     return false;
   }
 
+  // 選択範囲内に何らかの ProseMirror Mark が存在するか確認
+  let hasAnyMark = false;
+  state.doc.nodesBetween(selection.from, selection.to, (node: any) => {
+    if (node.isText && node.marks && node.marks.length > 0) {
+      hasAnyMark = true;
+      return false;
+    }
+  });
+
+  if (hasAnyMark) {
+    let removeStart = selection.from;
+    let removeEnd = selection.to;
+    const $from = state.selection.$from;
+    const $to = state.selection.$to;
+    const blockStart = $from.start();
+    const blockEnd = $to.end();
+
+    // 選択範囲直前の隣接空白が Mark を持っている場合はその空白の Mark も除去し、
+    // Markdown シリアライズ時の flanking 崩壊（~~this ~~is~~ test~~ 等）を防止
+    while (removeStart > blockStart) {
+      const ch = state.doc.textBetween(removeStart - 1, removeStart);
+      if (ch === " " || ch === "\t") {
+        let spaceHasMark = false;
+        state.doc.nodesBetween(removeStart - 1, removeStart, (node: any) => {
+          if (node.isText && node.marks && node.marks.length > 0) {
+            spaceHasMark = true;
+            return false;
+          }
+        });
+        if (spaceHasMark) {
+          removeStart--;
+          continue;
+        }
+      }
+      break;
+    }
+
+    // 選択範囲直後の隣接空白が Mark を持っている場合も同様に除去
+    while (removeEnd < blockEnd) {
+      const ch = state.doc.textBetween(removeEnd, removeEnd + 1);
+      if (ch === " " || ch === "\t") {
+        let spaceHasMark = false;
+        state.doc.nodesBetween(removeEnd, removeEnd + 1, (node: any) => {
+          if (node.isText && node.marks && node.marks.length > 0) {
+            spaceHasMark = true;
+            return false;
+          }
+        });
+        if (spaceHasMark) {
+          removeEnd++;
+          continue;
+        }
+      }
+      break;
+    }
+
+    // 選択範囲および隣接境界空白の全インラインMarkを一括解除
+    let tr = state.tr.removeMark(selection.from, selection.to);
+    if (removeStart < selection.from || removeEnd > selection.to) {
+      tr = tr.removeMark(removeStart, removeEnd);
+    }
+    tr.setStoredMarks([]);
+    dispatch(tr);
+    view.focus();
+    return true;
+  }
+
+  // 選択範囲に ProseMirror Mark が存在しない場合のフォールバック:
+  // テキストノード内にリテラルの Markdown 記法が存在する場合は clearInlineFormatting による分割置換を適用
+  const $from = state.selection.$from;
+  const $to = state.selection.$to;
+  if ($from.sameParent($to) && $from.parent.isTextblock) {
+    const parentStart = $from.start();
+    const parentText = $from.parent.textContent;
+    const startOffset = $from.parentOffset;
+    const endOffset = $to.parentOffset;
+    const result = clearInlineFormatting(parentText, startOffset, endOffset);
+    if (result.changed) {
+      const tr = state.tr.insertText(result.text, parentStart, parentStart + parentText.length);
+      tr.setStoredMarks([]);
+      dispatch(tr);
+      view.focus();
+      return true;
+    }
+  } else {
+    const selectedText = state.doc.textBetween(selection.from, selection.to);
+    const result = clearInlineFormatting(selectedText, 0, selectedText.length);
+    if (result.changed) {
+      const tr = state.tr.insertText(result.text, selection.from, selection.to);
+      tr.setStoredMarks([]);
+      dispatch(tr);
+      view.focus();
+      return true;
+    }
+  }
+
+  // フォールバックでも変更がない場合もデフォルトの removeMark を実行
   const tr = state.tr.removeMark(selection.from, selection.to);
   tr.setStoredMarks([]);
   dispatch(tr);
@@ -981,7 +1092,8 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
             });
           })
           .use(commonmark)
-          .use(gfm)
+          .use(gfm.filter((p) => p !== strikethroughInputRule))
+          .use(strictStrikethroughInputRule)
           .use(columnResizingPlugin)
           .use(history)
           .use(trailing)

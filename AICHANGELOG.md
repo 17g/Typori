@@ -1,3 +1,30 @@
+- 2026-10-24: タスク125「書式クリア全インライン記法（太字・斜体・打消し線・コード・リンク・複合装飾）の部分解除完全対応 (不具合2-B): Editor.tsx の clearWysiwygFormatting を改修し、選択範囲の全インライン Mark（strong, emphasis, strike_through, inlineCode, link 等）解除時に選択境界前後の隣接空白 Mark も適切に除去して Markdown シリアライズ時の flanking 崩壊（~~this ~~is~~ test~~ による装飾逆転等）を防止。さらにリテラル Markdown 記法に対する clearInlineFormatting（src/utils/format.ts）フォールバック連携および strikethroughInputRule の ~~...~~ 厳密化を実装し、WYSIWYG/ソース両モードで始まりと終わりのある全インライン記法の部分クリアが完全に機能することを検証」を完了。
+  - **変更理由**:
+    1. WYSIWYG モードにおいて、インライン装飾テキスト（例: `~~this is test~~` や `**this is test**` 等）の一部（例: `is`）を選択して書式クリア（`Ctrl + Shift + B`）を実行した際、単に `tr.removeMark(from, to)` のみを呼び出すと、選択範囲直前（`"this "`）および直後（`" test"`）の半角空白に Mark が残留し、Milkdown による Markdown シリアライズ時に `~~this ~~is~~ test~~` のように閉じデリミタ直前・開きデリミタ直後に空白が含まれる記法が出力され、CommonMark / GFM の delimiter flanking 規則違反となって再パース時に前後の装飾が壊れたり反転する問題があった。
+    2. これを防止するため、`clearWysiwygFormatting` において選択範囲内の全 Mark 解除と同時に、選択範囲直前・直後の隣接空白が同じ Mark を保持している場合はその境界空白の Mark も合わせて除去（`removeStart`/`removeEnd` を境界空白まで拡張）し、シリアライズ時に `~~this~~ is ~~test~~` や `**this** is **test**` のようにデリミタと空白が分離された正しい Markdown として出力されるよう改修した。
+    3. また、選択範囲に ProseMirror Mark が存在せず、プレーンテキスト内にリテラルな Markdown 記法（`**...**`, `~~...~~` 等）が存在する場合のフォールバックとして、`src/utils/format.ts` の `clearInlineFormatting` を呼び出して分割置換を適用する機構を導入した。
+    4. さらに、Milkdown の `@milkdown/preset-gfm` に含まれる `strikethroughInputRule` の正規表現 `/(?<![\w:/])(~{1,2})(.+?)\1(?![\w|/])$/` では、1文字目の `~` でバックトラック一致して `<del>~text</del>~` になる問題や単一チルダ誤爆があったため、厳格に `(~~)(.+?)\1` に制限する `strictStrikethroughInputRule` を定義して置換した。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx`:
+      - `clearWysiwygFormatting` が `state.tr.removeMark(selection.from, selection.to)` のみを実行しており、境界空白の Mark 除去やリテラル Markdown に対するフォールバックが存在しなかった。
+      - `@milkdown/preset-gfm` の `strikethroughInputRule`（`~{1,2}` 許容）がそのままプラグインチェーンで読み込まれていた。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `clearInlineFormatting`（`src/utils/format.ts`）をインポート。
+      - `strictStrikethroughInputRule` を `$inputRule` で定義し、`/(?<![\w:/])(~~)(.+?)\1(?![\w|/])$/` の厳格なチルダ2文字一致を強制。Milkdown プラグインチェーンで `gfm.filter((p) => p !== strikethroughInputRule)` と `strictStrikethroughInputRule` を読み込み。
+      - `clearWysiwygFormatting` を改修:
+        - 選択範囲内の Mark 存在を `nodesBetween` で検知。
+        - Mark が存在する場合は、選択範囲直前・直後の隣接空白（`" "` や `"\t"`）に Mark が付与されているかをブロック境界内で探索し、`removeStart` / `removeEnd` を拡張して境界空白の Mark も一括解除。これによりシリアライズ時の delimiter flanking 崩壊（`~~this ~~is~~ test~~`）を完全防止。
+        - 選択範囲に Mark が存在しない場合は、`clearInlineFormatting` によるリテラル Markdown 記法の自動分割・置換フォールバックを実行。
+        - 空選択ガード（`selection.empty || selection.from === selection.to`）および `tr.setStoredMarks([])` を確実に維持。
+    - 検証結果:
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `pnpm test`: Exit Code 0 (全53個別機能テスト、IPC 15コマンド、メニュー 18イベント、ショートカット定義競合なし すべて合格)
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (全44件 passed)
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: Exit Code 0 (警告0件)
+    - `Plan.md`: タスク125を `- [x]` に更新。
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-23: タスク124「書式クリア Ctrl + Shift + B の引用（>）誤挿入競合解消 (不具合2-A): src/components/Editor/Editor.tsx において Milkdown @milkdown/preset-commonmark の blockquoteKeymap.ctx（デフォルト Mod-Shift-b）をオーバーライドして Mod-Shift-b による引用ブロック化（行頭 > 追加）を無効化し、さらに onKeyDownCapture（キャプチャフェーズ）で Ctrl + Shift + B（およびカスタム設定された clear_formatting ショートカット）を最優先捕捉して書式クリアのみが確実に実行されるよう改修（Ctrl + B の太字機能はそのまま維持）」を完了。
   - **変更理由**:
     1. WYSIWYG モードにおいて書式クリア（`Ctrl + Shift + B`）を実行した際、書式クリアとともに選択行の先頭に `>`（引用ブロック）が誤挿入される不具合が発生していた。
