@@ -67,6 +67,7 @@ const testScripts = [
   { name: "ソース直接編集モード インデント・レイアウト・スクロール & メニュー再帰同期 (Phase 28 Task 108)", file: "verify-source-editor-indent-and-scroll.mjs" },
   { name: "ソース直接編集モード レイアウト・インデント実証的検証 & 生ソース保護 (Phase 30 Task 115)", file: "verify-source-editor-layout-and-indent.mjs" },
   { name: "ショートカット誤爆完全防止・スクロール＆ガターレイアウト健全性 (Phase 31 Task 120)", file: "verify-phase31-fixes.mjs" },
+  { name: "Phase 33 3件の不具合修正 総合検証 (日本語エクスポート/書式クリア/ツールバー整理) (Phase 33 Task 127)", file: "verify-phase33-fixes.mjs" },
 ];
 
 console.log(`\n--- [Step 1] 全個別機能テストスクリプトの実行検証 (${testScripts.length}件) ---`);

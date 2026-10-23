@@ -1,3 +1,33 @@
+- 2026-10-24: タスク127「品質保証・自動テスト・リリースビルド検証: 3件の不具合修正（日本語HTML/PDFエクスポート文字化けゼロ、Ctrl + Shift + B で行頭 > が入らず全インライン記法の部分クリアが正しく動作すること、エディタツールバー重複ボタン不在）を実証検証する自動テストスクリプト（scripts/verify-phase33-fixes.mjs）を作成して scripts/verify-all.mjs に統合し、全検証コマンド（pnpm test / pnpm run build / cargo test / cargo clippy）の合格およびリリースビルド更新を確認」を完了。
+  - **変更理由**:
+    1. Phase 33 で対応した3件の不具合修正（①日本語 HTML/PDF エクスポート時の文字化け完全解消、②書式クリア `Ctrl + Shift + B` 押下時の Milkdown `blockquoteKeymap` 競合による行頭 `>` 誤挿入解消および全インライン記法の部分クリア境界空白保護、③エディタ内クイックアクションパレットからの重複ボタン削除）について、静的・動的シミュレーションの両面から将来の回帰を確実に防止する実証的自動テストスクリプト（`scripts/verify-phase33-fixes.mjs`）を整備し、CI / 総合テストスイート（`scripts/verify-all.mjs`）に統合するため。
+    2. フロントエンド TypeScript ビルド（`pnpm run build`）、バックエンド Rust テスト（`cargo test`）・Clippy（`cargo clippy`）、および Tauri リリースビルド（`pnpm tauri build`）を実行し、すべての成果物（実行ファイル `typori.exe`、NSIS インストーラ、MSI パッケージ）が最新コードで正常にビルド・検証されることを確認するため。
+  - **Before**:
+    - `scripts/verify-all.mjs`:
+      - 個別機能テストスクリプトが 53 件登録されていた。
+    - `scripts/verify-phase33-fixes.mjs`:
+      - 存在しなかった。
+  - **After**:
+    - `scripts/verify-phase33-fixes.mjs`:
+      - 新規作成。以下の4パートからなる網羅的検証を実装:
+        - Part 1: 日本語 HTML/PDF エクスポート文字化けゼロ（`char_indices` 文字単位走査、`as char` バイトキャスト排除、日本語フォント指定、Rust 単体テスト存在、日本語属性・マルチバイトサニタイズ実証）。
+        - Part 2: 書式クリア（`Ctrl + Shift + B`）引用競合解消 & 全インライン記法部分解除（`blockquoteKeymap` オーバーライド、`handleKeyDownCapture` 先行捕捉、`Ctrl + B` 通過、`clearWysiwygFormatting` 境界空白除去、`strictStrikethroughInputRule`、太字/斜体/打消し/コード/リンク/複合装飾の部分解除シミュレーション）。
+        - Part 3: エディタツールバー重複ボタン削除（`EditorToolbarProps` および JSX 内のフォーカスモード・ソース切替ボタン削除、装飾・挿入アクションのみの配置、`Editor.tsx` からのプロパティ受け渡し削除）。
+        - Part 4: リリースビルド設定 & バージョン整合性（`package.json`, `tauri.conf.json`, `Cargo.toml` のバージョン `1.8.2` 一致）。
+    - `scripts/verify-all.mjs`:
+      - `testScripts` に `verify-phase33-fixes.mjs` を追加（全 54 件の個別機能検証テストへ拡張）。
+    - リリースビルド成果物:
+      - `pnpm tauri build` により `typori.exe`, NSIS セットアップ (`Typori_1.8.2_x64-setup.exe`), MSI セットアップ (`Typori_1.8.2_x64_en-US.msi`) を最新化。`verify-release-bundle.mjs` で全成果物の整合性と SHA-256 を確認。
+    - 検証結果:
+      - `pnpm test`: Exit Code 0 (全 54 件個別テスト、IPC 15 コマンド、メニュー 18 イベント、ショートカット競合なし すべて合格)
+      - `pnpm run build`: Exit Code 0 (TypeScript 型検査 + Vite ビルド成功)
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (全 44 件 passed)
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`: Exit Code 0 (警告 0 件)
+      - `node scripts/verify-release-config.mjs`: Exit Code 0 (全設定一致)
+      - `node scripts/verify-release-bundle.mjs`: Exit Code 0 (全成果物 1MB 以上・チェックサム確認)
+    - `Plan.md`: タスク127を `- [x]` に更新。
+  - **影響範囲**: `scripts/verify-phase33-fixes.mjs`, `scripts/verify-all.mjs`, `Plan.md`, `AICHANGELOG.md`, リリース成果物。
+
 - 2026-10-24: タスク126「エディタ内ツールバー重複ボタン削除 (不具合3): src/components/Editor/EditorToolbar.tsx から、ウィンドウ上部ヘッダーと重複している「フォーカスモードに切り替え」ボタンおよび「ソース直接編集モードに切り替え」ボタンを削除し、関連テスト（verify-focus-mode.mjs, verify-source-toggle.mjs 等）のアサーションを最新UI仕様に同期」を完了。
   - **変更理由**:
     1. ウィンドウ上部ヘッダー（ファイル名の右側）に「フォーカスモードに切り替え」ボタンおよび「ソース直接編集モードに切り替え」ボタンが配置されているにもかかわらず、エディタ内部のフロートツールバー（`EditorToolbar.tsx`）にも同一のボタンが配置されており、機能とUIが二重に重複していた。
