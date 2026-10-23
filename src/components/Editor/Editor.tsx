@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useEffect, useRef, useState, useCallback } from "react";
 import { defaultValueCtx, Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
-import { commonmark, linkSchema, blockquoteSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
+import { commonmark, linkSchema, blockquoteSchema, imageSchema, blockquoteKeymap } from "@milkdown/kit/preset/commonmark";
 import { gfm, columnResizingPlugin, createTable } from "@milkdown/kit/preset/gfm";
 import {
   isInTable,
@@ -25,6 +25,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveImageBinary, readFileBinary, resolveImagePath, isImageFilePath } from "../../api/fs";
 import { normalizeLineEndings, isLargeContent } from "../../utils/text";
 import { isSafeExternalUrl } from "../../utils/url";
+import { loadStoredShortcutConfig } from "../../hooks/useShortcutSettings";
+import { isShortcutEvent, areKeysEqual } from "../ShortcutSettingsModal/utils";
 import LinkTooltip from "./LinkTooltip";
 import EditorToolbar from "./EditorToolbar";
 import TableFloatingToolbar from "./TableFloatingToolbar";
@@ -879,6 +881,16 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           .config((ctx) => {
             ctx.set(rootCtx, root);
             ctx.set(defaultValueCtx, initialValue);
+
+            // Milkdown 組み込みの引用ショートカット（デフォルト Mod-Shift-b）をオーバーライドし、
+            // Typori の引用ショートカット（Mod-Shift-q）に統一して書式クリア（Ctrl+Shift+B）との競合を防止
+            ctx.update(blockquoteKeymap.key, (prev) => ({
+              ...prev,
+              WrapInBlockquote: {
+                ...prev?.WrapInBlockquote,
+                shortcuts: ["Mod-Shift-q", "Mod-Alt-q"],
+              },
+            }));
             ctx.update(remarkStringifyOptionsCtx, (prev) => ({
               ...prev,
               bullet: "-" as const,
@@ -1436,6 +1448,38 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
     };
 
     // ショートカットキーハンドラー
+    // キャプチャフェーズで書式クリアショートカット（Ctrl+Shift+B / カスタム設定）を最優先捕捉
+    // Milkdown / ProseMirror にキーイベントが到達する前に先行捕捉し、引用ブロック化（行頭 >）の誤挿入を 100% 防止
+    // なお Ctrl+B の太字（Bold）機能は一切妨害せず通過させる
+    const handleKeyDownCapture = useCallback(
+      (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const isBKey = e.key === "b" || e.key === "B" || e.code === "KeyB";
+        const isDefaultClearShortcut =
+          (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && isBKey;
+
+        let isClearFormattingShortcut = isDefaultClearShortcut;
+        try {
+          const config = loadStoredShortcutConfig();
+          const targetKeys = config.clear_formatting || ["Ctrl", "Shift", "B"];
+          if (
+            isShortcutEvent(e.nativeEvent, targetKeys) ||
+            (areKeysEqual(targetKeys, ["Ctrl", "Shift", "B"]) && isDefaultClearShortcut)
+          ) {
+            isClearFormattingShortcut = true;
+          }
+        } catch {
+          // ignore
+        }
+
+        if (isClearFormattingShortcut) {
+          e.preventDefault();
+          e.stopPropagation();
+          clearFormattingAction();
+        }
+      },
+      [clearFormattingAction]
+    );
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       // 修飾キー付きショートカット（Ctrl+/, Ctrl+S, Ctrl+C 等）や修飾キー単体、ナビゲーションキーでの
       // markUserInteracted 誤爆を完全に防止する。
@@ -1499,6 +1543,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
       // Ctrl+Shift+B / Cmd+Shift+B: 書式クリア
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
         e.preventDefault();
+        e.stopPropagation();
         clearFormattingAction();
         return;
       }
@@ -1693,6 +1738,7 @@ const MilkdownEditorContent = forwardRef<EditorRef, EditorProps>(
           }`}
           onScroll={handleScroll}
           onClick={handleContainerClick}
+          onKeyDownCapture={handleKeyDownCapture}
           onKeyDown={handleKeyDown}
           onBeforeInputCapture={markUserInteracted}
           onCompositionEndCapture={markUserInteracted}

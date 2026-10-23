@@ -1,3 +1,29 @@
+- 2026-10-23: タスク124「書式クリア Ctrl + Shift + B の引用（>）誤挿入競合解消 (不具合2-A): src/components/Editor/Editor.tsx において Milkdown @milkdown/preset-commonmark の blockquoteKeymap.ctx（デフォルト Mod-Shift-b）をオーバーライドして Mod-Shift-b による引用ブロック化（行頭 > 追加）を無効化し、さらに onKeyDownCapture（キャプチャフェーズ）で Ctrl + Shift + B（およびカスタム設定された clear_formatting ショートカット）を最優先捕捉して書式クリアのみが確実に実行されるよう改修（Ctrl + B の太字機能はそのまま維持）」を完了。
+  - **変更理由**:
+    1. WYSIWYG モードにおいて書式クリア（`Ctrl + Shift + B`）を実行した際、書式クリアとともに選択行の先頭に `>`（引用ブロック）が誤挿入される不具合が発生していた。
+    2. 原因は、Milkdown の `@milkdown/preset-commonmark` に含まれる `blockquoteKeymap` プラグインが、デフォルトで `Mod-Shift-b`（`Ctrl + Shift + B`）を `WrapInBlockquote` コマンドにバインドしており、React のバブリング `onKeyDown` より先に ProseMirror 内部で発火していたため。
+    3. この競合を解消するため、Milkdown の初期化 `.config()` 内で `blockquoteKeymap.key`（`blockquoteKeymap.ctx`）をオーバーライドし、引用ショートカットを Typori の引用規定キー `Mod-Shift-q`（および `Mod-Alt-q`）に統一して `Mod-Shift-b` を完全に解除する必要があった。
+    4. さらに二重の安全策として、`Editor.tsx` の本文コンテナ要素に `onKeyDownCapture`（キャプチャフェーズ）を設置し、`Ctrl + Shift + B`（およびショートカット設定でカスタマイズされた `clear_formatting` キー）をネイティブ DOM の子要素（`.ProseMirror`）に渡る前に最優先で捕捉して `e.preventDefault(); e.stopPropagation();` を実行し、書式クリアのみを確実に動作させる必要があった。
+    5. なお、`Ctrl + B`（太字トグル: `toggleStrongCommand`）は `e.shiftKey === false` のためキャプチャで捕捉されずそのまま通過し、太字機能が正常に維持されることを保証。
+  - **Before**:
+    - `src/components/Editor/Editor.tsx`:
+      - `blockquoteKeymap` がオーバーライドされておらず、Milkdown 内部で `Mod-Shift-b` が引用ブロック化に割り当てられていた。
+      - `onKeyDownCapture` が定義されておらず、React のバブリング `onKeyDown` のみでキーイベントを処理していたため、ProseMirror 内部キーマップが先に発火していた。
+      - `Ctrl + Shift + B` 押下時に書式クリアと同時に行頭に `>` が挿入されていた。
+  - **After**:
+    - `src/components/Editor/Editor.tsx`:
+      - `@milkdown/kit/preset/commonmark` から `blockquoteKeymap` をインポートし、`Editor.make().config((ctx) => ...)` で `ctx.update(blockquoteKeymap.key, ...)` を実行。`WrapInBlockquote` のショートカットを `["Mod-Shift-q", "Mod-Alt-q"]` に置換し、Milkdown から `Mod-Shift-b` を完全排除。
+      - `loadStoredShortcutConfig` および `isShortcutEvent`, `areKeysEqual` を用いた `handleKeyDownCapture` を実装し、エディタコンテナの `onKeyDownCapture` に設定。`Ctrl + Shift + B`（およびカスタム設定キー）をキャプチャフェーズで最優先捕捉し、`e.preventDefault(); e.stopPropagation();` と `clearFormattingAction()` を実行。
+      - `Ctrl + B`（太字トグル）は `e.shiftKey` が `false` であるため妨害されず通過し、太字機能が維持される。
+      - 単体検証テストスクリプト `scripts/verify-phase33-blockquote-fix.mjs` を作成し、静的構成・Milkdown設定動的更新・キーイベントシミュレーションの全検証パスを確認。
+    - 全検証コマンド合格:
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `pnpm test`: Exit Code 0 (全53個別テスト、IPC 15コマンド、メニュー 18イベント、ショートカット定義競合なし すべて合格)
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (全44件 passed)
+      - `node scripts/verify-phase33-blockquote-fix.mjs`: Exit Code 0 (全テスト合格)
+    - `Plan.md`: タスク124を `- [x]` に更新。
+  - **影響範囲**: `src/components/Editor/Editor.tsx`, `scripts/verify-phase33-blockquote-fix.mjs`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-23: タスク123「エクスポート日本語文字化け修正 (不具合1): src-tauri/src/fs.rs の sanitize_tag_attributes における bytes[i] as char バイト単位キャスト（UTF-8 マルチバイト文字破壊の直接原因）を char_indices() ベースの文字単位処理へ全面改修し、remove_dangerous_tags を to_ascii_lowercase() に安全化、convert_markdown_to_html の CSS に日本語フォントファミリーを追加、日本語 Markdown の HTML/PDF エクスポート単体テスト（cargo test）を追加・検証」を完了。
   - **変更理由**:
     1. HTML/PDFエクスポート時（`convert_markdown_to_html` / `sanitize_exported_html`）において、日本語テキストがすべて `ã ‚...` のように激しく文字化けしていた直接原因は、`src-tauri/src/fs.rs` の `sanitize_tag_attributes` 内で `bytes[i] as char` というバイト単位キャストを行っており、UTF-8 マルチバイト文字（3バイト表現）が各バイトごとに Latin-1 文字として誤解釈・出力されていたため。
