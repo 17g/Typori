@@ -549,6 +549,42 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
     4. **`Editor.tsx` における未編集時の `prevContentRef` 完全保護**:
        - `hasUserInteractedRef.current === false && !isDirty` の間は `prevContentRef.current` を初期生テキスト（`initialValue`）のまま厳格に保持し、Milkdown の初回シリアライズ結果で上書きしない。
 
+- PDF/HTMLエクスポート日本語文字化け解消・書式クリア（`Ctrl + B`）動作抜本改修・エディタツールバー重複ボタン整理仕様 (Phase 33):
+  - **不具合1: PDFおよびHTMLエクスポート時の日本語文字化け解消**:
+    - **根本原因**:
+      - `src-tauri/src/fs.rs` の `convert_markdown_to_html` から呼び出される `sanitize_exported_html` → `sanitize_tag_attributes` において、`let bytes = input.as_bytes();` でバイト配列として走査し、タグ以外の全テキストに対して `result.push(bytes[i] as char);` を実行していた。
+      - Rust において UTF-8 のマルチバイト文字（日本語の3バイト文字等）の各バイト（`u8`: `0xE3, 0x81, 0x82` 等）をそのまま `as char` でキャストすると、各バイトが個別の Latin-1 Unicode スカラー値（`U+00E3`, `U+0081`, `U+0082`）に変換され、UTF-8 文字列として再エンコードされた際に日本語テキストが 100% 文字化け（`ã ‚...`）していた。
+      - また `remove_dangerous_tags` でも `input.to_lowercase()` のバイトインデックスを `input` と共有していたため、Unicode 大文字・小文字変換でバイト長が変化する文字が含まれる場合にスライス境界ずれを起こす潜在リスクがあった。
+    - **修正仕様**:
+      - `sanitize_tag_attributes` の走査を `input.char_indices()`（文字単位および正しい UTF-8 文字境界スライス）に全面改修し、`bytes[i] as char` を完全撤廃する。
+      - `remove_dangerous_tags` のタグ名比較に `to_ascii_lowercase()` を使用し、UTF-8 バイトオフセットの 1:1 一致を保証する。
+      - `convert_markdown_to_html` の出力 CSS の `font-family` に日本語標準フォント（`"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP"`）を追加し、HTML表示およびPDF印刷時の日本語フォント描画品質を向上させる。
+  - **不具合2: 書式クリア（`Ctrl + Shift + B`）押下時の行頭 `>`（引用）誤挿入競合の解消および全インライン記法の部分解除完全対応**:
+    - **根本原因**:
+      1. **Milkdown 組み込みの引用ショートカット（`blockquoteKeymap`: `Mod-Shift-b`）との競合**:
+         - Milkdown の `@milkdown/preset-commonmark` において、`blockquoteKeymap`（`WrapInBlockquote`：ブロック引用 `>` の付与）のデフォルトショートカットとして **`Mod-Shift-b`（`Ctrl + Shift + B`）** がハードコードされている（Typori の引用ショートカットは `Ctrl + Shift + Q`）。
+         - さらに WYSIWYG モード（`Editor.tsx`）の React `onKeyDown` はバブリングフェーズで動作するため、ユーザーが書式クリアの `Ctrl + Shift + B` を押した際、ProseMirror 内部の `blockquoteKeymap` が先に発火して行頭に `>`（引用ブロック）を追加してしまっていた。
+      2. **WYSIWYG モードにおける全インライン記法（太字・イタリック・打ち消し線・コード・リンク等）の部分解除時の空白境界処理・InputRule・リテラル記法対応**:
+         - WYSIWYG モード（`Editor.tsx`）で `tr.removeMark(selection.from, selection.to)` のみを実行すると、例えば `~~this is test~~`（または `**this is test**`, `*this is test*`, `` `this is test` ``, `[this is test](url)`）の `is` のみを選択して書式クリアした際、前の単語末の空白（`"this "`）と後ろの単語頭の空白（`" test"`）に Mark が残る。
+         - そのまま Milkdown が Markdown にシリアライズすると `~~this ~~is~~ test~~` や `**this **is** test**` のように閉じデリミタ直前・開きデリミタ直後に空白が入り、CommonMark/GFM の flanking 規則違反となって再パース時に前後の装飾が壊れたり逆転する。
+         - また `@milkdown/preset-gfm` の `strikethroughInputRule` の正規表現 `/(?<![\w:/])(~{1,2})(.+?)\1(?!\w|\/)$/` が1文字目の閉じ `~` の時点でバックトラック一致して `<del>~this is test</del>~` になる問題や、リテラルな Markdown 記法テキストに対して `tr.removeMark` が効かないケースが存在した。
+    - **修正仕様**:
+      1. **`Ctrl + Shift + B` と Milkdown 引用キーマップ（`blockquoteKeymap`）の競合完全解消（`Ctrl + B` の太字機能は維持）**:
+         - 書式クリア（`clear_formatting`）のデフォルトショートカットは **`Ctrl + Shift + B`（`CmdOrCtrl+Shift+B`）** を維持し、`Ctrl + B` の太字（Bold）機能は上書きせず維持する。
+         - `Editor.tsx` の Milkdown 初期化 `.config()` において `blockquoteKeymap.ctx` をオーバーライドし、`WrapInBlockquote` の `Mod-Shift-b` バインドを無効化（Typori の引用ショートカット `Mod-Shift-q` に統一）する。
+         - あわせて `Editor.tsx` のキャプチャフェーズ（`onKeyDownCapture`）および ProseMirror 高優先度プラグインの `handleKeyDown` にて `Ctrl + Shift + B`（およびショートカット設定でカスタマイズされた `clear_formatting` キー）を最優先捕捉し、行頭に `>` が挿入される現象を 100% 防止する。
+      2. **始まりと終わりのあるインライン記法全般（太字・イタリック・打ち消し線・コード・リンク・複合装飾）の部分解除完全保証 (`src/components/Editor/Editor.tsx` & `src/utils/format.ts`)**:
+         - **ソース直接編集モード (`src/utils/format.ts`)**: 太字（`**...**`, `__...__`）、イタリック（`*...*`, `_..._`）、太字斜体（`***...***`, `___...___`）、打ち消し線（`~~...~~`）、インラインコード（`` `...` ``）、リンク（`[text](url)`）、およびこれらのネスト・複合装飾のすべてに対し、中間選択・先頭/末尾選択・全体選択・複数装飾またがり選択に応じた自動分割・解除を保証する。
+         - **WYSIWYG モード (`src/components/Editor/Editor.tsx`)**:
+           - `clearWysiwygFormatting` において、`selection.from..selection.to` の全インライン Mark（`strong`, `emphasis`, `strike_through`, `inlineCode`, `link` 等）を一括解除する際、選択範囲直前・直後に同じ Mark を持つ半角空白がある場合はその境界空白の Mark も併せて除去する。これにより、どのインライン記法であっても選択部分のみの装飾が消え、かつ Markdown シリアライズ時（`**this** is **test**`, `*this* is *test*`, `~~this~~ is ~~test~~`, `` `this` is `test` ``, `[this](url) is [test](url)`）に CommonMark/GFM 準拠の正しい分割記法として出力されることを保証する。
+           - 選択範囲に ProseMirror Mark が存在せず、テキストノード内にリテラルのインライン Markdown 記法が存在する場合は、`clearInlineFormatting`（`src/utils/format.ts`）による分割置換を適用するフォールバックを備える。
+           - `@milkdown/preset-gfm` の `strikethroughInputRule` を `~~...~~` に厳密化し、WYSIWYG モードで `~~this is test~~` と入力した際に正しく打ち消し線 Mark へ変換されるようにする。
+  - **不具合3: エディタ内クイックアクションパレット（`EditorToolbar.tsx`）からの重複ボタン削除**:
+    - **根本原因**:
+      - ウィンドウ上部のヘッダーバー（ファイルタイトルの右側、テーマ設定ボタン等の並び）に「フォーカスモードに切り替え」ボタンと「ソース直接編集モードに切り替え」ボタンが既に配置されているにもかかわらず、エディタ内部のクイックアクションパレット（`EditorToolbar.tsx`：「画像を挿入」「表（テーブル）を挿入」等のメニュー）にも同じ2つのボタンが重複して配置されていた。
+    - **修正仕様**:
+      - `src/components/Editor/EditorToolbar.tsx` から「フォーカスモードに切り替え」ボタンおよび「ソース直接編集モードに切り替え」ボタンを完全に削除し、エディタ内のメニューを編集・挿入アクション（「画像を挿入」「表（テーブル）を挿入」「リンクを挿入・編集」「引用ブロックの切り替え」「書式をクリア」「元に戻す」「やり直し」）に専念させる。
+
 ## 改訂履歴
 - 2026-09-26: 初版策定
 - 2026-09-27: 新規ファイル作成機能 (`create_file`) のデータフローを追記
@@ -651,3 +687,4 @@ Typoraライクな高速・高機能なローカルMarkdownエディタ。
 - 2026-10-20: バージョン整合性・ビルド設定点検（Phase 31 タスク119）の完了。package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml のバージョン番号を 1.8.2 に一括更新し、Cargo.lock を同期。scripts/verify-release-config.mjs による設定整合性検証（Exit Code 0）および全検証コマンド（pnpm test 全52件パス / pnpm run build 成功 / cargo test 40件全パス / cargo clippy 警告0件）の合格を確認。
 - 2026-10-20: 品質保証・自動テスト・テスト版 v1.8.2 リリースビルド（Phase 31 タスク120）の完了。実機での `Ctrl + /` 押下シミュレーション・二重 max-width 排除・ガター横並び・スクロール性・全機能整合性を網羅検証する自動テストスクリプト（`scripts/verify-phase31-fixes.mjs`）を作成し、全体総合結合テスト（`scripts/verify-all.mjs`: 全53個別テスト）に統合。全検証コマンド（`pnpm test` / `pnpm run build` / `cargo test` / `cargo clippy`: Exit Code 0）のパスを確認。`pnpm run build:release` によるテスト版 v1.8.2 リリースバイナリ（`typori.exe`: 6.36 MB）、NSISインストーラ（`Typori_1.8.2_x64-setup.exe`: 3.41 MB）、WiX MSIパッケージ（`Typori_1.8.2_x64_en-US.msi`: 4.06 MB）の生成と `scripts/verify-release-bundle.mjs` による成果物完全性・SHA-256検証（Exit Code 0）を完了し、開発計画全120タスクの完全完了を達成。
 - 2026-10-20: 全体総合レビュー（/review）およびソース直接編集モードのインデント消失・スクロール不能・行番号ガター縦積み崩壊の真因解明と抜本的解消（Phase 32）を完了。Tauri v2 の自動 CSP ハッシュ注入が WebView2 で `'unsafe-inline'` を無効化し CodeMirror 6 (`style-mod`) の動的 `<style>` タグを全面ブロックしていた真因を特定・解消（`tauri.conf.json` への `dangerousDisableAssetCspModification: true` 設定、`src/index.css` への CodeMirror 6 静的レイアウト・`.tok-*` ハイライト CSS 定義、`SourceEditor.tsx` での `classHighlighter` 併用、`Editor.tsx` の未編集時 `prevContentRef` 生ソース保護）。`scripts/verify-phase31-fixes.mjs` を拡充し、全自動検証コマンド（`pnpm test` 全53件 / `pnpm run build` / `cargo test` 全40件 / `cargo clippy`）の合格を確認。
+- 2026-10-23: 動作確認テストで検出された3件の不具合（①PDF/HTMLエクスポート時の日本語文字化け、②書式クリア機能の `Ctrl + B` 太字トグル誤動作および部分解除記法変換、③エディタ内ツールバーの「フォーカスモードに切り替え」「ソース直接編集モードに切り替え」重複ボタン）の根本原因分析と修正仕様（Phase 33）を策定・追記。

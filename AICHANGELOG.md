@@ -1,3 +1,30 @@
+- 2026-10-23: タスク123「エクスポート日本語文字化け修正 (不具合1): src-tauri/src/fs.rs の sanitize_tag_attributes における bytes[i] as char バイト単位キャスト（UTF-8 マルチバイト文字破壊の直接原因）を char_indices() ベースの文字単位処理へ全面改修し、remove_dangerous_tags を to_ascii_lowercase() に安全化、convert_markdown_to_html の CSS に日本語フォントファミリーを追加、日本語 Markdown の HTML/PDF エクスポート単体テスト（cargo test）を追加・検証」を完了。
+  - **変更理由**:
+    1. HTML/PDFエクスポート時（`convert_markdown_to_html` / `sanitize_exported_html`）において、日本語テキストがすべて `ã ‚...` のように激しく文字化けしていた直接原因は、`src-tauri/src/fs.rs` の `sanitize_tag_attributes` 内で `bytes[i] as char` というバイト単位キャストを行っており、UTF-8 マルチバイト文字（3バイト表現）が各バイトごとに Latin-1 文字として誤解釈・出力されていたため。
+    2. `remove_dangerous_tags` で `input.to_lowercase()` を使用していたため、特殊な Unicode 文字列でバイト長が変化しバイトインデックスの不整合を引き起こす潜在リスクがあった。HTML タグ名はすべて ASCII 範囲内であるため、バイト長を完全に保持する `to_ascii_lowercase()` に安全化する必要があった。
+    3. エクスポートされた HTML / PDF において、日本語テキストが美しいネイティブフォント（Hiragino Sans, Yu Gothic UI, Yu Gothic, Meiryo, Noto Sans JP）でレンダリングされるよう CSS の `font-family` を拡充する必要があった。
+    4. 依存パッケージ（`vite`, `dompurify`）の最新 GitHub Advisory 検出に対し、`package.json` / `pnpm-workspace.yaml` の `overrides`（`dompurify: ">=3.4.17"`, `vite: ">=8.3.3"`）を追加して `pnpm audit` での脆弱性 0 件を維持。
+  - **Before**:
+    - `src-tauri/src/fs.rs`:
+      - `sanitize_tag_attributes`: `bytes = input.as_bytes()` をループ走査し、タグ以外の文字を `result.push(bytes[i] as char)` で追加していたため、日本語等のマルチバイト文字が不可逆的に破壊・文字化けしていた。
+      - `remove_dangerous_tags`: `let lower = input.to_lowercase();` を使用していた。
+      - `convert_markdown_to_html` CSS: `font-family` に日本語フォントファミリーが含まれていなかった。
+      - 単体テスト: 日本語 Markdown の HTML/PDF エクスポート文字化けゼロを検証するテストが存在しなかった（40 passed）。
+  - **After**:
+    - `src-tauri/src/fs.rs`:
+      - `sanitize_tag_attributes`: `input.char_indices().peekable()` ベースの走査へ全面改修。タグ外の文字を `result.push(ch)`（UTF-8 `char` 単位）で安全に追加し、UTF-8 マルチバイト文字の破壊をゼロ化。
+      - `remove_dangerous_tags`: `let lower = input.to_ascii_lowercase();` に改修し、バイト長の不変性と安全な ASCII タグ名判定を確立。
+      - `convert_markdown_to_html` CSS: `font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", "Noto Sans", Helvetica, Arial, sans-serif...` を設定し、OS各環境での最適な日本語レンダリングを保証。
+      - 単体テスト: `test_convert_markdown_to_html_japanese_encoding_and_font`, `test_sanitize_exported_html_japanese_utf8_retention`, `test_export_to_html_file_japanese`, `test_export_to_pdf_html_japanese` の 4 件を追加（全 44 件 passed）。
+    - `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`: `dompurify: ">=3.4.17"`, `vite: ">=8.3.3"` を追加し `pnpm audit` 脆弱性 0 件を保証。
+    - 全検証コマンド合格:
+      - `cargo test --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (全44件 passed)
+      - `cargo clippy --manifest-path src-tauri/Cargo.toml`: Exit Code 0 (警告0件)
+      - `pnpm run build`: Exit Code 0 (TypeScript型検査およびViteプロダクションビルド成功)
+      - `pnpm test`: Exit Code 0 (全53個別テスト、IPC 15コマンド、メニュー 18イベント、ショートカット定義競合なし すべて合格)
+    - `Plan.md`: タスク123を `- [x]` に更新。
+  - **影響範囲**: `src-tauri/src/fs.rs`, `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `Plan.md`, `AICHANGELOG.md`。
+
 - 2026-10-20: ソース直接編集モードにおける20行超ファイルの行番号ガター伸長保証（`style.minHeight` 上書き防止 & `overflow: hidden` クリップ排除）および v1.8.2 リリースパッケージ再生成を完了。
   - **変更理由**: ソース直接編集モードで20行以上のファイルを開いた際に行番号が最大約20までしか表示されない現象について原因を調査した結果、以下の2点のメカニズムを特定したため：
     1. **旧ビルド（CSP により `style-mod` がブロックされていた状態）での原因**: CodeMirror 6（`@codemirror/view` の `GutterView`）は全行を一度に描画するのではなく `view.viewportLineBlocks`（可視領域＋バッファ `VP.Margin / 2 = 500px`）のみを描画する。旧ビルドでは `.cm-gutters` の下に `.cm-content` が縦積みになりスクロールも不能だったため、`.cm-content` が画面外下方に押し出されて `visibleBottom = 0` となり、初期バッファ `500px`（`500px ÷ 約24px/行 ≒ 20行`）分の行番号しか生成されていなかった。

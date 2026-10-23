@@ -584,7 +584,7 @@ fn is_dangerous_uri_scheme(val: &str) -> bool {
 fn remove_dangerous_tags(input: &str, dangerous_tags: &[&str]) -> String {
     let mut result = String::with_capacity(input.len());
     let mut chars = input.char_indices().peekable();
-    let lower = input.to_lowercase();
+    let lower = input.to_ascii_lowercase();
 
     while let Some((start, ch)) = chars.next() {
         if ch == '<' {
@@ -812,30 +812,42 @@ fn sanitize_single_tag(inner: &str) -> String {
 /// HTML 内の全タグの属性をサニタイズします。
 fn sanitize_tag_attributes(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
-    let mut i = 0;
-    let bytes = input.as_bytes();
-    let len = bytes.len();
+    let mut chars = input.char_indices().peekable();
 
-    while i < len {
-        if bytes[i] == b'<' {
-            if input[i..].starts_with("<!--") {
-                if let Some(end_idx) = input[i..].find("-->") {
-                    result.push_str(&input[i..i + end_idx + 3]);
-                    i += end_idx + 3;
+    while let Some((start, ch)) = chars.next() {
+        if ch == '<' {
+            if input[start..].starts_with("<!--") {
+                if let Some(end_idx) = input[start..].find("-->") {
+                    let end_pos = start + end_idx + 3;
+                    result.push_str(&input[start..end_pos]);
+                    while let Some(&(idx, _)) = chars.peek() {
+                        if idx < end_pos {
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
                     continue;
                 }
             }
 
-            if input[i..].starts_with("</") {
-                if let Some(end_idx) = input[i..].find('>') {
-                    result.push_str(&input[i..i + end_idx + 1]);
-                    i += end_idx + 1;
+            if input[start..].starts_with("</") {
+                if let Some(end_idx) = input[start..].find('>') {
+                    let end_pos = start + end_idx + 1;
+                    result.push_str(&input[start..end_pos]);
+                    while let Some(&(idx, _)) = chars.peek() {
+                        if idx < end_pos {
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
                     continue;
                 }
             }
 
-            if let Some(end_idx) = input[i..].find('>') {
-                let tag_str = &input[i + 1..i + end_idx];
+            if let Some(end_idx) = input[start..].find('>') {
+                let tag_str = &input[start + 1..start + end_idx];
                 let is_self_closing = tag_str.trim_end().ends_with('/');
                 let inner = if is_self_closing {
                     let t = tag_str.trim_end();
@@ -852,12 +864,19 @@ fn sanitize_tag_attributes(input: &str) -> String {
                 } else {
                     result.push('>');
                 }
-                i += end_idx + 1;
+
+                let end_pos = start + end_idx + 1;
+                while let Some(&(idx, _)) = chars.peek() {
+                    if idx < end_pos {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
                 continue;
             }
         }
-        result.push(bytes[i] as char);
-        i += 1;
+        result.push(ch);
     }
 
     result
@@ -974,7 +993,7 @@ pub fn convert_markdown_to_html(
       box-sizing: border-box;
     }}
     body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
       font-size: 16px;
       line-height: 1.6;
       word-wrap: break-word;
@@ -2235,6 +2254,142 @@ This is safe content with a [link](https://example.com).
         assert!(!names.contains(&"deep_target.md".to_string()));
 
         let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_convert_markdown_to_html_japanese_encoding_and_font() {
+        let markdown = r#"# 日本語タイトル 見出し一
+
+これは**日本語の太字テキスト**と*イタリック*、および~~打ち消し線~~の段落です。
+日本語のリンク: [リンク先](https://example.com/日本語)
+
+| 項目名 | 説明 | 状態 |
+|---|---|---|
+| ファイル入出力 | UTF-8による保存と読込 | 正常動作 |
+| 日本語表示 | 文字化けゼロの保証 | 検証済 |
+
+- [x] 日本語完了タスク
+- [ ] 日本語未完了タスク
+
+<span class="badge" title="日本語ツールチップ">日本語インラインバッジ</span>
+<img src="./assets/sample.png" alt="日本語の画像キャプション" />
+"#;
+
+        let res = convert_markdown_to_html(
+            markdown.to_string(),
+            Some("日本語ドキュメント".to_string()),
+            Some("light".to_string()),
+        );
+        assert!(res.is_ok());
+        let html = res.unwrap();
+
+        // 1. タイトルおよび見出しの日本語が完全に保持されていること（文字化けなし）
+        assert!(html.contains("<title>日本語ドキュメント</title>"));
+        assert!(html.contains("<h1>日本語タイトル 見出し一</h1>"));
+
+        // 2. 本文、装飾、表、タスクリストの日本語が保持されていること
+        assert!(html.contains("<strong>日本語の太字テキスト</strong>"));
+        assert!(html.contains("<em>イタリック</em>"));
+        assert!(html.contains("<del>打ち消し線</del>"));
+        assert!(html.contains("リンク先</a>"));
+        assert!(html.contains("<th>項目名</th>"));
+        assert!(html.contains("<td>UTF-8による保存と読込</td>"));
+        assert!(html.contains("日本語完了タスク"));
+        assert!(html.contains("日本語未完了タスク"));
+
+        // 3. インラインタグの属性（title, alt）や内部テキストの日本語が保持されていること
+        assert!(html.contains(r#"title="日本語ツールチップ""#));
+        assert!(html.contains("日本語インラインバッジ"));
+        assert!(html.contains(r#"alt="日本語の画像キャプション""#));
+
+        // 4. bytes[i] as char 起因の UTF-8 破損パターン（Latin-1 誤変換 'ã' 等）が存在しないこと
+        assert!(!html.contains('ã'));
+
+        // 5. 日本語フォントファミリーが CSS に設定されていること
+        assert!(html.contains("Hiragino Sans"));
+        assert!(html.contains("Yu Gothic"));
+        assert!(html.contains("Meiryo"));
+        assert!(html.contains("Noto Sans JP"));
+    }
+
+    #[test]
+    fn test_sanitize_exported_html_japanese_utf8_retention() {
+        let input = r#"
+            <div class="test" title="日本語タイトル属性">
+                <h2>日本語見出し</h2>
+                <p>あいうえお かきくけこ 漢字とひらがなとカタカナ</p>
+                <img src="test.png" alt="日本語の説明テキスト" />
+                <a href="https://example.com" data-info="メタ情報">安全なリンク</a>
+            </div>
+        "#;
+
+        let sanitized = sanitize_exported_html(input);
+        assert!(sanitized.contains(r#"title="日本語タイトル属性""#));
+        assert!(sanitized.contains("<h2>日本語見出し</h2>"));
+        assert!(sanitized.contains("<p>あいうえお かきくけこ 漢字とひらがなとカタカナ</p>"));
+        assert!(sanitized.contains(r#"alt="日本語の説明テキスト""#));
+        assert!(sanitized.contains(r#"data-info="メタ情報""#));
+        assert!(!sanitized.contains('ã'));
+    }
+
+    #[test]
+    fn test_export_to_html_file_japanese() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let file_path = std::env::temp_dir().join(format!("typori_test_export_jp_{}.html", timestamp));
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let md = "# 日本語エクスポートテスト
+
+日本語の段落テキストです。文字化けしません。";
+        let res = export_to_html(
+            path_str.clone(),
+            md.to_string(),
+            Some("日本語エクスポート文書".to_string()),
+            Some("light".to_string()),
+        );
+        assert!(res.is_ok());
+        assert!(file_path.exists());
+
+        let read_html = fs::read_to_string(&file_path).unwrap();
+        assert!(read_html.contains("<title>日本語エクスポート文書</title>"));
+        assert!(read_html.contains("<h1>日本語エクスポートテスト</h1>"));
+        assert!(read_html.contains("日本語の段落テキストです。文字化けしません。"));
+        assert!(!read_html.contains('ã'));
+
+        let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_export_to_pdf_html_japanese() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let file_path = std::env::temp_dir().join(format!("typori_test_pdf_export_jp_{}.html", timestamp));
+        let path_str = file_path.to_str().unwrap().to_string();
+
+        let md = "# 日本語PDF印刷テスト
+
+日本語のPDF印刷用HTML生成テストです。";
+        let res = export_to_pdf_html(
+            path_str.clone(),
+            md.to_string(),
+            Some("日本語PDF文書".to_string()),
+            Some("light".to_string()),
+        );
+        assert!(res.is_ok());
+        assert!(file_path.exists());
+
+        let read_html = fs::read_to_string(&file_path).unwrap();
+        assert!(read_html.contains("<title>日本語PDF文書</title>"));
+        assert!(read_html.contains("<h1>日本語PDF印刷テスト</h1>"));
+        assert!(read_html.contains("日本語のPDF印刷用HTML生成テストです。"));
+        assert!(!read_html.contains('ã'));
+
+        let _ = fs::remove_file(file_path);
     }
 }
 

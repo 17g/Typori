@@ -488,3 +488,11 @@
      1) 旧ビルド（CSP により `style-mod` がブロックされていた状態）では、`.cm-gutters` の下に `.cm-content` が縦積みになりスクロールも不能だったため、`.cm-content` が画面下へ押し出されて `visibleBottom = 0` となり、CodeMirror の仮想ビューポート（`viewportLineBlocks`）が初期バッファ `VP.Margin / 2 = 500px`（`500px ÷ 約24px/行 ≒ 20行`）分の行番号しか生成しなかった。
      2) また、外部 CSS（`src/index.css`）で `.cm-gutters` に `min-height: 100% !important;` を指定すると、CodeMirror の `GutterView` が文書全体の高さに合わせて動的に付与するインラインスタイル `this.dom.style.minHeight = (this.view.contentHeight / this.view.scaleY) + "px"`（非 `!important`）が `!important` によって上書き無効化され、`.cm-gutters` の高さが `baseTheme` の `height: 100%`（1画面分＝約500px＝**20行分**）に固定されてしまい、`.cm-gutter` の `overflow: hidden` によって21行目以降の行番号がすべてクリップされる。
    - **対策**: `.cm-gutters` および `.cm-gutter` には `height: auto !important; min-height: 100%;`（`min-height` には `!important` を付けない）を指定し、`.cm-gutter` に `overflow: hidden !important` を指定しないこと。これにより CodeMirror のインライン `style.minHeight`（`contentHeight`）が正常に優先され、何百行・何千行のファイルでも末尾まで全ての行番号が表示される。
+4. **Rust 文字列処理における `bytes[i] as char` キャストによる日本語 UTF-8 文字化けの防止 (Phase 33)**:
+   - **事象**: HTML/PDFエクスポート（`convert_markdown_to_html` → `sanitize_exported_html` → `sanitize_tag_attributes`）において、日本語がすべて `ã ‚...` のように文字化けする。
+   - **原因**: `input.as_bytes()` で取得した UTF-8 バイト列の要素 `bytes[i]`（`u8`）を `bytes[i] as char` で `String` に push すると、マルチバイト文字（日本語の3バイト等）が1バイトずつ Latin-1 文字（`U+0080`〜`U+00FF`）として誤変換されるため。
+   - **対策**: Rust で UTF-8 文字列を走査・加工する際は、絶対に非 ASCII 領域の `u8` を `as char` でキャストしてはならない。必ず `input.char_indices()` で `char` 単位または有効な文字境界スライス（`&input[start..end]`）として操作し、大文字小文字比較でバイトインデックスを共有する場合は `to_ascii_lowercase()` を使用すること。
+5. **Milkdown 組み込みの引用ショートカット（`blockquoteKeymap`: `Mod-Shift-b`）と書式クリア（`Ctrl + Shift + B`）の競合防止 (Phase 33)**:
+   - **事象**: WYSIWYG モードで書式クリア（`Ctrl + Shift + B`）を実行すると、書式クリアとともに行頭に `>`（引用ブロック）が追加される。
+   - **原因**: `@milkdown/preset-commonmark` の `blockquoteKeymap` がデフォルトで `Mod-Shift-b`（`Ctrl + Shift + B`）に `WrapInBlockquote` コマンドをバインドしており、React のバブリング `onKeyDown` より先に ProseMirror 内部で発火するため。
+   - **対策**: `Editor.tsx` の Milkdown `.config()` で `blockquoteKeymap.ctx` をオーバーライドして `Mod-Shift-b` を解除（`Mod-Shift-q` に変更）し、さらに `onKeyDownCapture` で `Ctrl + Shift + B` を先行捕捉して `e.preventDefault(); e.stopPropagation();` を実行すること。また WYSIWYG での部分 Mark 解除時は、選択範囲前後の隣接空白の Mark も除去してシリアライズ時の CommonMark/GFM デリミタ flanking 崩壊を防ぐこと。
